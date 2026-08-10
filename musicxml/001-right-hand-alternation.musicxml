@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 4.0 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd">
+<score-partwise version="4.0">
+  <work><work-title>Lesson 001 - 右手の交互運指</work-title></work>
+  <identification>
+    <creator type="composer">Fingerstyle Guitar Practice</creator>
+    <encoding><software>ChatGPT Work</software><encoding-date>2026-08-11</encoding-date></encoding>
+  </identification>
+  <part-list>
+    <score-part id="P1">
+      <part-name>Guitar</part-name>
+      <score-instrument id="P1-I1"><instrument-name>Acoustic Guitar (nylon)</instrument-name></score-instrument>
+      <midi-instrument id="P1-I1"><midi-channel>1</midi-channel><midi-program>25</midi-program></midi-instrument>
+    </score-part>
+  </part-list>
+  <part id="P1">
+    <measure number="1">
+      <attributes>
+        <divisions>1</divisions>
+        <key><fifths>0</fifths></key>
+        <time><beats>4</beats><beat-type>4</beat-type></time>
+        <clef><sign>G</sign><line>2</line><clef-octave-change>-1</clef-octave-change></clef>
+      </attributes>
+      <direction placement="above"><direction-type><metronome><beat-unit>quarter</beat-unit><per-minute>60</per-minute></metronome></direction-type><sound tempo="60"/></direction>
+      <note><pitch><step>G</step><octave>4</octave></pitch><duration>1</duration><type>quarter</type><notations><technical><string>3</string><fret>0</fret><fingering>i</fingering></technical></notations></note>
+      <note><pitch><step>A</step><octave>4</octave></pitch><duration>1</duration><type>quarter</type><notations><technical><string>3</string><fret>2</fret><fingering>m</fingering></technical></notations></note>
+      <note><pitch><step>B</step><octave>4</octave></pitch><duration>1</duration><type>quarter</type><notations><technical><string>2</string><fret>0</fret><fingering>i</fingering></technical></notations></note>
+      <note><pitch><step>C</step><octave>5</octave></pitch><duration>1</duration><type>quarter</type><notations><technical><string>2</string><fret>1</fret><fingering>m</fingering></technical></notations></note>
+    </measure>
+    <measure number="2">
+      <note><pitch><step>D</step><octave>5</octave></pitch><duration>1</duration><type>quarter</type><notations><technical><string>2</string><fret>3</fret><fingering>i</fingering></technical></notations></note>
+      <note><pitch><step>E</step><octave>5</octave></pitch><duration>1</duration><type>quarter</type><notations><technical><string>1</string><fret>0</fret><fingering>m</fingering></technical></notations></note>
+      <note><pitch><step>D</step><octave>5</octave></pitch><duration>1</duration><type>quarter</type><notations><technical><string>2</string><fret>3</fret><fingering>i</fingering></technical></notations></note>
+      <note><pitch><step>C</step><octave>5</octave></pitch><duration>1</duration><type>quarter</type><notations><technical><string>2</string><fret>1</fret><fingering>m</fingering></technical></notations></note>
+    </measure>
+    <measure number="3">
+      <note><pitch><step>B</step><octave>4</octave></pitch><duration>1</duration><type>quarter</type><notations><technical><string>2</string><fret>0</fret><fingering>i</fingering></technical></notations></note>
+      <note><pitch><step>A</step><octave>4</octave></pitch><duration>1</duration><type>quarter</type><notations><technical><string>3</string><fret>2</fret><fingering>m</fingering></technical></notations></note>
+      <note><pitch><step>G</step><octave>4</octave></pitch><duration>1</duration><type>quarter</type><notations><technical><string>3</string><fret>0</fret><fingering>i</fingering></technical></notations></note>
+      <note><rest/><duration>1</duration><type>quarter</type></note>
+      <barline location="right"><bar-style>light-heavy</bar-style></barline>
+    </measure>
+  </part>
+</score-partwise>
