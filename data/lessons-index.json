@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-08-11T08:00:00+09:00",
+  "lessons": [
+    {
+      "id": "001",
+      "date": "2026-08-11",
+      "title": "右手の交互運指",
+      "subtitle": "i–mで音量と間隔を揃える",
+      "durationMinutes": 10,
+      "level": 1,
+      "path": "lessons/001.json"
+    }
+  ]
+}
