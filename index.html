@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#173f32">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="ギター練習帖">
+  <meta name="description" content="毎日10分、指弾きギターの練習譜を一課ずつ積み上げるアプリ。">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icon-192.svg">
+  <link rel="apple-touch-icon" href="icon-192.svg">
+  <link rel="stylesheet" href="guitar.css">
+  <title>指弾きギター練習帖</title>
+</head>
+<body>
+  <main id="practice-app" data-source="./data">
+    <div class="app-shell">
+      <header class="masthead">
+        <div class="masthead-rule"></div>
+        <div class="masthead-topline">
+          <span>FINGERSTYLE STUDIES</span>
+          <button class="text-button" id="open-lessons" type="button">全課を見る</button>
+        </div>
+        <div class="title-row">
+          <div>
+            <p class="eyebrow">毎日ひとつ、指に残す</p>
+            <h1>指弾きギター練習帖</h1>
+          </div>
+          <div class="issue-mark" aria-label="現在のレッスン番号">
+            <span>LESSON</span><strong id="lesson-number">001</strong>
+          </div>
+        </div>
+        <div class="lesson-meta-line">
+          <time id="lesson-date">2026.08.11</time>
+          <span id="lesson-level">基礎 I</span>
+          <span id="lesson-duration">10 MIN</span>
+        </div>
+      </header>
+
+      <nav class="section-nav" aria-label="ページ内メニュー">
+        <button type="button" data-scroll="today">今日</button>
+        <button type="button" data-scroll="score">譜面</button>
+        <button type="button" data-scroll="routine">メニュー</button>
+        <button type="button" data-scroll="record">記録</button>
+      </nav>
+
+      <section class="hero-card" id="today">
+        <div class="hero-kicker"><span class="status-dot"></span> TODAY'S FOCUS</div>
+        <h2 id="lesson-title">右手の交互運指</h2>
+        <p class="hero-subtitle" id="lesson-subtitle">i–mで音量と間隔を揃える</p>
+        <p class="hero-objective" id="lesson-objective">読み込み中です。</p>
+        <div class="focus-grid">
+          <div><span>START</span><strong id="bpm-start">♩ = 60</strong></div>
+          <div><span>TARGET</span><strong id="bpm-target">♩ = 72</strong></div>
+          <div><span>RIGHT HAND</span><strong id="right-hand">i – m</strong></div>
+        </div>
+      </section>
+
+      <section class="paper-section" id="score">
+        <div class="section-heading">
+          <div><p class="section-index">01 / SCORE</p><h2>今日のTAB譜</h2></div>
+          <button class="outline-button" id="musicxml-link" type="button">MusicXML</button>
+        </div>
+        <div class="notation-note">
+          <span>標準チューニング</span><strong id="tuning">E A D G B E</strong>
+          <span>右手記号：p 親指・i 人差し指・m 中指・a 薬指</span>
+        </div>
+        <div class="tab-card">
+          <div class="tab-caption"><span id="tab-title">Cメジャー断片</span><span id="tab-rhythm">4/4 ・ 四分音符</span></div>
+          <pre id="main-tab" aria-label="ギターTAB譜">読み込み中…</pre>
+          <div class="finger-line"><span>右手</span><code id="right-hand-pattern">i m i m i m</code></div>
+        </div>
+        <p class="score-tip" id="score-tip">速さより、二本の指の音色を揃えることを優先します。</p>
+      </section>
+
+      <section class="paper-section" id="routine">
+        <div class="section-heading">
+          <div><p class="section-index">02 / ROUTINE</p><h2>10分メニュー</h2></div>
+          <span class="completion-label" id="completion-label">0 / 4 完了</span>
+        </div>
+        <div class="routine-list" id="routine-list"><p class="loading-copy">練習メニューを読み込んでいます。</p></div>
+      </section>
+
+      <section class="paper-section record-section" id="record">
+        <div class="section-heading">
+          <div><p class="section-index">03 / RECORD</p><h2>今日の記録</h2></div>
+          <div class="progress-disc" id="progress-disc"><strong id="progress-value">0%</strong></div>
+        </div>
+        <div class="checkpoints" id="checkpoints"></div>
+        <div class="record-actions">
+          <button class="primary-button" id="complete-all" type="button">今日の練習を完了</button>
+          <button class="text-button muted" id="reset-progress" type="button">記録をリセット</button>
+        </div>
+      </section>
+
+      <section class="next-card">
+        <p>NEXT STUDY</p><h2 id="next-title">親指 p の独立</h2>
+        <span id="next-description">低音を保ちながら旋律を動かします。</span>
+      </section>
+
+      <div class="lesson-navigation">
+        <button id="previous-lesson" type="button">← 前の課</button>
+        <button id="next-lesson" type="button">次の課 →</button>
+      </div>
+
+      <footer><span>FINGERSTYLE GUITAR PRACTICE</span><span>練習は短く、記録は長く。</span></footer>
+    </div>
+
+    <aside class="metronome-dock" aria-label="メトロノーム">
+      <button class="tempo-step" id="tempo-down" type="button" aria-label="テンポを下げる">−</button>
+      <div class="tempo-display"><span>METRONOME</span><strong><span id="tempo-value">60</span> BPM</strong></div>
+      <button class="metronome-toggle" id="metronome-toggle" type="button">START</button>
+      <button class="tempo-step" id="tempo-up" type="button" aria-label="テンポを上げる">＋</button>
+    </aside>
+
+    <dialog id="lesson-dialog" class="lesson-dialog">
+      <div class="dialog-header">
+        <div><p class="section-index">ARCHIVE</p><h2>練習一覧</h2></div>
+        <button id="close-lessons" class="dialog-close" type="button" aria-label="閉じる">×</button>
+      </div>
+      <div id="lesson-list" class="lesson-list"></div>
+    </dialog>
+  </main>
+  <script src="guitar.js" defer></script>
+</body>
+</html>
