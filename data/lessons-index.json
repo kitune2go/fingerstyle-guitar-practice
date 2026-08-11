@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-08-11T08:00:00+09:00",
+  "updatedAt": "2026-08-12T04:17:02+09:00",
   "lessons": [
     {
       "id": "001",
@@ -10,6 +10,15 @@
       "durationMinutes": 10,
       "level": 1,
       "path": "lessons/001.json"
+    },
+    {
+      "id": "002",
+      "date": "2026-08-12",
+      "title": "親指 p の独立",
+      "subtitle": "低音を保ったままi–mを動かす",
+      "durationMinutes": 10,
+      "level": 1,
+      "path": "lessons/002.json"
     }
   ]
 }
