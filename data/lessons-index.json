@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-08-12T04:17:02+09:00",
+  "updatedAt": "2026-08-22T23:40:00+09:00",
   "lessons": [
     {
       "id": "001",
@@ -19,6 +19,15 @@
       "durationMinutes": 10,
       "level": 1,
       "path": "lessons/002.json"
+    },
+    {
+      "id": "003",
+      "date": "2026-08-22",
+      "title": "p–i–m–aアルペジオ",
+      "subtitle": "親指から薬指までを一続きにする",
+      "durationMinutes": 10,
+      "level": 1,
+      "path": "lessons/003.json"
     }
   ]
 }
