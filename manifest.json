@@ -1,7 +1,7 @@
 {
-  "name": "指弾きギター練習帖",
-  "short_name": "ギター練習帖",
-  "description": "毎日10分、指弾きギターの練習譜を一課ずつ積み上げるアプリ。",
+  "name": "ギター＆リズム練習帖",
+  "short_name": "ギター練習",
+  "description": "基礎、音の鳴る楽譜フレーズ、身体リズムを一つにしたギター練習アプリ。",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
