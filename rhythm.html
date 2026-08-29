@@ -1,0 +1,1245 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b1020" />
+  <title>リズム練習｜ギター練習帖</title>
+  <style>
+    :root {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color-scheme: dark;
+      --panel: #151c31;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --event: #166534;
+      --now: #f59e0b;
+      --line: #475569;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      width: 100%;
+      min-height: 100%;
+      overflow-x: hidden;
+      background: linear-gradient(180deg, #0b1020, #111827);
+      color: var(--text);
+    }
+    body { min-height: 100svh; }
+    .app {
+      width: 100%;
+      max-width: 760px;
+      margin: 0 auto;
+      padding:
+        max(12px, env(safe-area-inset-top))
+        max(10px, env(safe-area-inset-right))
+        max(20px, env(safe-area-inset-bottom))
+        max(10px, env(safe-area-inset-left));
+    }
+    h1 {
+      font-size: clamp(1.25rem, 5vw, 1.6rem);
+      margin: 0 0 3px;
+    }
+    .sub {
+      color: var(--muted);
+      font-size: .9rem;
+      margin-bottom: 12px;
+    }
+    .panel {
+      width: 100%;
+      min-width: 0;
+      background: rgba(21, 28, 49, .96);
+      border: 1px solid rgba(148,163,184,.18);
+      border-radius: 16px;
+      padding: 13px;
+      box-shadow: 0 10px 28px rgba(0,0,0,.2);
+      margin-bottom: 12px;
+      overflow: hidden;
+    }
+    .controls {
+      display: grid;
+      gap: 12px;
+    }
+    .status {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      color: var(--muted);
+      font-size: .86rem;
+    }
+    .pattern-block {
+      display: grid;
+      gap: 7px;
+    }
+    .field-label {
+      color: var(--muted);
+      font-size: .82rem;
+    }
+    select {
+      width: 100%;
+      min-height: 46px;
+      border-radius: 12px;
+      border: 1px solid #334155;
+      background: #0f172a;
+      color: var(--text);
+      padding: 0 10px;
+      font-size: .95rem;
+    }
+    .pattern-info {
+      padding: 9px 10px;
+      border-radius: 10px;
+      background: #0f172a;
+      color: #cbd5e1;
+      font-size: .78rem;
+      line-height: 1.5;
+    }
+    .fun-toolbar {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 8px;
+      margin-bottom: 9px;
+    }
+    .view-switch {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 5px;
+    }
+    .view-toggle,
+    .ghost-toggle {
+      min-height: 42px;
+      padding: 6px;
+      background: #334155;
+      color: #cbd5e1;
+      font-size: .82rem;
+      border: 1px solid rgba(148,163,184,.18);
+    }
+    .view-toggle.active {
+      background: #075985;
+      color: white;
+      border-color: #38bdf8;
+    }
+    .ghost-toggle.active {
+      background: #6d28d9;
+      color: white;
+      border-color: #a78bfa;
+    }
+    .ghost-status {
+      min-height: 34px;
+      display: flex;
+      align-items: center;
+      padding: 7px 9px;
+      margin-bottom: 9px;
+      border-radius: 10px;
+      background: #0f172a;
+      color: #cbd5e1;
+      font-size: .74rem;
+      line-height: 1.4;
+    }
+    .view-surface.hidden {
+      display: none;
+    }
+    .orbit-wrap {
+      width: 100%;
+      display: grid;
+      place-items: center;
+      padding: 3px 0;
+    }
+    .orbit-svg {
+      width: min(100%, 430px);
+      height: auto;
+      aspect-ratio: 1 / 1;
+      display: block;
+    }
+    .orbit-ring {
+      fill: none;
+      stroke: #334155;
+      stroke-width: 1.4;
+    }
+    .orbit-ring.inactive {
+      opacity: .28;
+    }
+    .orbit-marker {
+      fill: #22c55e;
+      stroke: #0b1020;
+      stroke-width: 1.1;
+      transition: opacity .08s linear, r .05s linear, fill .08s linear;
+    }
+    .orbit-marker.inactive {
+      fill: #475569;
+      opacity: .34;
+    }
+    .orbit-marker.ghosted {
+      fill: #a78bfa;
+      opacity: .48;
+    }
+    .orbit-marker.hit-now {
+      fill: #f59e0b;
+      r: 5.2;
+      opacity: 1;
+    }
+    .orbit-label {
+      fill: #cbd5e1;
+      font-size: 9px;
+      font-weight: 700;
+      text-anchor: middle;
+      paint-order: stroke;
+      stroke: #0b1020;
+      stroke-width: 2.2px;
+      stroke-linejoin: round;
+    }
+    .orbit-label.inactive {
+      opacity: .35;
+    }
+    .orbit-playhead {
+      stroke: #f59e0b;
+      stroke-width: 2.2;
+      stroke-linecap: round;
+      filter: drop-shadow(0 0 4px rgba(245,158,11,.55));
+    }
+    .orbit-center {
+      fill: #0f172a;
+      stroke: #475569;
+      stroke-width: 1;
+    }
+    .orbit-beat {
+      fill: #f8fafc;
+      font-size: 22px;
+      font-weight: 800;
+      text-anchor: middle;
+      dominant-baseline: middle;
+    }
+    .orbit-caption {
+      text-align: center;
+      color: var(--muted);
+      font-size: .73rem;
+      margin-top: 2px;
+    }
+
+    .tempo-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 72px;
+      gap: 8px;
+      align-items: center;
+      margin-top: 5px;
+    }
+    input[type="range"] {
+      width: 100%;
+      min-width: 0;
+    }
+    input[type="number"] {
+      width: 100%;
+      min-width: 0;
+      font-size: 1rem;
+      padding: 9px 8px;
+      border-radius: 10px;
+      border: 1px solid #334155;
+      background: #0f172a;
+      color: var(--text);
+      text-align: center;
+    }
+    .buttons {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    button {
+      width: 100%;
+      min-width: 0;
+      min-height: 48px;
+      border: 0;
+      border-radius: 12px;
+      font-size: 1rem;
+      font-weight: 750;
+      color: white;
+      background: #2563eb;
+      touch-action: manipulation;
+    }
+    button.stop { background: #b91c1c; }
+    button:disabled { opacity: .42; }
+    .layer-panel {
+      display: grid;
+      gap: 9px;
+      padding-top: 2px;
+    }
+    .layer-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: center;
+      color: var(--muted);
+      font-size: .82rem;
+    }
+    .part-buttons {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 6px;
+    }
+    .part-toggle {
+      min-height: 42px;
+      padding: 6px 3px;
+      background: #334155;
+      color: #cbd5e1;
+      font-size: clamp(.68rem, 3vw, .82rem);
+      border: 1px solid rgba(148,163,184,.18);
+    }
+    .part-toggle.active {
+      background: #166534;
+      color: white;
+      border-color: #22c55e;
+    }
+    .layer-actions {
+      display: grid;
+      grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr);
+      gap: 7px;
+    }
+    .add-layer {
+      background: #7c3aed;
+      min-height: 46px;
+      font-size: .9rem;
+    }
+    .reset-layer {
+      background: #475569;
+      min-height: 46px;
+      font-size: .86rem;
+    }
+    .part-row.inactive { opacity: .30; }
+    .part-row.inactive .cell.event { background: #334155; }
+    .beat {
+      font-size: clamp(2rem, 10vw, 2.8rem);
+      font-weight: 850;
+      text-align: center;
+      line-height: 1;
+      margin-top: 2px;
+      font-variant-numeric: tabular-nums;
+    }
+    .board {
+      width: 100%;
+      min-width: 0;
+    }
+    .ruler,
+    .part-row {
+      display: grid;
+      grid-template-columns: clamp(52px, 18vw, 78px) minmax(0, 1fr);
+      gap: 7px;
+      align-items: center;
+    }
+    .ruler { margin-bottom: 6px; }
+    .ruler-label {
+      color: var(--muted);
+      font-size: .72rem;
+    }
+    .beat-ruler {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 2px;
+      text-align: center;
+      color: #cbd5e1;
+      font-size: .72rem;
+      font-weight: 700;
+    }
+    .part-row + .part-row { margin-top: 7px; }
+    .part-label {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: #e2e8f0;
+      font-weight: 750;
+      font-size: clamp(.72rem, 3.2vw, .9rem);
+    }
+    .steps {
+      min-width: 0;
+      display: grid;
+      grid-template-columns: repeat(48, minmax(0, 1fr));
+      gap: 1px;
+    }
+    .cell {
+      min-width: 0;
+      height: clamp(13px, 4.2vw, 22px);
+      border-radius: 2px;
+      background: #263248;
+      border: 0;
+      transition: background .025s linear, transform .025s linear;
+    }
+    .cell:nth-child(12n + 1) {
+      box-shadow: inset 2px 0 0 var(--line);
+    }
+    .cell.event { background: var(--event); }
+    .cell.now {
+      outline: 2px solid var(--now);
+      outline-offset: -1px;
+      transform: scaleY(1.12);
+      z-index: 1;
+    }
+    .cell.event.now { background: var(--now); }
+    .legend {
+      margin-top: 11px;
+      color: var(--muted);
+      font-size: .79rem;
+      line-height: 1.55;
+    }
+    .sync-note {
+      margin-top: 6px;
+      color: #cbd5e1;
+      font-size: .71rem;
+      line-height: 1.45;
+    }
+    @media (max-width: 360px) {
+      .panel { padding: 10px; }
+      .part-label { font-size: .68rem; }
+      .steps { gap: 0; }
+      .cell { border-radius: 1px; }
+    }
+  
+    .unified-mode-nav{position:sticky;top:0;z-index:100;display:grid;grid-template-columns:repeat(3,1fr);width:100%;max-width:760px;margin:0 auto;background:rgba(15,23,42,.96);backdrop-filter:blur(12px);border-bottom:1px solid #334155}
+    .unified-mode-nav a{padding:12px 6px;text-align:center;color:#cbd5e1;text-decoration:none;font-size:.8rem;font-weight:800;border-right:1px solid #334155}
+    .unified-mode-nav a:last-child{border-right:0}.unified-mode-nav a[aria-current="page"]{background:#075985;color:#fff}
+  </style>
+</head>
+<body>
+  <nav class="unified-mode-nav" aria-label="練習モード">
+    <a href="./index.html">基礎</a>
+    <a href="./phrase.html">フレーズ</a>
+    <a href="./rhythm.html" aria-current="page">リズム</a>
+  </nav>
+  <main class="app">
+    <h1>Rhythm Practice</h1>
+    <div class="sub">口・右手・左手・足の独立練習</div>
+
+    <section class="panel controls">
+      <div class="pattern-block">
+        <label class="field-label" for="patternSelect">Genre / Pattern</label>
+        <select id="patternSelect"></select>
+        <div class="pattern-info" id="patternInfo"></div>
+      </div>
+
+      <div>
+        <div class="status">
+          <span>BPM</span>
+          <span id="bpmLabel">60</span>
+        </div>
+        <div class="tempo-row">
+          <input id="bpmRange" type="range" min="40" max="200" value="60" />
+          <input id="bpmNumber" type="number" min="40" max="200" value="60" />
+        </div>
+      </div>
+
+      <div class="buttons">
+        <button id="startBtn">▶ Start</button>
+        <button id="stopBtn" class="stop" disabled>■ Stop</button>
+      </div>
+
+      <div class="layer-panel">
+        <div class="layer-title">
+          <span>重ねるパート</span>
+          <span id="layerCount">1 / 4</span>
+        </div>
+        <div class="part-buttons" id="partButtons"></div>
+        <div class="layer-actions">
+          <button id="addLayerBtn" class="add-layer">＋ 次のパートを重ねる</button>
+          <button id="resetLayerBtn" class="reset-layer">Voiceだけ</button>
+        </div>
+      </div>
+
+      <div class="beat" id="beatDisplay">—</div>
+      <div class="status">
+        <span id="stateText">停止中</span>
+        <span>4/4 ・ 1小節ループ</span>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="fun-toolbar">
+        <div class="view-switch">
+          <button id="gridViewBtn" class="view-toggle">▦ Grid</button>
+          <button id="orbitViewBtn" class="view-toggle">◎ Orbit</button>
+        </div>
+        <button id="ghostBtn" class="ghost-toggle">👻 GHOST OFF</button>
+      </div>
+
+      <div id="ghostStatus" class="ghost-status">
+        GhostはOFF。ONにすると4小節ごとに1パートずつ音が消えます。
+      </div>
+
+      <div id="gridView" class="view-surface">
+        <div class="board" id="board"></div>
+      </div>
+
+      <div id="orbitView" class="view-surface hidden">
+        <div class="orbit-wrap">
+          <svg id="orbitSvg" class="orbit-svg" viewBox="0 0 300 300" role="img" aria-label="Rhythm orbit visualization"></svg>
+        </div>
+        <div class="orbit-caption">1周 = 1小節。円周の点が各パートの発音位置です。</div>
+      </div>
+
+      <div class="legend" id="legend"></div>
+      <div class="sync-note">
+        1拍12分割で16分音符と3連系を両立。各プリセットはジャンルの典型的な骨格を独立練習向けに単純化しています。
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const STEPS_PER_BEAT = 12;
+    const STEPS_PER_BAR = 48;
+
+    const Q = [0, 12, 24, 36];
+    const E = [0, 6, 12, 18, 24, 30, 36, 42];
+    const S16 = [0, 3, 6, 9, 12, 15, 18, 21, 24, 27, 30, 33, 36, 39, 42, 45];
+    const TRIPLET8 = [0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44];
+    const SWUNG8 = [0, 8, 12, 20, 24, 32, 36, 44];
+
+    const partDefs = [
+      { key: "voice", label: "Voice", freq: 920, gain: 0.095, duration: 0.030 },
+      { key: "right", label: "R.Hand", freq: 690, gain: 0.085, duration: 0.026 },
+      { key: "left", label: "L.Hand", freq: 460, gain: 0.085, duration: 0.032 },
+      { key: "foot", label: "Foot", freq: 150, gain: 0.15, duration: 0.060 }
+    ];
+
+    const patterns = {
+      basic: {
+        name: "Basic Independence",
+        family: "基礎",
+        bpm: 60,
+        description: "4分・8分・2拍3連・2分を同時に走らせる基礎独立課題。",
+        events: {
+          voice: Q,
+          right: E,
+          left: [0, 8, 16, 24, 32, 40],
+          foot: [0, 24]
+        }
+      },
+      rock8: {
+        name: "Rock 8-Beat",
+        family: "Rock",
+        bpm: 92,
+        description: "8ビートの骨格。右手8分、左手2・4拍、足1・3拍。",
+        events: {
+          voice: Q,
+          right: E,
+          left: [12, 36],
+          foot: [0, 24]
+        }
+      },
+      funk16: {
+        name: "Funk 16th",
+        family: "Funk",
+        bpm: 84,
+        description: "16分の細かいパルスに、バックビートとシンコペートした足を重ねる。",
+        events: {
+          voice: Q,
+          right: S16,
+          left: [12, 21, 36, 45],
+          foot: [0, 9, 24, 30, 42]
+        }
+      },
+      shuffle: {
+        name: "Shuffle / Blues",
+        family: "Blues",
+        bpm: 90,
+        description: "3連の1個目と3個目を使うシャッフル系の跳ねた8分。",
+        events: {
+          voice: Q,
+          right: SWUNG8,
+          left: [12, 36],
+          foot: [0, 24]
+        }
+      },
+      jazzRide: {
+        name: "Jazz Ride",
+        family: "Jazz",
+        bpm: 120,
+        description: "代表的なライドの骨格。2拍目・4拍目の直前にスキップノートを置く。",
+        events: {
+          voice: Q,
+          right: [0, 12, 20, 24, 36, 44],
+          left: [12, 36],
+          foot: Q
+        }
+      },
+      reggae: {
+        name: "Reggae One-Drop",
+        family: "Reggae",
+        bpm: 76,
+        description: "裏拍を刻み、3拍目に重心を置くOne-Drop型の単純化パターン。",
+        events: {
+          voice: Q,
+          right: [6, 18, 30, 42],
+          left: [24],
+          foot: [24]
+        }
+      },
+      house: {
+        name: "House / Four-on-the-floor",
+        family: "Dance",
+        bpm: 124,
+        description: "足は4つ打ち、右手は裏8分、左手は2・4拍。",
+        events: {
+          voice: Q,
+          right: [6, 18, 30, 42],
+          left: [12, 36],
+          foot: Q
+        }
+      },
+      disco: {
+        name: "Disco 16th",
+        family: "Dance",
+        bpm: 118,
+        description: "4つ打ちの足に16分パルスを重ねるディスコ系の練習骨格。",
+        events: {
+          voice: [6, 18, 30, 42],
+          right: S16,
+          left: [12, 36],
+          foot: Q
+        }
+      },
+      tresillo: {
+        name: "Tresillo 3-3-2",
+        family: "Latin / Afro",
+        bpm: 100,
+        description: "8分単位の3-3-2。ラテン系やポップスにも広く現れる周期。",
+        events: {
+          voice: Q,
+          right: E,
+          left: [0, 18, 36],
+          foot: [0, 24]
+        }
+      },
+      bossa: {
+        name: "Bossa-style",
+        family: "Brazil",
+        bpm: 116,
+        description: "ボサノヴァ系のシンコペーションを独立練習用に簡略化。",
+        events: {
+          voice: Q,
+          right: E,
+          left: [0, 9, 18, 24, 33, 42],
+          foot: [0, 24]
+        }
+      },
+      afro12: {
+        name: "12/8 Cross-Rhythm",
+        family: "Afro / 12-8",
+        bpm: 96,
+        description: "3連系の12/8パルスに、3分割のクロスリズムを重ねる。",
+        events: {
+          voice: Q,
+          right: TRIPLET8,
+          left: [0, 16, 32],
+          foot: Q
+        }
+      },
+      poly32: {
+        name: "3:2 Polyrhythm",
+        family: "Polyrhythm",
+        bpm: 72,
+        description: "1小節を3等分する周期と2等分する周期を同時に維持する。",
+        events: {
+          voice: [0, 24],
+          right: [0, 16, 32],
+          left: Q,
+          foot: [0, 24]
+        }
+      }
+    };
+
+    const bpmRange = document.getElementById("bpmRange");
+    const bpmNumber = document.getElementById("bpmNumber");
+    const bpmLabel = document.getElementById("bpmLabel");
+    const startBtn = document.getElementById("startBtn");
+    const stopBtn = document.getElementById("stopBtn");
+    const beatDisplay = document.getElementById("beatDisplay");
+    const stateText = document.getElementById("stateText");
+    const board = document.getElementById("board");
+    const legend = document.getElementById("legend");
+    const partButtons = document.getElementById("partButtons");
+    const addLayerBtn = document.getElementById("addLayerBtn");
+    const resetLayerBtn = document.getElementById("resetLayerBtn");
+    const layerCount = document.getElementById("layerCount");
+    const patternSelect = document.getElementById("patternSelect");
+    const patternInfo = document.getElementById("patternInfo");
+    const gridViewBtn = document.getElementById("gridViewBtn");
+    const orbitViewBtn = document.getElementById("orbitViewBtn");
+    const ghostBtn = document.getElementById("ghostBtn");
+    const ghostStatus = document.getElementById("ghostStatus");
+    const gridView = document.getElementById("gridView");
+    const orbitView = document.getElementById("orbitView");
+    const orbitSvg = document.getElementById("orbitSvg");
+
+    const activeParts = new Set(["voice"]);
+    const partGainBuses = new Map();
+
+    let currentPatternKey = "basic";
+    let currentView = "orbit";
+    let ghostMode = false;
+    const ghostMutedParts = new Set();
+    const visibleGhostMutedParts = new Set();
+    let scheduledBarCount = 0;
+    let renderedBarCount = 0;
+    const ghostUiQueue = [];
+
+    let audioCtx = null;
+    let running = false;
+    let nextStep = 0;
+    let nextNoteTime = 0;
+    let schedulerId = null;
+    let rafId = null;
+    let shownStep = -1;
+
+    const visualQueue = [];
+    const lookaheadMs = 20;
+    const scheduleAheadSec = 0.10;
+
+    function currentPattern() {
+      return patterns[currentPatternKey];
+    }
+
+    function currentEvents(key) {
+      return currentPattern().events[key] || [];
+    }
+
+    function clampBpm(value) {
+      const n = Number(value);
+      if (!Number.isFinite(n)) return 60;
+      return Math.min(200, Math.max(40, Math.round(n)));
+    }
+
+    function setBpm(value) {
+      const bpm = clampBpm(value);
+      bpmRange.value = bpm;
+      bpmNumber.value = bpm;
+      bpmLabel.textContent = bpm;
+    }
+
+    function buildPatternSelect() {
+      patternSelect.innerHTML = "";
+      for (const [key, pattern] of Object.entries(patterns)) {
+        const option = document.createElement("option");
+        option.value = key;
+        option.textContent = pattern.family + " — " + pattern.name;
+        patternSelect.appendChild(option);
+      }
+      patternSelect.value = currentPatternKey;
+    }
+
+    function buildPartButtons() {
+      partButtons.innerHTML = "";
+      for (const part of partDefs) {
+        const button = document.createElement("button");
+        button.className = "part-toggle";
+        button.dataset.partButton = part.key;
+        button.textContent = part.label;
+        button.addEventListener("click", () => togglePart(part.key));
+        partButtons.appendChild(button);
+      }
+      updatePartUI();
+    }
+
+    function buildBoard() {
+      board.innerHTML = `
+        <div class="ruler">
+          <div class="ruler-label">PART</div>
+          <div class="beat-ruler">
+            <span>1</span><span>2</span><span>3</span><span>4</span>
+          </div>
+        </div>
+      `;
+
+      for (const part of partDefs) {
+        const row = document.createElement("div");
+        row.className = "part-row";
+        row.dataset.partRow = part.key;
+
+        const label = document.createElement("div");
+        label.className = "part-label";
+        label.textContent = part.label;
+
+        const steps = document.createElement("div");
+        steps.className = "steps";
+        const events = currentEvents(part.key);
+
+        for (let step = 0; step < STEPS_PER_BAR; step++) {
+          const cell = document.createElement("div");
+          cell.className = "cell";
+          if (events.includes(step)) cell.classList.add("event");
+          cell.dataset.step = String(step);
+          cell.dataset.part = part.key;
+          steps.appendChild(cell);
+        }
+
+        row.appendChild(label);
+        row.appendChild(steps);
+        board.appendChild(row);
+      }
+
+      const p = currentPattern();
+      patternInfo.textContent = p.description + " 推奨開始BPM: " + p.bpm;
+      legend.textContent =
+        partDefs.map(part => part.label + ": " + currentEvents(part.key).length + " hits/bar").join(" ／ ");
+
+      buildOrbit();
+      updatePartUI();
+    }
+
+    function svgEl(name, attrs = {}) {
+      const el = document.createElementNS("http://www.w3.org/2000/svg", name);
+      for (const [key, value] of Object.entries(attrs)) {
+        el.setAttribute(key, String(value));
+      }
+      return el;
+    }
+
+    function buildOrbit() {
+      orbitSvg.innerHTML = "";
+
+      const center = 150;
+      const radii = [58, 82, 106, 130];
+
+      partDefs.forEach((part, index) => {
+        const radius = radii[index];
+
+        const ring = svgEl("circle", {
+          cx: center,
+          cy: center,
+          r: radius,
+          class: "orbit-ring",
+          "data-orbit-ring": part.key
+        });
+        orbitSvg.appendChild(ring);
+
+        for (const step of currentEvents(part.key)) {
+          const angle = (step / STEPS_PER_BAR) * Math.PI * 2 - Math.PI / 2;
+          const x = center + Math.cos(angle) * radius;
+          const y = center + Math.sin(angle) * radius;
+
+          const marker = svgEl("circle", {
+            cx: x.toFixed(2),
+            cy: y.toFixed(2),
+            r: 3.7,
+            class: "orbit-marker",
+            "data-orbit-part": part.key,
+            "data-orbit-step": step
+          });
+          orbitSvg.appendChild(marker);
+        }
+
+        const label = svgEl("text", {
+          x: center,
+          y: center - radius + 11,
+          class: "orbit-label",
+          "data-orbit-label": part.key
+        });
+        label.textContent = part.label;
+        orbitSvg.appendChild(label);
+      });
+
+      const playhead = svgEl("line", {
+        id: "orbitPlayhead",
+        x1: center,
+        y1: center,
+        x2: center,
+        y2: 10,
+        class: "orbit-playhead"
+      });
+      orbitSvg.appendChild(playhead);
+
+      const centerDisc = svgEl("circle", {
+        cx: center,
+        cy: center,
+        r: 23,
+        class: "orbit-center"
+      });
+      orbitSvg.appendChild(centerDisc);
+
+      const beatText = svgEl("text", {
+        id: "orbitBeat",
+        x: center,
+        y: center + 1,
+        class: "orbit-beat"
+      });
+      beatText.textContent = "—";
+      orbitSvg.appendChild(beatText);
+
+      updateOrbitState();
+    }
+
+    function updateOrbitState() {
+      document.querySelectorAll("[data-orbit-part]").forEach(marker => {
+        const key = marker.dataset.orbitPart;
+        marker.classList.toggle("inactive", !activeParts.has(key));
+        marker.classList.toggle("ghosted", visibleGhostMutedParts.has(key));
+      });
+
+      document.querySelectorAll("[data-orbit-ring]").forEach(ring => {
+        ring.classList.toggle("inactive", !activeParts.has(ring.dataset.orbitRing));
+      });
+
+      document.querySelectorAll("[data-orbit-label]").forEach(label => {
+        label.classList.toggle("inactive", !activeParts.has(label.dataset.orbitLabel));
+      });
+    }
+
+    function setView(view) {
+      currentView = view === "grid" ? "grid" : "orbit";
+      const gridActive = currentView === "grid";
+
+      gridView.classList.toggle("hidden", !gridActive);
+      orbitView.classList.toggle("hidden", gridActive);
+      gridViewBtn.classList.toggle("active", gridActive);
+      orbitViewBtn.classList.toggle("active", !gridActive);
+    }
+
+    function resetGhostCycle() {
+      ghostMutedParts.clear();
+      visibleGhostMutedParts.clear();
+      ghostUiQueue.length = 0;
+      scheduledBarCount = 0;
+      renderedBarCount = 0;
+      updateGhostUI();
+      updateOrbitState();
+    }
+
+    function toggleGhostMode() {
+      ghostMode = !ghostMode;
+      resetGhostCycle();
+    }
+
+    function advanceGhost(time) {
+      const activeKeys = partDefs
+        .map(part => part.key)
+        .filter(key => activeParts.has(key));
+
+      if (activeKeys.length <= 1) return;
+
+      const maxMuted = activeKeys.length - 1;
+
+      if (ghostMutedParts.size >= maxMuted) {
+        ghostMutedParts.clear();
+      } else {
+        const preferredOrder = ["right", "left", "foot", "voice"];
+        const next = preferredOrder.find(
+          key => activeParts.has(key) && !ghostMutedParts.has(key)
+        );
+        if (next) ghostMutedParts.add(next);
+      }
+
+      ghostUiQueue.push({
+        time,
+        muted: Array.from(ghostMutedParts)
+      });
+    }
+
+    function updateGhostUI() {
+      ghostBtn.classList.toggle("active", ghostMode);
+      ghostBtn.textContent = ghostMode ? "👻 GHOST ON" : "👻 GHOST OFF";
+
+      if (!ghostMode) {
+        ghostStatus.textContent =
+          "GhostはOFF。ONにすると4小節ごとに1パートずつ音が消えます。";
+        return;
+      }
+
+      if (activeParts.size <= 1) {
+        ghostStatus.textContent =
+          "GHOST待機中：2パート以上を重ねると作動します。";
+        return;
+      }
+
+      const mutedLabels = partDefs
+        .filter(part => visibleGhostMutedParts.has(part.key))
+        .map(part => part.label);
+
+      const barsIntoBlock = renderedBarCount === 0
+        ? 0
+        : (renderedBarCount - 1) % 4;
+      const barsRemaining = 4 - barsIntoBlock;
+
+      ghostStatus.textContent = mutedLabels.length
+        ? "消音中: " + mutedLabels.join(" + ") + " ／ 次の変化まで約" + barsRemaining + "小節"
+        : "全パート聴こえています ／ 約" + barsRemaining + "小節後に1パート消えます";
+    }
+
+    function ensurePartGainBuses() {
+      if (!audioCtx) return;
+      for (const part of partDefs) {
+        if (!partGainBuses.has(part.key)) {
+          const bus = audioCtx.createGain();
+          bus.gain.value = activeParts.has(part.key) ? 1 : 0;
+          bus.connect(audioCtx.destination);
+          partGainBuses.set(part.key, bus);
+        }
+      }
+    }
+
+    function setPartBusState(key, enabled) {
+      if (!audioCtx) return;
+      ensurePartGainBuses();
+      const bus = partGainBuses.get(key);
+      if (!bus) return;
+      bus.gain.cancelScheduledValues(audioCtx.currentTime);
+      bus.gain.setTargetAtTime(enabled ? 1 : 0, audioCtx.currentTime, 0.006);
+    }
+
+    function togglePart(key) {
+      if (activeParts.has(key)) activeParts.delete(key);
+      else activeParts.add(key);
+
+      for (const part of partDefs) {
+        setPartBusState(part.key, activeParts.has(part.key));
+      }
+      resetGhostCycle();
+      updatePartUI();
+    }
+
+    function addNextPart() {
+      const next = partDefs.find(part => !activeParts.has(part.key));
+      if (!next) return;
+
+      activeParts.add(next.key);
+      for (const part of partDefs) {
+        setPartBusState(part.key, activeParts.has(part.key));
+      }
+      resetGhostCycle();
+      updatePartUI();
+    }
+
+    function resetToVoice() {
+      for (const part of partDefs) {
+        const enabled = part.key === "voice";
+        if (enabled) activeParts.add(part.key);
+        else activeParts.delete(part.key);
+        setPartBusState(part.key, enabled);
+      }
+      resetGhostCycle();
+      updatePartUI();
+    }
+
+    function updatePartUI() {
+      document.querySelectorAll("[data-part-button]").forEach(button => {
+        const enabled = activeParts.has(button.dataset.partButton);
+        button.classList.toggle("active", enabled);
+        button.setAttribute("aria-pressed", String(enabled));
+      });
+
+      document.querySelectorAll("[data-part-row]").forEach(row => {
+        row.classList.toggle("inactive", !activeParts.has(row.dataset.partRow));
+      });
+
+      layerCount.textContent = activeParts.size + " / " + partDefs.length;
+      addLayerBtn.disabled = activeParts.size === partDefs.length;
+      addLayerBtn.textContent =
+        activeParts.size === partDefs.length ? "✓ 全パートON" : "＋ 次のパートを重ねる";
+
+      updateOrbitState();
+      updateGhostUI();
+    }
+
+    async function applyPattern(key) {
+      const wasRunning = running;
+      if (wasRunning) stop();
+
+      currentPatternKey = key;
+      patternSelect.value = key;
+      setBpm(currentPattern().bpm);
+      resetToVoice();
+      buildBoard();
+
+      if (wasRunning) {
+        await start();
+      }
+    }
+
+    function secondsPerStep() {
+      return (60 / clampBpm(bpmNumber.value)) / STEPS_PER_BEAT;
+    }
+
+    function makeClick(time, part) {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+
+      osc.type = part.key === "foot" ? "sine" : "triangle";
+      osc.frequency.setValueAtTime(part.freq, time);
+
+      gain.gain.setValueAtTime(0.0001, time);
+      gain.gain.exponentialRampToValueAtTime(part.gain, time + 0.0025);
+      gain.gain.exponentialRampToValueAtTime(0.0001, time + part.duration);
+
+      ensurePartGainBuses();
+      osc.connect(gain);
+      gain.connect(partGainBuses.get(part.key));
+
+      osc.start(time);
+      osc.stop(time + part.duration + 0.012);
+    }
+
+    function scheduleStep(step, time) {
+      if (step === 0) {
+        if (ghostMode && scheduledBarCount > 0 && scheduledBarCount % 4 === 0) {
+          advanceGhost(time);
+        }
+        scheduledBarCount += 1;
+      }
+
+      for (const part of partDefs) {
+        if (
+          activeParts.has(part.key) &&
+          !ghostMutedParts.has(part.key) &&
+          currentEvents(part.key).includes(step)
+        ) {
+          makeClick(time, part);
+        }
+      }
+
+      visualQueue.push({ step, time });
+    }
+
+    function scheduler() {
+      if (!running || !audioCtx) return;
+
+      while (nextNoteTime < audioCtx.currentTime + scheduleAheadSec) {
+        scheduleStep(nextStep, nextNoteTime);
+        nextNoteTime += secondsPerStep();
+        nextStep = (nextStep + 1) % STEPS_PER_BAR;
+      }
+    }
+
+    function renderStep(step) {
+      if (step === shownStep) return;
+
+      if (step === 0) {
+        renderedBarCount += 1;
+        updateGhostUI();
+      }
+
+      document.querySelectorAll(".cell.now").forEach(el => el.classList.remove("now"));
+      document.querySelectorAll('[data-step="' + step + '"]').forEach(el => el.classList.add("now"));
+
+      const beat = String(Math.floor(step / STEPS_PER_BEAT) + 1);
+      beatDisplay.textContent = beat;
+
+      const playhead = document.getElementById("orbitPlayhead");
+      if (playhead) {
+        const angle = (step / STEPS_PER_BAR) * 360;
+        playhead.setAttribute("transform", "rotate(" + angle + " 150 150)");
+      }
+
+      const orbitBeat = document.getElementById("orbitBeat");
+      if (orbitBeat) orbitBeat.textContent = beat;
+
+      document.querySelectorAll(".orbit-marker.hit-now").forEach(marker => {
+        marker.classList.remove("hit-now");
+      });
+      document.querySelectorAll('[data-orbit-step="' + step + '"]').forEach(marker => {
+        marker.classList.add("hit-now");
+      });
+
+      shownStep = step;
+    }
+
+    function visualLoop() {
+      if (!running || !audioCtx) return;
+      const now = audioCtx.currentTime;
+
+      while (ghostUiQueue.length && ghostUiQueue[0].time <= now) {
+        const event = ghostUiQueue.shift();
+        visibleGhostMutedParts.clear();
+        event.muted.forEach(key => visibleGhostMutedParts.add(key));
+        updateGhostUI();
+        updateOrbitState();
+      }
+
+      while (visualQueue.length && visualQueue[0].time <= now) {
+        renderStep(visualQueue.shift().step);
+      }
+
+      rafId = requestAnimationFrame(visualLoop);
+    }
+
+    function clearVisuals() {
+      visualQueue.length = 0;
+      ghostUiQueue.length = 0;
+      shownStep = -1;
+
+      document.querySelectorAll(".cell.now").forEach(el => el.classList.remove("now"));
+      document.querySelectorAll(".orbit-marker.hit-now").forEach(marker => {
+        marker.classList.remove("hit-now");
+      });
+
+      const playhead = document.getElementById("orbitPlayhead");
+      if (playhead) playhead.setAttribute("transform", "rotate(0 150 150)");
+
+      const orbitBeat = document.getElementById("orbitBeat");
+      if (orbitBeat) orbitBeat.textContent = "—";
+
+      beatDisplay.textContent = "—";
+    }
+
+    async function start() {
+      if (running) return;
+
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)({
+          latencyHint: "interactive"
+        });
+      }
+
+      if (audioCtx.state === "suspended") {
+        await audioCtx.resume();
+      }
+
+      ensurePartGainBuses();
+      resetGhostCycle();
+      running = true;
+      clearVisuals();
+
+      nextStep = 0;
+      nextNoteTime = audioCtx.currentTime + 0.08;
+
+      startBtn.disabled = true;
+      stopBtn.disabled = false;
+      stateText.textContent = "再生中";
+
+      scheduler();
+      schedulerId = setInterval(scheduler, lookaheadMs);
+      rafId = requestAnimationFrame(visualLoop);
+    }
+
+    function stop() {
+      running = false;
+
+      if (schedulerId !== null) {
+        clearInterval(schedulerId);
+        schedulerId = null;
+      }
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+
+      startBtn.disabled = false;
+      stopBtn.disabled = true;
+      stateText.textContent = "停止中";
+      clearVisuals();
+      resetGhostCycle();
+    }
+
+    bpmRange.addEventListener("input", e => setBpm(e.target.value));
+    bpmNumber.addEventListener("input", e => setBpm(e.target.value));
+    patternSelect.addEventListener("change", e => applyPattern(e.target.value));
+    startBtn.addEventListener("click", start);
+    stopBtn.addEventListener("click", stop);
+    addLayerBtn.addEventListener("click", addNextPart);
+    resetLayerBtn.addEventListener("click", resetToVoice);
+    gridViewBtn.addEventListener("click", () => setView("grid"));
+    orbitViewBtn.addEventListener("click", () => setView("orbit"));
+    ghostBtn.addEventListener("click", toggleGhostMode);
+
+    buildPatternSelect();
+    buildPartButtons();
+    setBpm(currentPattern().bpm);
+    buildBoard();
+    setView(currentView);
+    updateGhostUI();
+  </script>
+</body>
+</html>

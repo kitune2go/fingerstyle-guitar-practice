@@ -1,9 +1,14 @@
-const CACHE_NAME = "fingerstyle-practice-v1";
+const CACHE_NAME = "fingerstyle-practice-v2";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./guitar.css",
   "./guitar.js",
+  "./data/phrases.json",
+  "./rhythm.html",
+  "./phrase.js",
+  "./phrase.css",
+  "./phrase.html",
   "./manifest.json",
   "./icon-192.svg",
   "./icon-512.svg"

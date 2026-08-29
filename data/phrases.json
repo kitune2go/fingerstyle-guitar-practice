@@ -1,0 +1,305 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-08-29T13:00:00+09:00",
+  "phrases": [
+    {
+      "id": "open-string-im",
+      "title": "開放弦 i–m",
+      "subtitle": "右手の交互運指を音で確認",
+      "objective": "1弦開放のEをi–m交互で揃えます。音量差とタイミング差を耳で確認します。",
+      "bpm": 60,
+      "rightHand": "i m i m i m i m",
+      "notes": [
+        {
+          "name": "E4",
+          "string": 1,
+          "fret": 0,
+          "beats": 1,
+          "finger": "i"
+        },
+        {
+          "name": "E4",
+          "string": 1,
+          "fret": 0,
+          "beats": 1,
+          "finger": "m"
+        },
+        {
+          "name": "E4",
+          "string": 1,
+          "fret": 0,
+          "beats": 1,
+          "finger": "i"
+        },
+        {
+          "name": "E4",
+          "string": 1,
+          "fret": 0,
+          "beats": 1,
+          "finger": "m"
+        },
+        {
+          "name": "E4",
+          "string": 1,
+          "fret": 0,
+          "beats": 1,
+          "finger": "i"
+        },
+        {
+          "name": "E4",
+          "string": 1,
+          "fret": 0,
+          "beats": 1,
+          "finger": "m"
+        },
+        {
+          "name": "E4",
+          "string": 1,
+          "fret": 0,
+          "beats": 1,
+          "finger": "i"
+        },
+        {
+          "name": "E4",
+          "string": 1,
+          "fret": 0,
+          "beats": 1,
+          "finger": "m"
+        }
+      ]
+    },
+    {
+      "id": "string-crossing",
+      "title": "3→2→1→2 弦またぎ",
+      "subtitle": "弦が変わってもi–mを止めない",
+      "objective": "3弦G、2弦B、1弦E、2弦Bを往復します。右手の交互運指を保ったまま弦移動だけを独立させます。",
+      "bpm": 56,
+      "rightHand": "i m i m i m i m",
+      "notes": [
+        {
+          "name": "G3",
+          "string": 3,
+          "fret": 0,
+          "beats": 1,
+          "finger": "i"
+        },
+        {
+          "name": "B3",
+          "string": 2,
+          "fret": 0,
+          "beats": 1,
+          "finger": "m"
+        },
+        {
+          "name": "E4",
+          "string": 1,
+          "fret": 0,
+          "beats": 1,
+          "finger": "i"
+        },
+        {
+          "name": "B3",
+          "string": 2,
+          "fret": 0,
+          "beats": 1,
+          "finger": "m"
+        },
+        {
+          "name": "G3",
+          "string": 3,
+          "fret": 0,
+          "beats": 1,
+          "finger": "i"
+        },
+        {
+          "name": "B3",
+          "string": 2,
+          "fret": 0,
+          "beats": 1,
+          "finger": "m"
+        },
+        {
+          "name": "E4",
+          "string": 1,
+          "fret": 0,
+          "beats": 1,
+          "finger": "i"
+        },
+        {
+          "name": "B3",
+          "string": 2,
+          "fret": 0,
+          "beats": 1,
+          "finger": "m"
+        }
+      ]
+    },
+    {
+      "id": "c-major-fragment",
+      "title": "Cメジャー往復フレーズ",
+      "subtitle": "譜面・耳・指板を一つにつなぐ",
+      "objective": "GからEまで上がって戻ります。五線譜を見て、音を聴き、TABの位置を確認してから同じ音程を弾きます。",
+      "bpm": 60,
+      "rightHand": "i m i m i m i m i m i",
+      "notes": [
+        {
+          "name": "G3",
+          "string": 3,
+          "fret": 0,
+          "beats": 1,
+          "finger": "i"
+        },
+        {
+          "name": "A3",
+          "string": 3,
+          "fret": 2,
+          "beats": 1,
+          "finger": "m"
+        },
+        {
+          "name": "B3",
+          "string": 2,
+          "fret": 0,
+          "beats": 1,
+          "finger": "i"
+        },
+        {
+          "name": "C4",
+          "string": 2,
+          "fret": 1,
+          "beats": 1,
+          "finger": "m"
+        },
+        {
+          "name": "D4",
+          "string": 2,
+          "fret": 3,
+          "beats": 1,
+          "finger": "i"
+        },
+        {
+          "name": "E4",
+          "string": 1,
+          "fret": 0,
+          "beats": 1,
+          "finger": "m"
+        },
+        {
+          "name": "D4",
+          "string": 2,
+          "fret": 3,
+          "beats": 1,
+          "finger": "i"
+        },
+        {
+          "name": "C4",
+          "string": 2,
+          "fret": 1,
+          "beats": 1,
+          "finger": "m"
+        },
+        {
+          "name": "B3",
+          "string": 2,
+          "fret": 0,
+          "beats": 1,
+          "finger": "i"
+        },
+        {
+          "name": "A3",
+          "string": 3,
+          "fret": 2,
+          "beats": 1,
+          "finger": "m"
+        },
+        {
+          "name": "G3",
+          "string": 3,
+          "fret": 0,
+          "beats": 2,
+          "finger": "i"
+        }
+      ]
+    },
+    {
+      "id": "one-string-5-8-10",
+      "title": "1弦 5–8–10 フレーズ",
+      "subtitle": "左手移動と右手交互を分離する",
+      "objective": "1弦だけでA–C–Dを往復し、左手の移動量が増えても右手i–mの周期を固定します。",
+      "bpm": 64,
+      "rightHand": "i m i m i m i m i m",
+      "notes": [
+        {
+          "name": "A4",
+          "string": 1,
+          "fret": 5,
+          "beats": 0.5,
+          "finger": "i"
+        },
+        {
+          "name": "C5",
+          "string": 1,
+          "fret": 8,
+          "beats": 0.5,
+          "finger": "m"
+        },
+        {
+          "name": "D5",
+          "string": 1,
+          "fret": 10,
+          "beats": 1,
+          "finger": "i"
+        },
+        {
+          "name": "C5",
+          "string": 1,
+          "fret": 8,
+          "beats": 1,
+          "finger": "m"
+        },
+        {
+          "name": "A4",
+          "string": 1,
+          "fret": 5,
+          "beats": 1,
+          "finger": "i"
+        },
+        {
+          "name": "C5",
+          "string": 1,
+          "fret": 8,
+          "beats": 0.5,
+          "finger": "m"
+        },
+        {
+          "name": "D5",
+          "string": 1,
+          "fret": 10,
+          "beats": 0.5,
+          "finger": "i"
+        },
+        {
+          "name": "A4",
+          "string": 1,
+          "fret": 5,
+          "beats": 1,
+          "finger": "m"
+        },
+        {
+          "name": "C5",
+          "string": 1,
+          "fret": 8,
+          "beats": 1,
+          "finger": "i"
+        },
+        {
+          "name": "A4",
+          "string": 1,
+          "fret": 5,
+          "beats": 1,
+          "finger": "m"
+        }
+      ]
+    }
+  ]
+}
