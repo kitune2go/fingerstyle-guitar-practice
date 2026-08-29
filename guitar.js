@@ -5,8 +5,11 @@
   if (!app) return;
 
   const byId = (id) => document.getElementById(id);
-  const source = (app.dataset.source || "./data").replace(/\/$/, "");
-  const localFallback = new URL("/data/", window.location.origin).href.replace(/\/$/, "");
+  // Both resolved against the document so they are comparable, and so the
+  // fallback stays inside the deployment (a project GitHub Pages site is served
+  // from a subpath, where an origin-relative "/data/" is always a 404).
+  const source = new URL(app.dataset.source || "./data", document.baseURI).href.replace(/\/$/, "");
+  const localFallback = new URL("./data", document.baseURI).href.replace(/\/$/, "");
 
   const state = {
     index: null,
@@ -16,8 +19,17 @@
     completed: new Set(),
     tempo: 60,
     metronomeTimer: null,
+    metronomeRunning: false,
+    nextBeatTime: 0,
+    beatInBar: 0,
     audioContext: null,
   };
+
+  // setInterval drifts, and drifts worst on phones, which is the one thing a
+  // metronome must not do. Schedule the clicks on the audio clock instead and
+  // only use the timer to top the queue up.
+  const CLICK_LOOKAHEAD = 0.15;
+  const CLICK_TICK_MS = 25;
 
   const escapeHtml = (value) =>
     String(value ?? "")
@@ -69,7 +81,11 @@
   }
 
   function saveProgress() {
-    localStorage.setItem(progressKey(), JSON.stringify([...state.completed]));
+    try {
+      localStorage.setItem(progressKey(), JSON.stringify([...state.completed]));
+    } catch (error) {
+      console.warn("[app] could not save progress:", error);
+    }
   }
 
   function setText(id, value) {
@@ -129,7 +145,7 @@
   }
 
   function assetUrl(path) {
-    return joinUrl(state.dataRoot, `../${path}`);
+    return new URL(`../${String(path).replace(/^\//, "")}`, `${state.dataRoot}/`).href;
   }
 
   function renderLesson() {
@@ -188,11 +204,16 @@
   async function selectLesson(position) {
     const meta = state.index.lessons[position];
     if (!meta) return;
-    const lesson = await fetchJson(joinUrl(state.dataRoot, meta.path));
-    state.position = position;
-    state.lesson = lesson;
-    renderLesson();
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    try {
+      const lesson = await fetchJson(joinUrl(state.dataRoot, meta.path));
+      state.position = position;
+      state.lesson = lesson;
+      renderLesson();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } catch (error) {
+      showLoadError(error);
+      throw error;
+    }
   }
 
   function toggleStep(id) {
@@ -218,38 +239,64 @@
     renderProgress();
   }
 
-  async function clickBeat() {
+  async function ensureAudio() {
     const AudioContext = window.AudioContext || window.webkitAudioContext;
-    if (!AudioContext) return;
-    if (!state.audioContext) state.audioContext = new AudioContext();
+    if (!AudioContext) return null;
+    if (!state.audioContext) state.audioContext = new AudioContext({ latencyHint: "interactive" });
     if (state.audioContext.state === "suspended") await state.audioContext.resume();
-
-    const now = state.audioContext.currentTime;
-    const oscillator = state.audioContext.createOscillator();
-    const gain = state.audioContext.createGain();
-    oscillator.frequency.setValueAtTime(880, now);
-    gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.exponentialRampToValueAtTime(0.16, now + 0.005);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.055);
-    oscillator.connect(gain);
-    gain.connect(state.audioContext.destination);
-    oscillator.start(now);
-    oscillator.stop(now + 0.06);
-
-    const button = byId("metronome-toggle");
-    button?.classList.add("pulse");
-    window.setTimeout(() => button?.classList.remove("pulse"), 90);
+    return state.audioContext;
   }
 
-  function startMetronome() {
+  function scheduleClick(time, accent) {
+    const context = state.audioContext;
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    oscillator.frequency.setValueAtTime(accent ? 1320 : 880, time);
+    gain.gain.setValueAtTime(0.0001, time);
+    gain.gain.exponentialRampToValueAtTime(accent ? 0.2 : 0.13, time + 0.005);
+    gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.055);
+    oscillator.connect(gain);
+    gain.connect(context.destination);
+    oscillator.start(time);
+    oscillator.stop(time + 0.06);
+
+    const button = byId("metronome-toggle");
+    if (!button) return;
+    window.setTimeout(() => {
+      button.classList.add("pulse");
+      window.setTimeout(() => button.classList.remove("pulse"), 90);
+    }, Math.max(0, (time - context.currentTime) * 1000));
+  }
+
+  function metronomeTick() {
+    if (!state.metronomeRunning || !state.audioContext) return;
+    const ahead = state.audioContext.currentTime + CLICK_LOOKAHEAD;
+    while (state.nextBeatTime < ahead) {
+      scheduleClick(state.nextBeatTime, state.beatInBar === 0);
+      // Read the tempo every beat so the +/- buttons take effect on the next
+      // click without restarting (and re-phasing) the whole metronome.
+      state.nextBeatTime += 60 / state.tempo;
+      state.beatInBar = (state.beatInBar + 1) % 4;
+    }
+  }
+
+  async function startMetronome() {
+    const context = await ensureAudio();
+    if (!context) return;
     stopMetronome();
-    clickBeat();
-    state.metronomeTimer = window.setInterval(clickBeat, 60000 / state.tempo);
+
+    state.metronomeRunning = true;
+    state.beatInBar = 0;
+    state.nextBeatTime = context.currentTime + 0.06;
+    metronomeTick();
+    state.metronomeTimer = window.setInterval(metronomeTick, CLICK_TICK_MS);
+
     const button = byId("metronome-toggle");
     if (button) button.textContent = "STOP";
   }
 
   function stopMetronome() {
+    state.metronomeRunning = false;
     if (state.metronomeTimer) window.clearInterval(state.metronomeTimer);
     state.metronomeTimer = null;
     const button = byId("metronome-toggle");
@@ -259,7 +306,6 @@
   function changeTempo(amount) {
     state.tempo = Math.min(160, Math.max(40, state.tempo + amount));
     setText("tempo-value", state.tempo);
-    if (state.metronomeTimer) startMetronome();
   }
 
   function showLoadError(error) {
@@ -269,7 +315,9 @@
   }
 
   function bindEvents() {
-    document.addEventListener("click", async (event) => {
+    document.addEventListener("click", (event) => void handleClick(event).catch(showLoadError));
+
+    async function handleClick(event) {
       const target = event.target.closest("button");
       if (!target) return;
 
@@ -278,20 +326,23 @@
       }
       if (target.dataset.stepToggle) toggleStep(target.dataset.stepToggle);
       if (target.dataset.lessonPosition !== undefined) {
-        await selectLesson(Number(target.dataset.lessonPosition));
-        byId("lesson-dialog")?.close();
+        try {
+          await selectLesson(Number(target.dataset.lessonPosition));
+        } finally {
+          byId("lesson-dialog")?.close();
+        }
       }
-    });
+    }
 
     byId("complete-all")?.addEventListener("click", completeAll);
     byId("reset-progress")?.addEventListener("click", resetProgress);
-    byId("previous-lesson")?.addEventListener("click", () => selectLesson(state.position - 1));
-    byId("next-lesson")?.addEventListener("click", () => selectLesson(state.position + 1));
+    byId("previous-lesson")?.addEventListener("click", () => void selectLesson(state.position - 1).catch(() => {}));
+    byId("next-lesson")?.addEventListener("click", () => void selectLesson(state.position + 1).catch(() => {}));
     byId("tempo-down")?.addEventListener("click", () => changeTempo(-2));
     byId("tempo-up")?.addEventListener("click", () => changeTempo(2));
     byId("metronome-toggle")?.addEventListener("click", () => {
-      if (state.metronomeTimer) stopMetronome();
-      else startMetronome();
+      if (state.metronomeRunning) stopMetronome();
+      else void startMetronome().catch(() => stopMetronome());
     });
     byId("open-lessons")?.addEventListener("click", () => byId("lesson-dialog")?.showModal());
     byId("close-lessons")?.addEventListener("click", () => byId("lesson-dialog")?.close());
@@ -304,13 +355,9 @@
       state.index = loaded.index;
       state.dataRoot = loaded.root;
       renderLessonList();
-      await selectLesson(state.index.lessons.length - 1);
+      await selectLesson(state.index.lessons.length - 1).catch(() => {});
     } catch (error) {
       showLoadError(error);
-    }
-
-    if ("serviceWorker" in navigator) {
-      window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
     }
   }
 
