@@ -9,6 +9,7 @@
     backing:{ chords:true, bass:true, drums:true },
     scheduler:null, raf:null,
     nextGrid:0, nextGridTime:0, finished:false,
+    followedMeasure:-1,
     visualQueue:[], noteStarts:new Map(), measures:[]
   };
 
@@ -217,6 +218,7 @@
     stop();
     state.phrase=state.data.phrases[state.index];
     state.noteIndex=0;
+    state.followedMeasure=-1;
     $("phrase-select").value=String(state.index);
     $("phrase-title").textContent=state.phrase.title;
     $("phrase-subtitle").textContent=state.phrase.subtitle;
@@ -264,6 +266,20 @@
   function highlightMeasure(index){
     document.querySelectorAll("[data-chord-measure]").forEach(el=>{
       el.classList.toggle("active",Number(el.dataset.chordMeasure)===index);
+    });
+  }
+
+  function followScore(index){
+    if(!state.running || state.followedMeasure===index) return;
+
+    const system=document.querySelector('.staff-system[data-measure="'+index+'"]');
+    if(!system) return;
+
+    state.followedMeasure=index;
+    system.scrollIntoView({
+      behavior:"smooth",
+      block:"center",
+      inline:"nearest"
     });
   }
 
@@ -522,6 +538,7 @@
       renderCurrentNote();
       highlightNote(event.index);
       highlightMeasure(event.measure);
+      followScore(event.measure);
       updateProgress((event.grid/(state.phrase.measures*8))*100);
     }
 
@@ -542,6 +559,7 @@
     state.nextGridTime=state.audio.currentTime+.08;
     state.visualQueue.length=0;
     state.finished=false;
+    state.followedMeasure=-1;
 
     $("play").disabled=true;
     $("stop").disabled=false;
@@ -559,6 +577,7 @@
     state.raf=null;
     state.visualQueue.length=0;
     state.finished=false;
+    state.followedMeasure=-1;
 
     $("play").disabled=false;
     $("stop").disabled=true;
