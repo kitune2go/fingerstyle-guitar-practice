@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-const base = "http://127.0.0.1:4173";
+const base = "";
 test.use({ viewport: { width: 390, height: 844 } });
 
 test("basic practice loads on mobile", async ({ page }) => {
@@ -152,8 +152,10 @@ test("G major score shows key signature marker", async ({ page }) => {
   await page.goto(base+"/phrase.html");
   await page.locator("#phrase-select").selectOption("1");
   await expect(page.locator("#key-label")).toHaveText("G Major");
-  await expect(page.locator(".key-signature")).toHaveText("♯");
   await expect(page.locator(".staff-system")).toHaveCount(8);
+  // The signature is reprinted on every system, as engraved music does.
+  await expect(page.locator(".key-signature")).toHaveCount(8);
+  await expect(page.locator(".key-signature").first()).toHaveText("♯");
   await expect(page.locator(".staff-system").first().locator("[data-staff-line]")).toHaveCount(5);
 });
 
@@ -170,4 +172,114 @@ test("rhythm practice is integrated and interactive", async ({ page }) => {
   const fits=await page.evaluate(()=>document.documentElement.scrollWidth<=document.documentElement.clientWidth);
   expect(fits).toBeTruthy();
   expect(errors).toEqual([]);
+});
+
+test("service worker registers and precaches lesson data", async ({ page }) => {
+  await page.goto(base + "/index.html");
+  await page.waitForFunction(() => navigator.serviceWorker.controller !== null || performance.now() > 0);
+
+  const registered = await page.evaluate(async () => {
+    const registration = await navigator.serviceWorker.ready;
+    return Boolean(registration.active || registration.installing || registration.waiting);
+  });
+  expect(registered).toBeTruthy();
+
+  const cached = await page.evaluate(async () => {
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      const names = await caches.keys();
+      for (const name of names) {
+        const cache = await caches.open(name);
+        const paths = (await cache.keys()).map((request) => new URL(request.url).pathname);
+        if (paths.some((path) => path.endsWith("/data/lessons/001.json"))) return paths;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    return [];
+  });
+
+  expect(cached.some((path) => path.endsWith("/data/lessons-index.json"))).toBeTruthy();
+  expect(cached.some((path) => path.endsWith("/data/lessons/001.json"))).toBeTruthy();
+  expect(cached.some((path) => path.endsWith("/data/phrases.json"))).toBeTruthy();
+  expect(cached.some((path) => path.endsWith("/phrase.js"))).toBeTruthy();
+});
+
+test("key signature replaces per-note accidentals in G major", async ({ page }) => {
+  await page.goto(base + "/phrase.html");
+  await page.locator("#phrase-select").selectOption("1");
+
+  // One sharp per system (each measure is its own system), and no F# note may
+  // repeat that sharp as an accidental of its own.
+  const systems = await page.locator(".staff-system").count();
+  await expect(page.locator(".key-signature")).toHaveCount(systems);
+  await expect(page.locator('.note-symbol[data-note-name="F#4"]')).not.toHaveCount(0);
+  await expect(page.locator(".accidental")).toHaveCount(0);
+
+  // C major carries no signature at all.
+  await page.locator("#phrase-select").selectOption("0");
+  await expect(page.locator(".key-signature")).toHaveCount(0);
+  await expect(page.locator(".accidental")).toHaveCount(0);
+});
+
+test("TAB column widths follow note values", async ({ page }) => {
+  await page.goto(base + "/phrase.html");
+  await page.locator("#phrase-select").selectOption("2"); // mixes 8th, quarter and half notes
+
+  const measure = (await page.locator("#tab").textContent()).split("\n\n")[0].split("\n");
+  const lines = measure.filter((line) => /^[eBGDAE]\|/.test(line));
+  expect(lines).toHaveLength(6);
+  // All six strings must stay in step, and a 4/4 bar is 16 columns wide.
+  const widths = new Set(lines.map((line) => line.length));
+  expect(widths.size).toBe(1);
+  expect(lines[0].length).toBe(1 + 1 + 16 + 1);
+});
+
+test("score notes are keyboard reachable", async ({ page }) => {
+  await page.goto(base + "/phrase.html");
+  const staff = page.locator("#staff");
+  await expect(staff).toHaveAttribute("role", "group");
+
+  const third = page.locator(".note-symbol").nth(2);
+  await expect(third).toHaveAttribute("role", "button");
+  await expect(third).toHaveAttribute("tabindex", "0");
+
+  await third.focus();
+  await page.keyboard.press("Enter");
+  await expect(third).toHaveClass(/active/);
+  await expect(page.locator("#note-name")).toHaveText(await third.getAttribute("data-note-name"));
+});
+
+test("stepping notes by hand follows the score, and the toggle stops it", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__followCalls = [];
+    Element.prototype.scrollIntoView = function (options) {
+      window.__followCalls.push(this.getAttribute?.("data-measure"));
+    };
+  });
+  await page.goto(base + "/phrase.html");
+
+  // 4 notes per measure in this phrase, so this crosses at least one bar line.
+  for (let i = 0; i < 8; i += 1) await page.locator("#next-note").click();
+  expect(await page.evaluate(() => window.__followCalls.length)).toBeGreaterThan(0);
+
+  await page.locator("#follow-toggle").click();
+  await expect(page.locator("#follow-toggle")).toHaveAttribute("aria-pressed", "false");
+  await page.evaluate(() => { window.__followCalls.length = 0; });
+  for (let i = 0; i < 8; i += 1) await page.locator("#next-note").click();
+  expect(await page.evaluate(() => window.__followCalls.length)).toBe(0);
+});
+
+test("low bass notes do not collide with the pitch-name row", async ({ page }) => {
+  await page.goto(base + "/phrase.html");
+  const geometry = await page.evaluate(() => {
+    const head = document.querySelector(".note-head");
+    const svg = head.ownerSVGElement;
+    const lowest = [...document.querySelectorAll(".staff-system")[0].querySelectorAll(".note-head")]
+      .reduce((low, node) => Math.max(low, Number(node.getAttribute("cy"))), -Infinity);
+    const nameY = Number(document.querySelector(".note-name-text").getAttribute("y"));
+    const viewBox = svg.getAttribute("viewBox").split(" ").map(Number);
+    return { lowest, nameY, viewBoxBottom: viewBox[1] + viewBox[3] };
+  });
+  // Note heads must clear the pitch-name row, which must itself sit inside the box.
+  expect(geometry.nameY).toBeGreaterThan(geometry.lowest + 12);
+  expect(geometry.viewBoxBottom).toBeGreaterThan(geometry.nameY);
 });

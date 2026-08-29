@@ -6,7 +6,8 @@
 - 教材索引：`data/lessons-index.json`
 - 各課：`data/lessons/NNN.json`
 - 交換用譜面：`musicxml/NNN-*.musicxml`
-- 検証：`npm test`
+- データ検証：`npm test`
+- ブラウザ検証：`npm run test:e2e`（Playwright。ローカルサーバーは自動起動します）
 
 ## スマートフォンで開く
 
@@ -57,10 +58,10 @@ ChromeまたはSafariの「ホーム画面に追加」を使うと、通常の�
 ## ローカル確認
 
 ```bash
-python3 -m http.server 8000
+npm run serve
 ```
 
-その後 `http://localhost:8000/` を開きます。`file://` では教材JSONを読み込めないため、簡易Webサーバーを使用してください。
+その後 `http://localhost:8000/` を開きます。`file://` では教材JSONを読み込めないうえ、Service Workerも登録できないため、必ず簡易Webサーバーを使用してください。
 
 
 ## 統合練習モード
@@ -80,3 +81,14 @@ GitHub Pages 上のアプリは3モードで構成します。
 
 初期教材には、開放弦 i–m、3→2→1→2 弦またぎ、Cメジャー往復、1弦 5–8–10 を収録しています。
 フレーズはJSONへ追加でき、音名・弦・フレット・音価・右手指を検証してから公開できます。
+
+### フレーズ追加時の制約
+
+- `key` は `phrase.js` の `keyFifths` に載っている調のみ（`validate-phrases.mjs` が拒否します）
+- 調号に含まれる音には臨時記号を書かない。譜面側が自動で判断します
+- 音価は 0.5 / 1 / 2 / 4 拍のみ。TABの桁幅は音価から自動計算されます
+
+## オフライン動作
+
+`sw.js` がアプリ本体・`data/phrases.json`・`data/lessons-index.json`、および索引に載っている全レッスンJSONを事前キャッシュします。
+レッスンを追加した場合は `sw.js` の `CACHE_NAME` を上げてください（索引経由で拾うので、ファイル名の列挙は不要です）。
