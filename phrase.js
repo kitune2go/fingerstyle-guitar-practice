@@ -5,13 +5,18 @@
   const state = {
     data:null, phrase:null, index:0, noteIndex:0,
     audio:null, noiseBuffer:null, mix:null,
-    running:false, loop:false,
+    running:false, loop:false, follow:true,
     backing:{ chords:true, bass:true, drums:true },
-    scheduler:null, raf:null,
+    scheduler:null, raf:null, previewTimer:null,
     nextGrid:0, nextGridTime:0, finished:false,
     followedMeasure:-1,
-    visualQueue:[], noteStarts:new Map(), measures:[]
+    visualQueue:[], noteStarts:new Map(), measures:[],
+    layout:null
   };
+
+  const MASTER_LEVEL=.78;
+  const MIDDLE_LINE_Y=90;
+  const STEM_LENGTH=35;
 
   const pitchClass = { C:0,D:2,E:4,F:5,G:7,A:9,B:11 };
   const diatonicLetter = { C:0,D:1,E:2,F:3,G:4,A:5,B:6 };
@@ -20,6 +25,18 @@
   const rootBaseMidi = {
     C:48,"C#":49,Db:49,D:50,"D#":51,Eb:51,E:52,F:53,"F#":54,Gb:54,
     G:55,"G#":56,Ab:56,A:57,"A#":58,Bb:58,B:59
+  };
+
+  // Order in which sharps and flats appear in a key signature, with the treble
+  // staff Y each glyph sits on (same coordinate space as staffY()).
+  const sharpOrder=[["F",66],["C",84],["G",60],["D",78],["A",96],["E",72],["B",90]];
+  const flatOrder=[["B",90],["E",72],["A",96],["D",78],["G",102],["C",84],["F",108]];
+
+  // Accidental count per key: positive = sharps, negative = flats.
+  const keyFifths={
+    C:0,Am:0,
+    G:1,Em:1, D:2,Bm:2, A:3,"F#m":3, E:4,"C#m":4, B:5,"G#m":5,
+    F:-1,Dm:-1, Bb:-2,Gm:-2, Eb:-3,Cm:-3, Ab:-4,Fm:-4, Db:-5,Bbm:-5
   };
 
   function noteParts(name){
@@ -51,6 +68,78 @@
     return 114-(index-bottomE4)*6;
   }
 
+  const escapeHtml = (value) =>
+    String(value ?? "")
+      .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
+      .replaceAll('"',"&quot;").replaceAll("'","&#039;");
+
+  // Returns the glyphs a key signature prints, plus the alteration each letter
+  // carries by default, so notes covered by the signature stop printing a
+  // redundant accidental of their own.
+  function keySignature(key){
+    const fifths=keyFifths[key];
+    if(fifths===undefined){
+      console.warn("[phrase] unknown key, drawing no key signature:",key);
+      return {glyphs:[], alterByLetter:{}};
+    }
+    const glyph=fifths>0?"\u266f":"\u266d";
+    const alter=fifths>0?1:-1;
+    const source=fifths>0?sharpOrder:flatOrder;
+    const used=source.slice(0,Math.abs(fifths));
+    const alterByLetter={};
+    used.forEach(([letter])=>{ alterByLetter[letter]=alter; });
+    return {glyphs:used.map(([letter,y])=>({letter,y,glyph})), alterByLetter};
+  }
+
+  function alterationOf(name){
+    const accidental=noteParts(name).accidental;
+    return accidental==="#"?1:accidental==="b"?-1:0;
+  }
+
+  // Standard practice: print an accidental only when the pitch differs from what
+  // the key signature (or an earlier accidental in the same bar) already implies.
+  function annotateAccidentals(){
+    const signature=keySignature(state.phrase.key);
+    state.signature=signature;
+    for(const measure of state.measures){
+      const activeInBar=new Map();
+      for(const note of measure){
+        const parts=noteParts(note.name);
+        const slot=parts.letter+parts.octave;
+        const expected=activeInBar.has(slot)
+          ? activeInBar.get(slot)
+          : (signature.alterByLetter[parts.letter] ?? 0);
+        const actual=alterationOf(note.name);
+        if(actual===expected){
+          note.accidentalGlyph=null;
+        }else{
+          note.accidentalGlyph=actual===1?"\u266f":actual===-1?"\u266d":"\u266e";
+          activeInBar.set(slot,actual);
+        }
+      }
+    }
+  }
+
+  // Note heads for low bass strings sit below the staff, where the pitch-name and
+  // fingering rows used to be fixed. Size every system from the actual range so
+  // the two never collide.
+  function computeLayout(){
+    let highest=66;
+    let lowest=114;
+    for(const note of state.phrase.notes){
+      const y=staffY(note.name);
+      highest=Math.min(highest,y);
+      lowest=Math.max(lowest,y);
+    }
+    // Leave room for a stem and flag above the highest note, and for the ledger
+    // lines and text rows below the lowest one.
+    const top=Math.min(0,highest-STEM_LENGTH-14);
+    const nameY=lowest+26;
+    const fingerY=nameY+14;
+    const bottom=fingerY+11;
+    state.layout={top, height:bottom-top, nameY, fingerY};
+  }
+
   async function loadData(){
     const response=await fetch("./data/phrases.json",{cache:"no-store"});
     if(!response.ok) throw new Error("フレーズ教材を読み込めませんでした。");
@@ -59,7 +148,7 @@
 
   function buildSelect(){
     $("phrase-select").innerHTML=state.data.phrases
-      .map((p,i)=>'<option value="'+i+'">'+(i+1)+". "+p.title+"</option>").join("");
+      .map((p,i)=>'<option value="'+i+'">'+(i+1)+". "+escapeHtml(p.title)+"</option>").join("");
   }
 
   function splitMeasures(){
@@ -95,19 +184,30 @@
     $("bar-label").textContent=state.phrase.measures+" BARS";
     $("groove-label").textContent=grooveLabels[state.phrase.groove]||state.phrase.groove;
     $("chord-progression").innerHTML=state.phrase.chords
-      .map((chord,i)=>'<div class="chord-chip" data-chord-measure="'+i+'"><small>M'+(i+1)+'</small><strong>'+chord+'</strong></div>')
+      .map((chord,i)=>'<div class="chord-chip" data-chord-measure="'+i+'"><small>M'+(i+1)+'</small><strong>'+escapeHtml(chord)+'</strong></div>')
       .join("");
+  }
+
+  // 4 characters per beat, so an eighth note is visibly half the width of a
+  // quarter and the TAB lines up with the proportionally spaced staff above it.
+  // Two-digit frets widen their own column on every string, keeping the six
+  // lines in step.
+  function tabCellWidth(note){
+    return Math.max(Math.round(Number(note.beats)*4), String(note.fret).length+1);
   }
 
   function buildTab(){
     const blocks=state.measures.map((measure,mIndex)=>{
+      const widths=measure.map(tabCellWidth);
       const lines=stringLabels.map((label,idx)=>{
         const stringNo=idx+1;
         let line=label+"|";
-        for(const note of measure){
-          const cell=note.string===stringNo?("-"+note.fret).padEnd(4,"-"):"----";
-          line+=cell;
-        }
+        measure.forEach((note,noteIndex)=>{
+          const width=widths[noteIndex];
+          line+=note.string===stringNo
+            ? ("-"+note.fret).padEnd(width,"-")
+            : "-".repeat(width);
+        });
         return line+"|";
       });
       return "M"+(mIndex+1)+"  "+state.phrase.chords[mIndex]+"\n"+lines.join("\n");
@@ -139,11 +239,15 @@
     const y=staffY(note.name);
     addLedgerLines(svg,x,y);
 
+    const measure=measureForNote(index);
     const group=svgEl("g",{
       class:"note-symbol",
       "data-note-index":index,
       "data-note-name":note.name,
-      "aria-label":note.name
+      role:"button",
+      tabindex:"0",
+      "aria-label":"M"+(measure+1)+" "+(index+1)+"音目 "+note.name
+        +" "+note.string+"弦"+note.fret+"フレット 右手"+(note.finger||"—")
     });
 
     const head=svgEl("ellipse",{
@@ -154,22 +258,37 @@
     group.appendChild(head);
 
     if(note.beats<4){
-      group.appendChild(svgEl("line",{x1:x+7.5,y1:y,x2:x+7.5,y2:y-35,class:"note-stem"}));
+      // Stems flip at the middle line, as engraved music does; without this the
+      // high notes grew stems that ran off the top of the system.
+      const stemUp=y>MIDDLE_LINE_Y;
+      const stemX=stemUp?x+7.5:x-7.5;
+      const stemEnd=stemUp?y-STEM_LENGTH:y+STEM_LENGTH;
+      group.appendChild(svgEl("line",{x1:stemX,y1:y,x2:stemX,y2:stemEnd,class:"note-stem"}));
       if(note.beats<=0.5){
-        group.appendChild(svgEl("path",{d:"M "+(x+7.5)+" "+(y-35)+" q 18 8 6 23",class:"note-flag"}));
+        group.appendChild(svgEl("path",{
+          d:"M "+stemX+" "+stemEnd+(stemUp?" q 18 8 6 23":" q 18 -8 6 -23"),
+          class:"note-flag"
+        }));
       }
     }
 
-    const parts=noteParts(note.name);
-    if(parts.accidental){
-      group.appendChild(svgEl("text",{x:x-22,y:y+7,class:"accidental"},parts.accidental==="#"?"♯":"♭"));
+    if(note.accidentalGlyph){
+      group.appendChild(svgEl("text",{x:x-22,y:y+7,class:"accidental"},note.accidentalGlyph));
     }
-    group.appendChild(svgEl("text",{x:x,y:145,class:"note-name-text","text-anchor":"middle"},note.name));
-    group.appendChild(svgEl("text",{x:x,y:159,class:"finger-text","text-anchor":"middle"},note.finger||""));
-    group.addEventListener("click",()=>{
+    group.appendChild(svgEl("text",{x:x,y:state.layout.nameY,class:"note-name-text","text-anchor":"middle"},note.name));
+    group.appendChild(svgEl("text",{x:x,y:state.layout.fingerY,class:"finger-text","text-anchor":"middle"},note.finger||""));
+
+    const select=()=>{
       state.noteIndex=index;
       renderCurrentNote();
       highlightNote(index);
+      highlightMeasure(measureForNote(index));
+    };
+    group.addEventListener("click",select);
+    group.addEventListener("keydown",(event)=>{
+      if(event.key!=="Enter"&&event.key!==" ") return;
+      event.preventDefault();
+      select();
     });
     svg.appendChild(group);
   }
@@ -177,13 +296,25 @@
   function buildStaff(){
     const host=$("staff");
     host.innerHTML="";
+
+    // Reserve the clef / key / time header on every system so the beat grid
+    // lines up vertically across all measures.
+    const keySigX=54;
+    const timeSigX=keySigX+state.signature.glyphs.length*9+4;
+    const noteStartX=timeSigX+30;
+    const noteSpan=336-noteStartX;
+    const {top,height}=state.layout;
+
     state.measures.forEach((measure,mIndex)=>{
       const svg=svgEl("svg",{
-        viewBox:"0 0 360 170",
+        viewBox:"0 "+top+" 360 "+height,
         class:"staff-system",
         "data-measure":mIndex,
+        "aria-label":"第"+(mIndex+1)+"小節 "+state.phrase.chords[mIndex],
+        role:"group",
         preserveAspectRatio:"xMidYMid meet"
       });
+      svg.style.aspectRatio="360 / "+height;
 
       [66,78,90,102,114].forEach((y,lineIndex)=>{
         svg.appendChild(svgEl("line",{
@@ -196,18 +327,20 @@
       svg.appendChild(svgEl("line",{x1:346,y1:66,x2:346,y2:114,class:"bar-line"}));
       svg.appendChild(svgEl("text",{x:8,y:111,class:"clef"},"𝄞"));
       svg.appendChild(svgEl("text",{x:306,y:20,class:"measure-no"},"M"+(mIndex+1)));
-      svg.appendChild(svgEl("text",{x:72,y:25,class:"chord-symbol"},state.phrase.chords[mIndex]));
+      svg.appendChild(svgEl("text",{x:noteStartX-16,y:25,class:"chord-symbol"},state.phrase.chords[mIndex]));
 
+      // Every measure is its own system here, so the key signature repeats on
+      // each one exactly as printed music does.
+      state.signature.glyphs.forEach((entry,i)=>{
+        svg.appendChild(svgEl("text",{x:keySigX+i*9,y:entry.y+6,class:"key-signature"},entry.glyph));
+      });
       if(mIndex===0){
-        svg.appendChild(svgEl("text",{x:44,y:84,class:"time-sig"},"4"));
-        svg.appendChild(svgEl("text",{x:44,y:105,class:"time-sig"},"4"));
-        if(state.phrase.key==="G"){
-          svg.appendChild(svgEl("text",{x:62,y:72,class:"key-signature"},"♯"));
-        }
+        svg.appendChild(svgEl("text",{x:timeSigX,y:84,class:"time-sig"},"4"));
+        svg.appendChild(svgEl("text",{x:timeSigX,y:105,class:"time-sig"},"4"));
       }
 
       measure.forEach((note)=>{
-        const x=88+(note.startBeat/4)*232;
+        const x=noteStartX+(note.startBeat/4)*noteSpan;
         addNoteSymbol(svg,note,x,note.globalIndex);
       });
       host.appendChild(svg);
@@ -227,6 +360,8 @@
     $("tempo-label").textContent=state.phrase.bpm;
     $("right-hand").textContent=state.phrase.rightHand;
     splitMeasures();
+    annotateAccidentals();
+    computeLayout();
     buildNoteStarts();
     buildMeta();
     buildStaff();
@@ -269,8 +404,12 @@
     });
   }
 
-  function followScore(index){
-    if(!state.running || state.followedMeasure===index) return;
+  // force=true is used when the player steps notes by hand: the score should
+  // follow the selection even though the transport is stopped.
+  function followScore(index,force=false){
+    if(!state.follow) return;
+    if(!force && !state.running) return;
+    if(state.followedMeasure===index) return;
 
     const system=document.querySelector('.staff-system[data-measure="'+index+'"]');
     if(!system) return;
@@ -296,7 +435,7 @@
   function buildMixer(){
     if(state.mix) return;
 
-    const master=createBus(.78);
+    const master=createBus(MASTER_LEVEL);
     const melody=createBus(.95);
     const chords=createBus(1.0);
     const bass=createBus(.92);
@@ -569,7 +708,21 @@
     state.raf=requestAnimationFrame(visualLoop);
   }
 
+  // Notes are handed to the audio clock up to a lookahead ahead of time and
+  // cannot be un-scheduled, so duck the master bus briefly instead of letting
+  // them ring on after the stop button.
+  function silenceTail(){
+    if(!state.mix||!state.audio) return;
+    const gain=state.mix.master.gain;
+    const now=state.audio.currentTime;
+    gain.cancelScheduledValues(now);
+    gain.setValueAtTime(gain.value,now);
+    gain.linearRampToValueAtTime(.0001,now+.06);
+    gain.setValueAtTime(MASTER_LEVEL,now+.12);
+  }
+
   function stop(resetProgress=true){
+    if(state.running) silenceTail();
     state.running=false;
     if(state.scheduler) clearInterval(state.scheduler);
     if(state.raf) cancelAnimationFrame(state.raf);
@@ -605,7 +758,11 @@
     const button=$("preview-backing");
     if(button){
       button.textContent="♪ M"+(measure+1)+" "+chord+" 再生中";
-      window.setTimeout(()=>{ button.textContent="▶ 伴奏だけ1小節"; },Math.ceil(step*8*1000)+150);
+      if(state.previewTimer) window.clearTimeout(state.previewTimer);
+      state.previewTimer=window.setTimeout(()=>{
+        button.textContent="▶ 伴奏だけ1小節";
+        state.previewTimer=null;
+      },Math.ceil(step*8*1000)+150);
     }
   }
 
@@ -617,6 +774,7 @@
 
     const measure=measureForNote(state.noteIndex);
     highlightMeasure(measure);
+    followScore(measure,true);
     updateProgress((state.noteIndex/Math.max(1,length-1))*100);
   }
 
@@ -652,16 +810,18 @@
       $("play-note").addEventListener("click",()=>playOne().catch(alert));
       $("previous-note").addEventListener("click",()=>moveNote(-1));
       $("next-note").addEventListener("click",()=>moveNote(1));
+      $("follow-toggle").addEventListener("click",()=>{
+        state.follow=!state.follow;
+        $("follow-toggle").setAttribute("aria-pressed",String(state.follow));
+        $("follow-toggle").textContent=state.follow?"⇅ 追従ON":"⇅ 追従OFF";
+        if(state.follow) followScore(measureForNote(state.noteIndex),true);
+      });
       $("backing-chords").addEventListener("click",()=>toggleBacking("chords"));
       $("backing-bass").addEventListener("click",()=>toggleBacking("bass"));
       $("backing-drums").addEventListener("click",()=>toggleBacking("drums"));
       $("preview-backing")?.addEventListener("click",()=>previewBacking().catch(alert));
-
-      if("serviceWorker" in navigator){
-        window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(()=>{}));
-      }
     }catch(error){
-      document.body.insertAdjacentHTML("beforeend",'<p style="padding:16px;color:#9e3f2f">'+error.message+"</p>");
+      document.body.insertAdjacentHTML("beforeend",'<p style="padding:16px;color:#9e3f2f">'+escapeHtml(error.message)+"</p>");
     }
   }
 

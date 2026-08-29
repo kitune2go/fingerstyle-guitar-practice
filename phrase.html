@@ -70,11 +70,14 @@
     <section class="panel score-panel">
       <div class="section-title">
         <div><span>STANDARD NOTATION</span><h2>五線譜</h2></div>
-        <span id="position-label">M1 / 1</span>
+        <div class="score-tools">
+          <button id="follow-toggle" type="button" aria-pressed="true">⇅ 追従ON</button>
+          <span id="position-label">M1 / 1</span>
+        </div>
       </div>
-      <div id="staff" class="staff-systems" role="img" aria-label="ギター五線譜"></div>
+      <div id="staff" class="staff-systems" role="group" aria-label="ギター五線譜"></div>
       <div class="progress"><div id="progress-bar"></div></div>
-      <p class="score-help">音符をタップすると、その音を選択できます。再生中は現在の音符が赤くなります。</p>
+      <p class="score-help">音符をタップ（キーボードならTabで移動してEnter）すると、その音を選択できます。再生中は現在の音符が赤くなります。</p>
     </section>
 
     <section class="panel">

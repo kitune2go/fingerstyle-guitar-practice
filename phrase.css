@@ -38,6 +38,10 @@ button.primary{background:var(--green);color:#fff}button:disabled{opacity:.4}
 .chord-chip.active{background:var(--green-light);border-color:var(--green)}
 .staff-systems{display:grid;gap:10px}
 .staff-system{width:100%;height:auto;aspect-ratio:360/170;display:block;background:#fff;border:1px solid var(--line);overflow:visible}
+.score-tools{display:flex;align-items:center;gap:8px}
+.score-tools button{min-height:32px;padding:0 9px;font-size:11px}
+#follow-toggle[aria-pressed="true"]{background:var(--green);color:#fff}
+.note-symbol:focus-visible{outline:2px solid var(--red);outline-offset:2px}
 .staff-line,.bar-line,.ledger{stroke:#252a26;stroke-width:1.2}.bar-line{stroke-width:1.8}
 .note-head{fill:#202522;stroke:#202522;stroke-width:1.2}.note-head.open{fill:#fff}.note-stem,.note-flag{stroke:#202522;stroke-width:2.2;fill:none;stroke-linecap:round}
 .note-symbol{cursor:pointer}.note-symbol.active .note-head{fill:var(--red);stroke:var(--red)}.note-symbol.active .note-head.open{fill:#fff;stroke:var(--red);stroke-width:2.4}
