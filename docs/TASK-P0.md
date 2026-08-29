@@ -84,6 +84,23 @@ guitar.css    phrase.css   register-sw.js   playwright.config.mjs
 
 ## 3. 成果物1 — `core/music.js`
 
+### `core/` 全体の境界（3モジュールで異なります）
+
+**「`core/` はDOMを触らない」ではありません。** 共通する不変条件は
+**グローバル環境（`document` / `window` / `AudioContext`）を直接参照しないこと**です。
+必要なものは全て引数で受け取ります。境界はモジュールごとに違います。
+
+| モジュール | 境界 |
+|---|---|
+| `music.js` | 完全にプラットフォーム非依存の純ロジック。DOMもWeb Audioも使わない。Nodeから直接テストできる |
+| `clock.js` | `AudioContext` を**引数で受け取る**。グローバルの `AudioContext` / `window` は参照しない |
+| `notation.js` | **DOMアダプタ。DOMは作ります。** ただしページ固有のUI（`.chord-chip`、スクロール制御、アプリの状態）は知らない。グローバルの `document` を参照せず、引数の `host.ownerDocument` 経由でのみ要素を生成する |
+
+`notation.js` がDOMを作るのは設計違反ではありません。**画面から独立していること**が要件であり、
+DOMに触れないことが要件ではありません。
+
+### `core/music.js`
+
 **DOMにもWeb Audioにも触れない純関数のみ。** ブラウザとNodeの両方から `import` できること。
 これは努力目標ではなく受け入れ条件です（§7の単体テストとバリデータがNodeから読み込みます）。
 
@@ -207,6 +224,9 @@ export function systemElement(host, measureIndex)  // 追従スクロール用�
 `core/` は画面を知ってはいけないので、`onSelectNote(index)` を呼ぶだけにし、
 画面側（`phrase.js`）がその中で `renderCurrentNote` / `setActiveNote` / `highlightMeasure` / `followScore` を行います。
 
+要素の生成には `host.ownerDocument.createElementNS(...)` を使い、グローバルの `document` は参照しないでください。
+DOMを作ること自体は、このモジュールの役割です。
+
 `highlightMeasure`（コード進行チップの強調）と `followScore`（自動追従）は
 `.chord-chip` やスクロール制御という画面固有の関心なので、**`phrase.js` に残します。**
 
@@ -215,6 +235,7 @@ export function systemElement(host, measureIndex)  // 追従スクロール用�
 ## 6. ESモジュール化に伴う波及 — 見落としやすい箇所
 
 `import` を使う以上、読み込み方が変わります。以下を**必ず**行ってください。
+**どのコミットで行うかは §12 を見てください**（順序を間違えると途中のコミットが壊れます）。
 
 1. **HTML のスクリプトタグ**
    ```html
@@ -272,15 +293,13 @@ Node標準のテストランナーを使い、`core/music.js` が**ブラウザ�
 | `computeLayout` | 低音を含むと `nameY` が最低音のy+12より大きい |
 | `tabCellWidth` | 0.5拍→2、1拍→4、2拍→8、4拍→16。フレット10の8分音符→3 |
 
-`package.json`:
-
-```json
-"test": "node --test \"tests/unit/*.test.mjs\" && node scripts/validate-lessons.mjs && node scripts/validate-phrases.mjs && node scripts/validate-shell.mjs"
-```
-
-> **注意。** `node --test tests/unit/` のようにディレクトリを渡すとNode 22では `MODULE_NOT_FOUND` になります。
-> 必ず上記のglob形式（クォート必須）で書いてください。
-> CIの `npm test` ステップはこれで単体テストも走るようになるため、ワークフロー側の変更は不要です。
+> **テストランナーは既に配線済みです。** `package.json` の `test` スクリプトには
+> `node --test "tests/unit/*.test.mjs"` が入っており、`tests/unit/` には既存の
+> `validate-shell.test.mjs` があります。**ファイルを追加するだけで走ります。**
+> `package.json` とCIワークフローの変更は不要です。
+>
+> `node --test tests/unit/` のようにディレクトリを渡すとNode 22では `MODULE_NOT_FOUND` になるため、
+> スクリプトを書き換える場合もglob形式（クォート必須）を維持してください。
 
 ---
 
@@ -346,17 +365,10 @@ npm run serve   # http://localhost:8000
 - **バンドラ・TypeScript・フレームワーク・npmパッケージを導入しない。**
   このアプリは GitHub Pages に静的配信されます。ビルド工程はありません。
 - **テストを緩めない。** 落ちたテストを `skip` したり、アサーションを弱めたりしないこと。
-- **`core/` にDOMを持ち込まない。** 「ここだけ `document.createElement` を使えば楽」は必ず却下されます。
-  `notation.js` は `host.ownerDocument.createElementNS(...)` を使ってください。
-- **1つのコミットに全部詰め込まない。** 下記の順に4コミットへ分けること。
-  各コミット時点でテストが通る状態を保つこと。
-
-```
-1. core/music.js を追加し、phrase.js とバリデータをそこへ寄せる（単体テストも同時に追加）
-2. core/clock.js を追加し、phrase.js と guitar.js のスケジューラを置き換える
-3. core/notation.js を追加し、phrase.js の製譜部分を移す
-4. sw.js / HTML / CI のモジュール対応
-```
+- **`core/` からグローバル環境を参照しない。** 禁止しているのはDOMそのものではなく、
+  `document` / `window` / `AudioContext` を**グローバルから掴むこと**です。詳細は§3の冒頭。
+- **1つのコミットに全部詰め込まない。** §12の順に4コミットへ分けること。
+  各コミット時点で `npm test` と `npm run test:e2e` の両方が通る状態を保つこと。
 
 ---
 
@@ -369,3 +381,71 @@ npm run serve   # http://localhost:8000
   （例:「`chordInfo` は音源側でしか使わないので `synth` 側に置くべきか迷ったが、
    和音記号の解析は音楽知識なので `music.js` に置いた」）
 - 仕様に曖昧さを見つけた場合は、自己判断で埋めた内容を明記すること
+
+---
+
+## 12. コミットの分け方
+
+**各コミット時点で `npm test` と `npm run test:e2e` の両方が通ること。**
+この条件があるため、順序は入れ替えられません。
+
+### Commit 1 — ESモジュール化の下準備のみ
+
+```
+index.html    guitar.js の script タグを type="module" へ
+phrase.html   phrase.js の script タグを type="module" へ
+sw.js         CACHE_NAME を v8 へ
+```
+
+- **この時点では `import` を1行も足さない。** ファイルの中身は変えません
+- 動作・DOM・音・見た目は一切変わりません
+- `APP_SHELL` の追加は不要です（新しいファイルがまだ無いため）
+- 全テストPASSを確認
+
+> **なぜ先にこれをやるのか。** `phrase.js` に `import` が入った瞬間、`phrase.html` が
+> classic script のままだとブラウザは構文エラーで読み込みに失敗します。
+> `type="module"` を後回しにすると、途中のコミットが必ず壊れます。
+
+### Commit 2 — `core/music.js`
+
+```
+core/music.js                 新規（§3）
+phrase.js                     音楽ロジックを import に置き換え
+scripts/validate-phrases.mjs  重複実装を import に置き換え（§7.1）
+tests/unit/music.test.mjs     新規（§7.2）
+sw.js                         APP_SHELL に ./core/music.js を追加
+```
+
+- 全テストPASSを確認
+
+### Commit 3 — `core/clock.js`
+
+```
+core/clock.js   新規（§4）
+phrase.js       schedulerTick を置き換え
+guitar.js       metronomeTick を置き換え
+sw.js           APP_SHELL に ./core/clock.js を追加
+```
+
+- 全テストPASSを確認
+
+### Commit 4 — `core/notation.js`
+
+```
+core/notation.js   新規（§5）
+phrase.js          製譜部分を移設
+sw.js              APP_SHELL に ./core/notation.js を追加
+.github/workflows/validate.yml   node --check の対象に core/*.js を追加
+```
+
+- 全テストPASSを確認
+
+### CACHE_NAME について
+
+**バージョンを上げるのは Commit 1 の一度だけ**（v7 → v8）で構いません。
+Commit 2〜4 は `APP_SHELL` へエントリを足すだけです。
+ブランチ全体が1つの単位としてデプロイされるため、途中の版が配信されることはありません。
+
+> `npm test` に含まれる `scripts/validate-shell.mjs` が、`core/*.js` の `APP_SHELL` 登録漏れを
+> 検出します。**登録を忘れたコミットは `npm test` が落ちます。**
+> これが「各コミットでテストが通る」を機械的に保証しています。

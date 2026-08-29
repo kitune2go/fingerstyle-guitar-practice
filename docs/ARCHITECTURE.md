@@ -327,7 +327,7 @@ P1（測定）以前でも、この2つを軸にした Tempo Ladder は正しく
 ドリルが40種類に増えると、この形では毎回スケジューラと製譜器を書き直すことになります。**先に切り出します。**
 
 ```
-core/                      画面を知らない。純粋なロジック
+core/                      画面を知らない。グローバル環境に依存しない
   clock.js                 先読みオーディオスケジューラ（現在2箇所に重複）
   synth.js                 メロディ／伴奏／ドラムの音源
   pitch.js                 YIN ピッチ検出
@@ -343,9 +343,25 @@ modes/                     画面。core を組み合わせるだけ
   today.js  drill.js  score.js  repertoire.js  record.js  assess.js
 ```
 
-依存の向きは `modes → core` の一方向のみ。`core` は DOM を触らないので、Node で単体テストできます（現在はブラウザテストでしか検証できません）。
+依存の向きは `modes → core` の一方向のみです。
 
-**移行順序：** `clock.js` の重複解消 → `music.js` / `notation.js` の抽出 → 以降の新規実装は core 前提。既存3画面は動いたまま段階的に置き換えます。
+### `core/` の境界は「DOM禁止」ではない
+
+共通する不変条件は、**グローバル環境（`document` / `window` / `AudioContext`）を直接参照しないこと**です。
+必要なものは全て引数で受け取ります。実際の境界はモジュールごとに違います。
+
+| 層 | モジュール | 境界 |
+|---|---|---|
+| 純ロジック | `music.js` `metrics.js` `prescribe.js` | プラットフォーム非依存。DOMもWeb Audioも使わない。**Nodeから直接テストできる** |
+| オーディオ | `clock.js` `synth.js` `pitch.js` `onset.js` `calibration.js` | `AudioContext` を引数で受け取る。グローバル参照なし |
+| アダプタ | `notation.js` `store.js` | **プラットフォームAPIを使う。** ただし画面固有のUIや状態は知らない。`notation.js` は `host.ownerDocument` 経由でのみDOMを生成し、`store.js` は IndexedDB を包む |
+
+`notation.js` がDOMを作るのは設計違反ではありません。要件は**画面から独立していること**であって、
+DOMに触れないことではありません。Nodeで直接テストできるのは純ロジック層だけであり、
+オーディオ層とアダプタ層はブラウザテストで担保します。
+
+**移行順序：** ESモジュール化の下準備 → `music.js` → `clock.js` の重複解消 → `notation.js`。
+以降の新規実装は core 前提。既存3画面は動いたまま段階的に置き換えます（詳細は `docs/TASK-P0.md`）。
 
 ---
 
