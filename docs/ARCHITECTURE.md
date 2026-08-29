@@ -230,8 +230,9 @@ data/
   "measure": {
     "type": "onset-grid",
     "primary": "time.sd_ms",
-    "secondary": ["dynamics.cv", "completion"],
-    "criterion": { "time.sd_ms": "<=18", "dynamics.cv": "<=0.15", "completion": "==1" }
+    "secondary": ["dynamics.cv", "transportCompleted"],
+    "criterion": { "time.sd_ms": "<=18", "dynamics.cv": "<=0.15", "transportCompleted": true },
+    "criterionId": "rh-alt-v1"
   },
   "progression": {
     "variable": "bpm",
@@ -246,6 +247,9 @@ data/
 
 **`criterion` を満たさない限りテンポは上がりません。** 精度を犠牲にした速度は能力ではなく癖であり、後で剥がすのに数倍の時間がかかります。これをアプリが機械的に強制することが、独学者にとって最大の価値です。
 
+`criterionId` は基準の版です。Attempt の `assessment.criterionId`（§6.4）に記録され、
+基準を改訂したときに古い合格を区別できるようにします。
+
 ### 6.2 Attempt — 1回の演奏の記録
 
 チェックボックスは「練習した」しか残しません。1回の演奏を Attempt として残します。
@@ -254,28 +258,77 @@ data/
 {
   "drillId": "rh-alternation-evenness",
   "date": "2026-08-29T21:04:00+09:00",
-  "bpm": 92,
-  "assistLevel": 3,
-  "measured":  { "time.mean_ms": -3.1, "time.sd_ms": 16.4, "dynamics.cv": 0.12 },
-  "observed":  { "completed": true, "durationSec": 42 },
-  "reported":  { "mistakes": 2, "cleanTake": false },
-  "passed": true
+
+  "conditions": { "tempo": 92, "assistLevel": 3,
+                  "backing": ["chords","bass"], "metronome": true },
+
+  "observed":   { "transportCompleted": true, "elapsedSec": 42 },
+
+  "reported":   { "mistakes": 2, "perceivedClean": false },
+
+  "measured":   { "timingMeanMs": -3.1, "timingSdMs": 16.4, "dynamicsCv": 0.12 },
+
+  "assessment": { "status": "pass", "basis": "measured", "criterionId": "rh-alt-v1" }
 }
 ```
 
-**3つのフィールドを分けるのが要点です。**
+**4つの区画は、値の出所が違うから分かれています。**
 
-- `measured` — マイクから得た値（Tier A）
-- `observed` — アプリが自分で知っている値。テンポ、補助レベル、完走、所要時間（機械的に確実）
-- `reported` — 本人の申告（Tier C）。`mistakes` と `cleanTake` はここにしか置けません
+| 区画 | 中身 | 出所 |
+|---|---|---|
+| `conditions` | どういう条件で弾いたか。テンポ、補助レベル、伴奏、メトロノーム | **アプリの設定値。** 演奏の結果ではなく入力 |
+| `observed` | アプリが確実に観測できたこと | 機械的に確実 |
+| `reported` | 本人の申告 | Tier C |
+| `measured` | マイクから得た値 | Tier A |
+| `assessment` | 合否と、**その合否が何に基づくか** | 下記 |
 
-この区別が無いと、`cleanTake: true` という自己申告が測定値と同じ重みで能力レベルへ流れ込み、
-「アプリが練習を知っているだけ」という現状の問題を、より手の込んだ形で再現するだけになります。
+**`conditions` と `observed` を分けるのが要点です。** テンポと補助レベルは
+「アプリが知っている事実」ではありますが、演奏の**結果ではなく前提**です。
+`observed` に混ぜると「92BPMで弾けた」という結論に見えますが、実際にアプリが観測したのは
+「92BPMの設定でトランスポートが最後まで進んだ」だけです。
 
-**測定が無いフェーズでも `observed` は本物です。** 到達テンポと補助レベルは推測ではありません。
-P1（測定）以前でも、この2つを軸にした Tempo Ladder は正しく機能します。
+### 6.3 アプリが本当に知っていること
 
-### 6.3 Mastery — 習得の判定
+マイク測定が入るまで、アプリが確実に知れるのは次の4つだけです。
+
+| 知れる | 知れない |
+|---|---|
+| 設定されたBPM | **本人がそのBPMで正しく弾けたか** |
+| 補助レベル | 音が合っていたか |
+| トランスポートが最後まで進んだか | 止まらずに弾けたか |
+| 所要時間 | ミスの回数 |
+
+`transportCompleted` という名前を使うのは、この境界を名前で強制するためです。
+`completed` と書くと「本人が演奏を完遂した」と読めますが、**アプリが知っているのは
+再生が最後まで進んだことだけ**で、その間ユーザーがギターを置いていたかどうかは分かりません。
+
+### 6.4 assessment — 合否にも出所を残す
+
+合否そのものが、測定に基づくのか自己申告に基づくのかを記録します。
+
+```json
+"assessment": { "status": "pass", "basis": "measured", "criterionId": "rh-alt-v1" }
+```
+
+測定が入る前は、同じ「合格」でも根拠が違います。
+
+```json
+"assessment": { "status": "provisional", "basis": "reported" }
+```
+
+| `status` | 意味 |
+|---|---|
+| `pass` | 測定値が基準を満たした |
+| `provisional` | 自己申告ベースの暫定合格。測定が入れば再評価される |
+| `fail` | 基準未達 |
+
+`basis` は `measured` / `reported` / `observed` のいずれか。`criterionId` は適用した基準の版で、
+基準を改訂したときに古い合格を区別できるようにします。
+
+**この区別が無いと、自己申告の「ノーミスだった」が測定値と同じ重みで能力レベルへ流れ込み、
+「アプリは練習を知っているだけ」という現状の問題を、より手の込んだ形で再現するだけになります。**
+
+### 6.5 Mastery — 習得の判定
 
 到達テンポの昇格は、1回の成功では認めません。
 
@@ -288,16 +341,36 @@ P1（測定）以前でも、この2つを軸にした Tempo Ladder は正しく
 **別日の再現を要求するのが肝です。** 同一セッション内の成功は短期的な運動プライミングであり、
 翌日には消えていることがあります。日をまたいで再現できて初めて、獲得された能力です。
 
-### 6.4 訓練者の状態（端末内）
+**Tempo Ladder は測定前でも機能しますが、到達の意味が違います。**
+
+| | 測定前 | 測定後 |
+|---|---|---|
+| 昇格の根拠 | `conditions.tempo` ＋ `observed.transportCompleted` ＋ 自己申告 | 測定値が `criterion` を満たした |
+| 到達の呼び方 | **reached**（そのテンポで通した） | **verified**（そのテンポで基準を満たした） |
+| `assessment.status` | `provisional` | `pass` |
+
+UIでも両者を区別して表示してください。**`provisional` の到達テンポを、
+測定済みの到達テンポと同じ見た目で並べないこと。**
+
+### 6.6 訓練者の状態（端末内）
 
 ```json
 {
   "schemaVersion": 1,
   "abilities": {
-    "tech.rh.independence": { "level": 4.2, "confidence": 0.8, "lastMeasured": "2026-08-29" }
+    "tech.rh.independence": {
+      "masteredLevel": 4,
+      "nextLevel": 5,
+      "progressToNext": 0.4,
+      "confidence": 0.8,
+      "lastMeasured": "2026-08-29"
+    }
   },
   "drills": {
-    "rh-alternation-evenness": { "bpm": 84, "cleanStreak": 1, "dueDate": "2026-08-31" }
+    "rh-alternation-evenness": {
+      "reachedBpm": 92, "verifiedBpm": 84,
+      "assistLevel": 3, "cleanStreak": 1, "dueDate": "2026-08-31"
+    }
   },
   "sessions": [
     { "date": "2026-08-29", "minutes": 42, "items": [
@@ -309,6 +382,17 @@ P1（測定）以前でも、この2つを軸にした Tempo Ladder は正しく
   "recordings": ["rec-2026-08-29-take1"]
 }
 ```
+
+**能力レベルは整数です。** 各レベルは客観的な到達記述子（例: `time.pulse` Lv6 =
+40〜160BPMで16小節、SD≤15ms）で定義されており、**その記述子を満たしたかどうかは二値**です。
+`4.2` という値は、どの記述子を満たしたのか答えられません。
+
+`masteredLevel` は「客観的に満たした最高レベル」、`progressToNext` は
+UIで「次のLvまで40%」と出すための表示用の値です。**能力そのものの定義には使いません。**
+`confidence` は測定の確からしさ（測定回数と経過日数から算出）で、レベルとは別軸です。
+
+同じ理由で、ドリルの到達テンポも `reachedBpm`（通せた）と `verifiedBpm`（基準を満たした）を
+分けて持ちます（§6.5）。
 
 **この状態は1年分の訓練記録になります。localStorage だけに置くのは危険です。**
 - iOS の PWA はストレージが退去されうる
