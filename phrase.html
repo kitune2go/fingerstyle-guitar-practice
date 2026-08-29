@@ -17,18 +17,26 @@
 
   <main class="app">
     <header class="masthead">
-      <p class="eyebrow">SCORE + SOUND</p>
+      <p class="eyebrow">SCORE + SOUND + BACKING</p>
       <h1>楽譜フレーズ練習</h1>
-      <p>譜面を見る → 音を聴く → 一音ずつ確認 → ループで弾く。</p>
+      <p>譜面を読む → 伴奏を聴く → メロディを重ねる → ループして身体に入れる。</p>
     </header>
 
     <section class="panel controls">
       <label for="phrase-select">フレーズ</label>
       <select id="phrase-select"></select>
+
       <div class="phrase-copy">
         <h2 id="phrase-title">読み込み中</h2>
         <p id="phrase-subtitle"></p>
         <p id="phrase-objective"></p>
+      </div>
+
+      <div class="music-meta" aria-label="楽曲情報">
+        <div><span>KEY</span><strong id="key-label">—</strong></div>
+        <div><span>TIME</span><strong id="time-label">4/4</strong></div>
+        <div><span>BARS</span><strong id="bar-label">—</strong></div>
+        <div><span>GROOVE</span><strong id="groove-label">—</strong></div>
       </div>
 
       <div class="tempo-row">
@@ -43,15 +51,27 @@
       </div>
     </section>
 
+    <section class="panel backing-panel">
+      <div class="section-title compact">
+        <div><span>BACKING</span><h2>後ろで鳴らす</h2></div>
+      </div>
+      <div class="backing-buttons">
+        <button id="backing-chords" class="backing-toggle active" aria-pressed="true">♬ コード ON</button>
+        <button id="backing-bass" class="backing-toggle active" aria-pressed="true">● ベース ON</button>
+        <button id="backing-drums" class="backing-toggle active" aria-pressed="true">◉ ドラム ON</button>
+      </div>
+      <div id="chord-progression" class="chord-progression" aria-label="コード進行"></div>
+      <p class="hint">伴奏は練習用のシンプルな合成音です。コード・ベース・ドラムを個別に消せます。</p>
+    </section>
+
     <section class="panel score-panel">
       <div class="section-title">
         <div><span>STANDARD NOTATION</span><h2>五線譜</h2></div>
-        <span id="position-label">1 / 1</span>
+        <span id="position-label">M1 / 1</span>
       </div>
-      <div class="score-scroll">
-        <svg id="staff" viewBox="0 0 920 190" role="img" aria-label="ギター五線譜"></svg>
-      </div>
+      <div id="staff" class="staff-systems" role="img" aria-label="ギター五線譜"></div>
       <div class="progress"><div id="progress-bar"></div></div>
+      <p class="score-help">音符をタップすると、その音を選択できます。再生中は現在の音符が赤くなります。</p>
     </section>
 
     <section class="panel">
@@ -70,16 +90,16 @@
         <strong id="note-name">—</strong>
         <span id="note-position">—</span>
         <span id="note-finger">—</span>
+        <span id="note-measure">—</span>
       </div>
       <div class="step-buttons">
         <button id="previous-note">← 前</button>
         <button id="play-note" class="primary">♪ この音</button>
         <button id="next-note">次 →</button>
       </div>
-      <p class="hint">五線譜の音符をタップして、その音から確認することもできます。</p>
     </section>
 
-    <footer>基礎練習で動きを作り、フレーズ練習で譜面・耳・指板を接続します。</footer>
+    <footer>基礎で動きを作り、フレーズで譜面・耳・指板・リズムを一つにつなぎます。</footer>
   </main>
 
   <script src="phrase.js" defer></script>

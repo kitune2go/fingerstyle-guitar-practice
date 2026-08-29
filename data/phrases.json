@@ -1,14 +1,28 @@
 {
-  "schemaVersion": 1,
-  "updatedAt": "2026-08-29T13:00:00+09:00",
+  "schemaVersion": 2,
+  "updatedAt": "2026-08-29T13:20:00+09:00",
   "phrases": [
     {
-      "id": "open-string-im",
-      "title": "開放弦 i–m",
-      "subtitle": "右手の交互運指を音で確認",
-      "objective": "1弦開放のEをi–m交互で揃えます。音量差とタイミング差を耳で確認します。",
-      "bpm": 60,
-      "rightHand": "i m i m i m i m",
+      "id": "c-major-eight-bars",
+      "title": "Cメジャー 8小節エチュード",
+      "subtitle": "C–Am–F–Gの流れを旋律として弾く",
+      "objective": "8小節のまとまりで、コード進行の上に旋律がどう乗るかを耳と譜面で確認します。まず伴奏を聴き、次にメロディを重ねます。",
+      "key": "C",
+      "keyLabel": "C Major",
+      "bpm": 66,
+      "timeSignature": "4/4",
+      "measures": 8,
+      "groove": "straight8",
+      "chords": [
+        "C",
+        "Am",
+        "F",
+        "G",
+        "C",
+        "Am",
+        "G",
+        "C"
+      ],
       "notes": [
         {
           "name": "E4",
@@ -18,75 +32,107 @@
           "finger": "i"
         },
         {
-          "name": "E4",
+          "name": "G4",
           "string": 1,
-          "fret": 0,
+          "fret": 3,
           "beats": 1,
           "finger": "m"
         },
         {
-          "name": "E4",
+          "name": "A4",
           "string": 1,
-          "fret": 0,
+          "fret": 5,
           "beats": 1,
           "finger": "i"
         },
         {
-          "name": "E4",
+          "name": "G4",
           "string": 1,
-          "fret": 0,
+          "fret": 3,
           "beats": 1,
           "finger": "m"
         },
         {
-          "name": "E4",
-          "string": 1,
-          "fret": 0,
-          "beats": 1,
-          "finger": "i"
-        },
-        {
-          "name": "E4",
-          "string": 1,
-          "fret": 0,
-          "beats": 1,
-          "finger": "m"
-        },
-        {
-          "name": "E4",
-          "string": 1,
-          "fret": 0,
-          "beats": 1,
-          "finger": "i"
-        },
-        {
-          "name": "E4",
-          "string": 1,
-          "fret": 0,
-          "beats": 1,
-          "finger": "m"
-        }
-      ]
-    },
-    {
-      "id": "string-crossing",
-      "title": "3→2→1→2 弦またぎ",
-      "subtitle": "弦が変わってもi–mを止めない",
-      "objective": "3弦G、2弦B、1弦E、2弦Bを往復します。右手の交互運指を保ったまま弦移動だけを独立させます。",
-      "bpm": 56,
-      "rightHand": "i m i m i m i m",
-      "notes": [
-        {
-          "name": "G3",
-          "string": 3,
-          "fret": 0,
-          "beats": 1,
-          "finger": "i"
-        },
-        {
-          "name": "B3",
+          "name": "C4",
           "string": 2,
+          "fret": 1,
+          "beats": 1,
+          "finger": "i"
+        },
+        {
+          "name": "E4",
+          "string": 1,
           "fret": 0,
+          "beats": 1,
+          "finger": "m"
+        },
+        {
+          "name": "A4",
+          "string": 1,
+          "fret": 5,
+          "beats": 1,
+          "finger": "i"
+        },
+        {
+          "name": "E4",
+          "string": 1,
+          "fret": 0,
+          "beats": 1,
+          "finger": "m"
+        },
+        {
+          "name": "F4",
+          "string": 1,
+          "fret": 1,
+          "beats": 1,
+          "finger": "i"
+        },
+        {
+          "name": "A4",
+          "string": 1,
+          "fret": 5,
+          "beats": 1,
+          "finger": "m"
+        },
+        {
+          "name": "G4",
+          "string": 1,
+          "fret": 3,
+          "beats": 1,
+          "finger": "i"
+        },
+        {
+          "name": "F4",
+          "string": 1,
+          "fret": 1,
+          "beats": 1,
+          "finger": "m"
+        },
+        {
+          "name": "G4",
+          "string": 1,
+          "fret": 3,
+          "beats": 1,
+          "finger": "i"
+        },
+        {
+          "name": "B4",
+          "string": 1,
+          "fret": 7,
+          "beats": 1,
+          "finger": "m"
+        },
+        {
+          "name": "D5",
+          "string": 1,
+          "fret": 10,
+          "beats": 1,
+          "finger": "i"
+        },
+        {
+          "name": "B4",
+          "string": 1,
+          "fret": 7,
           "beats": 1,
           "finger": "m"
         },
@@ -98,67 +144,43 @@
           "finger": "i"
         },
         {
-          "name": "B3",
-          "string": 2,
-          "fret": 0,
+          "name": "G4",
+          "string": 1,
+          "fret": 3,
           "beats": 1,
           "finger": "m"
         },
         {
-          "name": "G3",
-          "string": 3,
-          "fret": 0,
+          "name": "C5",
+          "string": 1,
+          "fret": 8,
           "beats": 1,
           "finger": "i"
         },
         {
-          "name": "B3",
-          "string": 2,
-          "fret": 0,
+          "name": "B4",
+          "string": 1,
+          "fret": 7,
+          "beats": 1,
+          "finger": "m"
+        },
+        {
+          "name": "A4",
+          "string": 1,
+          "fret": 5,
+          "beats": 1,
+          "finger": "i"
+        },
+        {
+          "name": "G4",
+          "string": 1,
+          "fret": 3,
           "beats": 1,
           "finger": "m"
         },
         {
           "name": "E4",
           "string": 1,
-          "fret": 0,
-          "beats": 1,
-          "finger": "i"
-        },
-        {
-          "name": "B3",
-          "string": 2,
-          "fret": 0,
-          "beats": 1,
-          "finger": "m"
-        }
-      ]
-    },
-    {
-      "id": "c-major-fragment",
-      "title": "Cメジャー往復フレーズ",
-      "subtitle": "譜面・耳・指板を一つにつなぐ",
-      "objective": "GからEまで上がって戻ります。五線譜を見て、音を聴き、TABの位置を確認してから同じ音程を弾きます。",
-      "bpm": 60,
-      "rightHand": "i m i m i m i m i m i",
-      "notes": [
-        {
-          "name": "G3",
-          "string": 3,
-          "fret": 0,
-          "beats": 1,
-          "finger": "i"
-        },
-        {
-          "name": "A3",
-          "string": 3,
-          "fret": 2,
-          "beats": 1,
-          "finger": "m"
-        },
-        {
-          "name": "B3",
-          "string": 2,
           "fret": 0,
           "beats": 1,
           "finger": "i"
@@ -178,8 +200,68 @@
           "finger": "i"
         },
         {
-          "name": "E4",
+          "name": "G4",
           "string": 1,
+          "fret": 3,
+          "beats": 1,
+          "finger": "m"
+        },
+        {
+          "name": "B4",
+          "string": 1,
+          "fret": 7,
+          "beats": 1,
+          "finger": "i"
+        },
+        {
+          "name": "D5",
+          "string": 1,
+          "fret": 10,
+          "beats": 1,
+          "finger": "m"
+        },
+        {
+          "name": "C5",
+          "string": 1,
+          "fret": 8,
+          "beats": 4,
+          "finger": "i"
+        }
+      ],
+      "rightHand": "i m i m i m i m i m i m i m i m i m i m i m i m i m i m i"
+    },
+    {
+      "id": "g-major-crossing",
+      "title": "Gメジャー 8小節・弦またぎ",
+      "subtitle": "F♯を含むKey Gで弦移動を音楽にする",
+      "objective": "3弦から1弦までを使い、G–D–Em–Cの循環を8小節で弾きます。F♯を含む調性感と弦移動を同時に覚えます。",
+      "key": "G",
+      "keyLabel": "G Major",
+      "bpm": 72,
+      "timeSignature": "4/4",
+      "measures": 8,
+      "groove": "straight8",
+      "chords": [
+        "G",
+        "D",
+        "Em",
+        "C",
+        "G",
+        "D",
+        "C",
+        "G"
+      ],
+      "notes": [
+        {
+          "name": "G3",
+          "string": 3,
+          "fret": 0,
+          "beats": 1,
+          "finger": "i"
+        },
+        {
+          "name": "B3",
+          "string": 2,
           "fret": 0,
           "beats": 1,
           "finger": "m"
@@ -192,9 +274,93 @@
           "finger": "i"
         },
         {
-          "name": "C4",
+          "name": "G4",
+          "string": 1,
+          "fret": 3,
+          "beats": 1,
+          "finger": "m"
+        },
+        {
+          "name": "F#4",
+          "string": 1,
+          "fret": 2,
+          "beats": 1,
+          "finger": "i"
+        },
+        {
+          "name": "A4",
+          "string": 1,
+          "fret": 5,
+          "beats": 1,
+          "finger": "m"
+        },
+        {
+          "name": "F#4",
+          "string": 1,
+          "fret": 2,
+          "beats": 1,
+          "finger": "i"
+        },
+        {
+          "name": "D4",
           "string": 2,
-          "fret": 1,
+          "fret": 3,
+          "beats": 1,
+          "finger": "m"
+        },
+        {
+          "name": "E4",
+          "string": 1,
+          "fret": 0,
+          "beats": 1,
+          "finger": "i"
+        },
+        {
+          "name": "G4",
+          "string": 1,
+          "fret": 3,
+          "beats": 1,
+          "finger": "m"
+        },
+        {
+          "name": "B4",
+          "string": 1,
+          "fret": 7,
+          "beats": 1,
+          "finger": "i"
+        },
+        {
+          "name": "G4",
+          "string": 1,
+          "fret": 3,
+          "beats": 1,
+          "finger": "m"
+        },
+        {
+          "name": "E4",
+          "string": 1,
+          "fret": 0,
+          "beats": 1,
+          "finger": "i"
+        },
+        {
+          "name": "G4",
+          "string": 1,
+          "fret": 3,
+          "beats": 1,
+          "finger": "m"
+        },
+        {
+          "name": "C5",
+          "string": 1,
+          "fret": 8,
+          "beats": 1,
+          "finger": "i"
+        },
+        {
+          "name": "G4",
+          "string": 1,
+          "fret": 3,
           "beats": 1,
           "finger": "m"
         },
@@ -206,6 +372,48 @@
           "finger": "i"
         },
         {
+          "name": "D4",
+          "string": 2,
+          "fret": 3,
+          "beats": 1,
+          "finger": "m"
+        },
+        {
+          "name": "G4",
+          "string": 1,
+          "fret": 3,
+          "beats": 1,
+          "finger": "i"
+        },
+        {
+          "name": "B4",
+          "string": 1,
+          "fret": 7,
+          "beats": 1,
+          "finger": "m"
+        },
+        {
+          "name": "A4",
+          "string": 1,
+          "fret": 5,
+          "beats": 1,
+          "finger": "i"
+        },
+        {
+          "name": "F#4",
+          "string": 1,
+          "fret": 2,
+          "beats": 1,
+          "finger": "m"
+        },
+        {
+          "name": "D4",
+          "string": 2,
+          "fret": 3,
+          "beats": 1,
+          "finger": "i"
+        },
+        {
           "name": "A3",
           "string": 3,
           "fret": 2,
@@ -213,93 +421,606 @@
           "finger": "m"
         },
         {
+          "name": "C4",
+          "string": 2,
+          "fret": 1,
+          "beats": 1,
+          "finger": "i"
+        },
+        {
+          "name": "E4",
+          "string": 1,
+          "fret": 0,
+          "beats": 1,
+          "finger": "m"
+        },
+        {
+          "name": "G4",
+          "string": 1,
+          "fret": 3,
+          "beats": 1,
+          "finger": "i"
+        },
+        {
+          "name": "E4",
+          "string": 1,
+          "fret": 0,
+          "beats": 1,
+          "finger": "m"
+        },
+        {
+          "name": "G4",
+          "string": 1,
+          "fret": 3,
+          "beats": 4,
+          "finger": "i"
+        }
+      ],
+      "rightHand": "i m i m i m i m i m i m i m i m i m i m i m i m i m i m i"
+    },
+    {
+      "id": "a-minor-groove",
+      "title": "Aマイナー 8小節グルーヴ",
+      "subtitle": "8分音符を混ぜて伴奏と噛み合わせる",
+      "objective": "Am–F–C–Gを中心に、8分音符と4分音符を混ぜます。ドラムとベースをONにして、裏拍まで身体で感じながら弾きます。",
+      "key": "Am",
+      "keyLabel": "A Minor",
+      "bpm": 76,
+      "timeSignature": "4/4",
+      "measures": 8,
+      "groove": "straight8",
+      "chords": [
+        "Am",
+        "F",
+        "C",
+        "G",
+        "Am",
+        "F",
+        "G",
+        "Am"
+      ],
+      "notes": [
+        {
+          "name": "A3",
+          "string": 3,
+          "fret": 2,
+          "beats": 0.5,
+          "finger": "i"
+        },
+        {
+          "name": "C4",
+          "string": 2,
+          "fret": 1,
+          "beats": 0.5,
+          "finger": "m"
+        },
+        {
+          "name": "E4",
+          "string": 1,
+          "fret": 0,
+          "beats": 1,
+          "finger": "i"
+        },
+        {
+          "name": "A4",
+          "string": 1,
+          "fret": 5,
+          "beats": 0.5,
+          "finger": "m"
+        },
+        {
+          "name": "E4",
+          "string": 1,
+          "fret": 0,
+          "beats": 0.5,
+          "finger": "i"
+        },
+        {
+          "name": "C4",
+          "string": 2,
+          "fret": 1,
+          "beats": 1,
+          "finger": "m"
+        },
+        {
+          "name": "A3",
+          "string": 3,
+          "fret": 2,
+          "beats": 0.5,
+          "finger": "i"
+        },
+        {
+          "name": "C4",
+          "string": 2,
+          "fret": 1,
+          "beats": 0.5,
+          "finger": "m"
+        },
+        {
+          "name": "F4",
+          "string": 1,
+          "fret": 1,
+          "beats": 1,
+          "finger": "i"
+        },
+        {
+          "name": "A4",
+          "string": 1,
+          "fret": 5,
+          "beats": 0.5,
+          "finger": "m"
+        },
+        {
+          "name": "G4",
+          "string": 1,
+          "fret": 3,
+          "beats": 0.5,
+          "finger": "i"
+        },
+        {
+          "name": "F4",
+          "string": 1,
+          "fret": 1,
+          "beats": 1,
+          "finger": "m"
+        },
+        {
           "name": "G3",
           "string": 3,
           "fret": 0,
+          "beats": 0.5,
+          "finger": "i"
+        },
+        {
+          "name": "C4",
+          "string": 2,
+          "fret": 1,
+          "beats": 0.5,
+          "finger": "m"
+        },
+        {
+          "name": "E4",
+          "string": 1,
+          "fret": 0,
+          "beats": 1,
+          "finger": "i"
+        },
+        {
+          "name": "G4",
+          "string": 1,
+          "fret": 3,
+          "beats": 0.5,
+          "finger": "m"
+        },
+        {
+          "name": "E4",
+          "string": 1,
+          "fret": 0,
+          "beats": 0.5,
+          "finger": "i"
+        },
+        {
+          "name": "C4",
+          "string": 2,
+          "fret": 1,
+          "beats": 1,
+          "finger": "m"
+        },
+        {
+          "name": "G3",
+          "string": 3,
+          "fret": 0,
+          "beats": 0.5,
+          "finger": "i"
+        },
+        {
+          "name": "B3",
+          "string": 2,
+          "fret": 0,
+          "beats": 0.5,
+          "finger": "m"
+        },
+        {
+          "name": "D4",
+          "string": 2,
+          "fret": 3,
+          "beats": 1,
+          "finger": "i"
+        },
+        {
+          "name": "G4",
+          "string": 1,
+          "fret": 3,
+          "beats": 0.5,
+          "finger": "m"
+        },
+        {
+          "name": "D4",
+          "string": 2,
+          "fret": 3,
+          "beats": 0.5,
+          "finger": "i"
+        },
+        {
+          "name": "B3",
+          "string": 2,
+          "fret": 0,
+          "beats": 1,
+          "finger": "m"
+        },
+        {
+          "name": "C4",
+          "string": 2,
+          "fret": 1,
+          "beats": 0.5,
+          "finger": "i"
+        },
+        {
+          "name": "E4",
+          "string": 1,
+          "fret": 0,
+          "beats": 0.5,
+          "finger": "m"
+        },
+        {
+          "name": "A4",
+          "string": 1,
+          "fret": 5,
+          "beats": 1,
+          "finger": "i"
+        },
+        {
+          "name": "G4",
+          "string": 1,
+          "fret": 3,
+          "beats": 0.5,
+          "finger": "m"
+        },
+        {
+          "name": "E4",
+          "string": 1,
+          "fret": 0,
+          "beats": 0.5,
+          "finger": "i"
+        },
+        {
+          "name": "C4",
+          "string": 2,
+          "fret": 1,
+          "beats": 1,
+          "finger": "m"
+        },
+        {
+          "name": "F4",
+          "string": 1,
+          "fret": 1,
+          "beats": 0.5,
+          "finger": "i"
+        },
+        {
+          "name": "A4",
+          "string": 1,
+          "fret": 5,
+          "beats": 0.5,
+          "finger": "m"
+        },
+        {
+          "name": "C5",
+          "string": 1,
+          "fret": 8,
+          "beats": 1,
+          "finger": "i"
+        },
+        {
+          "name": "A4",
+          "string": 1,
+          "fret": 5,
+          "beats": 0.5,
+          "finger": "m"
+        },
+        {
+          "name": "G4",
+          "string": 1,
+          "fret": 3,
+          "beats": 0.5,
+          "finger": "i"
+        },
+        {
+          "name": "F4",
+          "string": 1,
+          "fret": 1,
+          "beats": 1,
+          "finger": "m"
+        },
+        {
+          "name": "D4",
+          "string": 2,
+          "fret": 3,
+          "beats": 0.5,
+          "finger": "i"
+        },
+        {
+          "name": "G4",
+          "string": 1,
+          "fret": 3,
+          "beats": 0.5,
+          "finger": "m"
+        },
+        {
+          "name": "B4",
+          "string": 1,
+          "fret": 7,
+          "beats": 1,
+          "finger": "i"
+        },
+        {
+          "name": "A4",
+          "string": 1,
+          "fret": 5,
+          "beats": 0.5,
+          "finger": "m"
+        },
+        {
+          "name": "G4",
+          "string": 1,
+          "fret": 3,
+          "beats": 0.5,
+          "finger": "i"
+        },
+        {
+          "name": "D4",
+          "string": 2,
+          "fret": 3,
+          "beats": 1,
+          "finger": "m"
+        },
+        {
+          "name": "A4",
+          "string": 1,
+          "fret": 5,
+          "beats": 2,
+          "finger": "i"
+        },
+        {
+          "name": "E4",
+          "string": 1,
+          "fret": 0,
+          "beats": 1,
+          "finger": "m"
+        },
+        {
+          "name": "A3",
+          "string": 3,
+          "fret": 2,
+          "beats": 1,
+          "finger": "i"
+        }
+      ],
+      "rightHand": "i m i m i m i m i m i m i m i m i m i m i m i m i m i m i m i m i m i m i m i m i m i m i"
+    },
+    {
+      "id": "one-string-rock",
+      "title": "1弦 5–8–10–12 ミニソング",
+      "subtitle": "ポジション移動を4小節のロック句にする",
+      "objective": "1弦だけの移動練習を、Am–G–F–Eの4小節フレーズにします。コードとドラムを鳴らすと、単純な運指がリフとして聞こえます。",
+      "key": "Am",
+      "keyLabel": "A Minor",
+      "bpm": 84,
+      "timeSignature": "4/4",
+      "measures": 4,
+      "groove": "rock8",
+      "chords": [
+        "Am",
+        "G",
+        "F",
+        "E"
+      ],
+      "notes": [
+        {
+          "name": "A4",
+          "string": 1,
+          "fret": 5,
+          "beats": 0.5,
+          "finger": "i"
+        },
+        {
+          "name": "C5",
+          "string": 1,
+          "fret": 8,
+          "beats": 0.5,
+          "finger": "m"
+        },
+        {
+          "name": "D5",
+          "string": 1,
+          "fret": 10,
+          "beats": 0.5,
+          "finger": "i"
+        },
+        {
+          "name": "C5",
+          "string": 1,
+          "fret": 8,
+          "beats": 0.5,
+          "finger": "m"
+        },
+        {
+          "name": "A4",
+          "string": 1,
+          "fret": 5,
+          "beats": 0.5,
+          "finger": "i"
+        },
+        {
+          "name": "C5",
+          "string": 1,
+          "fret": 8,
+          "beats": 0.5,
+          "finger": "m"
+        },
+        {
+          "name": "D5",
+          "string": 1,
+          "fret": 10,
+          "beats": 0.5,
+          "finger": "i"
+        },
+        {
+          "name": "E5",
+          "string": 1,
+          "fret": 12,
+          "beats": 0.5,
+          "finger": "m"
+        },
+        {
+          "name": "E5",
+          "string": 1,
+          "fret": 12,
+          "beats": 0.5,
+          "finger": "i"
+        },
+        {
+          "name": "D5",
+          "string": 1,
+          "fret": 10,
+          "beats": 0.5,
+          "finger": "m"
+        },
+        {
+          "name": "C5",
+          "string": 1,
+          "fret": 8,
+          "beats": 0.5,
+          "finger": "i"
+        },
+        {
+          "name": "A4",
+          "string": 1,
+          "fret": 5,
+          "beats": 0.5,
+          "finger": "m"
+        },
+        {
+          "name": "C5",
+          "string": 1,
+          "fret": 8,
+          "beats": 0.5,
+          "finger": "i"
+        },
+        {
+          "name": "D5",
+          "string": 1,
+          "fret": 10,
+          "beats": 0.5,
+          "finger": "m"
+        },
+        {
+          "name": "C5",
+          "string": 1,
+          "fret": 8,
+          "beats": 0.5,
+          "finger": "i"
+        },
+        {
+          "name": "A4",
+          "string": 1,
+          "fret": 5,
+          "beats": 0.5,
+          "finger": "m"
+        },
+        {
+          "name": "A4",
+          "string": 1,
+          "fret": 5,
+          "beats": 0.5,
+          "finger": "i"
+        },
+        {
+          "name": "A4",
+          "string": 1,
+          "fret": 5,
+          "beats": 0.5,
+          "finger": "m"
+        },
+        {
+          "name": "C5",
+          "string": 1,
+          "fret": 8,
+          "beats": 0.5,
+          "finger": "i"
+        },
+        {
+          "name": "D5",
+          "string": 1,
+          "fret": 10,
+          "beats": 0.5,
+          "finger": "m"
+        },
+        {
+          "name": "E5",
+          "string": 1,
+          "fret": 12,
+          "beats": 0.5,
+          "finger": "i"
+        },
+        {
+          "name": "D5",
+          "string": 1,
+          "fret": 10,
+          "beats": 0.5,
+          "finger": "m"
+        },
+        {
+          "name": "C5",
+          "string": 1,
+          "fret": 8,
+          "beats": 0.5,
+          "finger": "i"
+        },
+        {
+          "name": "A4",
+          "string": 1,
+          "fret": 5,
+          "beats": 0.5,
+          "finger": "m"
+        },
+        {
+          "name": "A4",
+          "string": 1,
+          "fret": 5,
+          "beats": 0.5,
+          "finger": "i"
+        },
+        {
+          "name": "C5",
+          "string": 1,
+          "fret": 8,
+          "beats": 0.5,
+          "finger": "m"
+        },
+        {
+          "name": "D5",
+          "string": 1,
+          "fret": 10,
+          "beats": 0.5,
+          "finger": "i"
+        },
+        {
+          "name": "C5",
+          "string": 1,
+          "fret": 8,
+          "beats": 0.5,
+          "finger": "m"
+        },
+        {
+          "name": "A4",
+          "string": 1,
+          "fret": 5,
           "beats": 2,
           "finger": "i"
         }
-      ]
-    },
-    {
-      "id": "one-string-5-8-10",
-      "title": "1弦 5–8–10 フレーズ",
-      "subtitle": "左手移動と右手交互を分離する",
-      "objective": "1弦だけでA–C–Dを往復し、左手の移動量が増えても右手i–mの周期を固定します。",
-      "bpm": 64,
-      "rightHand": "i m i m i m i m i m",
-      "notes": [
-        {
-          "name": "A4",
-          "string": 1,
-          "fret": 5,
-          "beats": 0.5,
-          "finger": "i"
-        },
-        {
-          "name": "C5",
-          "string": 1,
-          "fret": 8,
-          "beats": 0.5,
-          "finger": "m"
-        },
-        {
-          "name": "D5",
-          "string": 1,
-          "fret": 10,
-          "beats": 1,
-          "finger": "i"
-        },
-        {
-          "name": "C5",
-          "string": 1,
-          "fret": 8,
-          "beats": 1,
-          "finger": "m"
-        },
-        {
-          "name": "A4",
-          "string": 1,
-          "fret": 5,
-          "beats": 1,
-          "finger": "i"
-        },
-        {
-          "name": "C5",
-          "string": 1,
-          "fret": 8,
-          "beats": 0.5,
-          "finger": "m"
-        },
-        {
-          "name": "D5",
-          "string": 1,
-          "fret": 10,
-          "beats": 0.5,
-          "finger": "i"
-        },
-        {
-          "name": "A4",
-          "string": 1,
-          "fret": 5,
-          "beats": 1,
-          "finger": "m"
-        },
-        {
-          "name": "C5",
-          "string": 1,
-          "fret": 8,
-          "beats": 1,
-          "finger": "i"
-        },
-        {
-          "name": "A4",
-          "string": 1,
-          "fret": 5,
-          "beats": 1,
-          "finger": "m"
-        }
-      ]
+      ],
+      "rightHand": "i m i m i m i m i m i m i m i m i m i m i m i m i m i m i"
     }
   ]
 }
