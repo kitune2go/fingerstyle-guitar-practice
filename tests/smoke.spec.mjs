@@ -119,6 +119,35 @@ test("full phrase transport schedules melody plus backing", async ({ page }) => 
   expect(errors).toEqual([]);
 });
 
+test("playback auto-follows the current score measure", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__followCalls=[];
+    Element.prototype.scrollIntoView=function(options){
+      window.__followCalls.push({
+        measure:this.getAttribute?.("data-measure"),
+        block:options?.block,
+        behavior:options?.behavior
+      });
+    };
+  });
+
+  await page.goto(base+"/phrase.html");
+  await page.locator("#tempo").evaluate((el) => {
+    el.value="160";
+    el.dispatchEvent(new Event("input",{bubbles:true}));
+  });
+
+  await page.getByRole("button",{name:"▶ 再生"}).click();
+  await page.waitForTimeout(1850);
+  await page.getByRole("button",{name:"■ 停止"}).click();
+
+  const calls=await page.evaluate(()=>window.__followCalls);
+  expect(calls.some(call=>call.measure==="0")).toBeTruthy();
+  expect(calls.some(call=>call.measure==="1")).toBeTruthy();
+  expect(calls.every(call=>call.block==="center")).toBeTruthy();
+  expect(calls.every(call=>call.behavior==="smooth")).toBeTruthy();
+});
+
 test("G major score shows key signature marker", async ({ page }) => {
   await page.goto(base+"/phrase.html");
   await page.locator("#phrase-select").selectOption("1");
