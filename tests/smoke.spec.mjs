@@ -270,6 +270,10 @@ test("stepping notes by hand follows the score, and the toggle stops it", async 
 
 test("low bass notes do not collide with the pitch-name row", async ({ page }) => {
   await page.goto(base + "/phrase.html");
+  // The score is drawn after the phrase fetch resolves. page.evaluate does not
+  // auto-wait the way a locator assertion does, so wait for it explicitly.
+  await expect(page.locator(".note-head").first()).toBeAttached();
+
   const geometry = await page.evaluate(() => {
     const head = document.querySelector(".note-head");
     const svg = head.ownerSVGElement;
