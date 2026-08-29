@@ -1,10 +1,13 @@
 # 実装依頼 P0 — エンジン層の抽出
 
-このファイル単体で作業できるように書いてあります。実装者はこの文書の指示のみに従ってください。
+このタスクの仕様書です。実装者（人間・AIを問わず）はこの文書に従ってください。
 
-- 背景と全体像: `docs/ARCHITECTURE.md`
+**先に [`AGENTS.md`](../AGENTS.md) を読んでください。** リポジトリ共通の規約・検証手順・既知の制約が
+そちらにあり、この文書はそれを前提にしています。
+
 - 対象リポジトリ: `kitune2go/fingerstyle-guitar-practice`
-- 作業ブランチ: 新規に `feat/core-extraction` を切る
+- 作業ブランチ: `main` から `feat/core-extraction` を切る
+- 背景と全体像: [`docs/ARCHITECTURE.md`](ARCHITECTURE.md)
 
 ## 0. このタスクの目的
 
