@@ -283,3 +283,106 @@ test("low bass notes do not collide with the pitch-name row", async ({ page }) =
   expect(geometry.nameY).toBeGreaterThan(geometry.lowest + 12);
   expect(geometry.viewBoxBottom).toBeGreaterThan(geometry.nameY);
 });
+
+// stop() ducks the master bus to swallow the tail of already-scheduled notes.
+// Anything started inside that ~120ms window used to be swallowed with it: a
+// note begun 60-103ms after a stop played through a master gain of 0.0001.
+const instrumentMasterGain = () => {
+  window.__auto = [];
+  window.__starts = [];
+
+  const descriptor = Object.getOwnPropertyDescriptor(AudioParam.prototype, "value");
+  Object.defineProperty(AudioParam.prototype, "value", {
+    get: descriptor.get,
+    set(v) { this.__initial = v; return descriptor.set.call(this, v); },
+    configurable: true
+  });
+
+  for (const method of ["setValueAtTime", "linearRampToValueAtTime",
+                        "exponentialRampToValueAtTime", "cancelScheduledValues"]) {
+    const original = AudioParam.prototype[method];
+    AudioParam.prototype[method] = function (...args) {
+      // The master bus is the only one initialised to MASTER_LEVEL (0.78).
+      if (this.__initial === 0.78) {
+        window.__auto.push({ method, value: args[0], time: args[args.length - 1] });
+      }
+      return original.apply(this, args);
+    };
+  }
+
+  const start = OscillatorNode.prototype.start;
+  OscillatorNode.prototype.start = function (when) {
+    window.__starts.push(when);
+    return start.call(this, when);
+  };
+
+  // Replays the recorded automation to get the gain actually in force at `t`.
+  // cancelScheduledValues(x) has to drop everything already queued at or after
+  // x, otherwise cancelled automation still shows up in the replay.
+  window.__gainAt = (events, t) => {
+    const live = [];
+    for (const event of events) {
+      if (event.method === "cancelScheduledValues") {
+        for (let i = live.length - 1; i >= 0; i -= 1) {
+          if (live[i].time >= event.time) live.splice(i, 1);
+        }
+        continue;
+      }
+      live.push(event);
+    }
+
+    let value = 0.78;
+    let previous = 0;
+    for (const event of live) {
+      if (event.time > t) {
+        if (event.method.endsWith("RampToValueAtTime") && event.time > previous) {
+          return value + (event.value - value) * ((t - previous) / (event.time - previous));
+        }
+        return value;
+      }
+      value = event.value;
+      previous = event.time;
+    }
+    return value;
+  };
+};
+
+async function gainAtFirstNoteAfterStop(page, startPlayback) {
+  await page.getByRole("button", { name: "▶ 再生" }).click();
+  await page.waitForTimeout(400);
+  // Discard what the lookahead queued before the stop; only the new sound matters.
+  await page.evaluate(() => { window.__auto.length = 0; window.__starts.length = 0; });
+
+  await page.getByRole("button", { name: "■ 停止" }).click();
+  await startPlayback();                       // no wait: the worst case
+  await page.waitForTimeout(300);
+
+  return page.evaluate(() => {
+    const stopAt = window.__auto.find((e) => e.method === "cancelScheduledValues").time;
+    const started = window.__starts.filter((t) => t >= stopAt).sort((a, b) => a - b);
+    return { offset: started[0] - stopAt, gain: window.__gainAt(window.__auto, started[0]) };
+  });
+}
+
+test("playing straight after stop is not swallowed by the stop's fade", async ({ page }) => {
+  await page.addInitScript(instrumentMasterGain);
+  await page.goto(base + "/phrase.html");
+
+  const { offset, gain } = await gainAtFirstNoteAfterStop(page, () =>
+    page.getByRole("button", { name: "▶ 再生" }).click());
+
+  // The note really does land inside the window the fade used to cover.
+  expect(offset).toBeLessThan(0.12);
+  expect(gain).toBeCloseTo(0.78, 3);
+});
+
+test("a single note straight after stop is not swallowed either", async ({ page }) => {
+  await page.addInitScript(instrumentMasterGain);
+  await page.goto(base + "/phrase.html");
+
+  const { offset, gain } = await gainAtFirstNoteAfterStop(page, () =>
+    page.getByRole("button", { name: "♪ この音" }).click());
+
+  expect(offset).toBeLessThan(0.12);
+  expect(gain).toBeCloseTo(0.78, 3);
+});

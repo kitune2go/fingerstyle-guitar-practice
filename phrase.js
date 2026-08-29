@@ -692,6 +692,7 @@
   async function play(){
     if(state.running) return;
     await ensureAudio();
+    restoreMaster();
 
     state.running=true;
     state.nextGrid=0;
@@ -706,6 +707,19 @@
     schedulerTick();
     state.scheduler=setInterval(schedulerTick,25);
     state.raf=requestAnimationFrame(visualLoop);
+  }
+
+  // stop() ducks the master bus for ~120ms to swallow the tail of notes already
+  // handed to the audio clock. Anything started inside that window would be
+  // swallowed with them, so every entry point that schedules audio clears the
+  // duck first. Measured before this existed: a note started 60-103ms after a
+  // stop played through a master gain of 0.0001, i.e. was silent.
+  function restoreMaster(){
+    if(!state.mix||!state.audio) return;
+    const gain=state.mix.master.gain;
+    const now=state.audio.currentTime;
+    gain.cancelScheduledValues(now);
+    gain.setValueAtTime(MASTER_LEVEL,now);
   }
 
   // Notes are handed to the audio clock up to a lookahead ahead of time and
@@ -739,6 +753,7 @@
 
   async function playOne(){
     await ensureAudio();
+    restoreMaster();
     const note=state.phrase.notes[state.noteIndex];
     scheduleMelody(note,state.audio.currentTime+.02,Number(note.beats)*secondsPerBeat());
     highlightNote(state.noteIndex);
@@ -746,6 +761,7 @@
 
   async function previewBacking(){
     await ensureAudio();
+    restoreMaster();
     const measure=measureForNote(state.noteIndex);
     const chord=state.phrase.chords[measure];
     const start=state.audio.currentTime+.05;
