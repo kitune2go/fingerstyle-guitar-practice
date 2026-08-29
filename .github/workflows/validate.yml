@@ -1,4 +1,4 @@
-name: Validate lessons
+name: Validate practice app
 
 on:
   push:
@@ -16,4 +16,15 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm test
+      - name: Check JavaScript syntax
+        run: |
+          node --check guitar.js
+          node --check phrase.js
+      - name: Validate lesson and phrase data
+        run: npm test
+      - name: Check integrated pages
+        run: |
+          test -f index.html
+          test -f phrase.html
+          test -f rhythm.html
+          test -f data/phrases.json
