@@ -749,3 +749,32 @@ footer {
     scroll-behavior: auto;
   }
 }
+
+
+/* Unified practice modes */
+.mode-nav {
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  width: min(100%, 760px);
+  margin: 0 auto;
+  border-bottom: 1px solid var(--line);
+  background: rgba(243, 234, 216, 0.96);
+  backdrop-filter: blur(12px);
+}
+.mode-nav a {
+  padding: 13px 8px;
+  color: var(--green);
+  border-right: 1px solid var(--line);
+  font-size: 13px;
+  font-weight: 800;
+  text-align: center;
+  text-decoration: none;
+}
+.mode-nav a:last-child { border-right: 0; }
+.mode-nav a[aria-current="page"] {
+  background: var(--green);
+  color: white;
+}
