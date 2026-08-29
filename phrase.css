@@ -41,8 +41,8 @@ button.primary{background:var(--green);color:#fff}button:disabled{opacity:.4}
 .staff-line,.bar-line,.ledger{stroke:#252a26;stroke-width:1.2}.bar-line{stroke-width:1.8}
 .note-head{fill:#202522;stroke:#202522;stroke-width:1.2}.note-head.open{fill:#fff}.note-stem,.note-flag{stroke:#202522;stroke-width:2.2;fill:none;stroke-linecap:round}
 .note-symbol{cursor:pointer}.note-symbol.active .note-head{fill:var(--red);stroke:var(--red)}.note-symbol.active .note-head.open{fill:#fff;stroke:var(--red);stroke-width:2.4}
-.note-symbol.active .note-stem,.note-symbol.active .note-flag{stroke:var(--red)}
-.clef{font:52px Georgia,serif;fill:#202522}.time-sig{font:700 19px Georgia,serif;fill:#202522}.measure-no{font:700 10px ui-monospace,monospace;fill:#6c706b}.chord-symbol{font:800 16px Georgia,serif;fill:#173f32}.accidental{font:20px Georgia,serif;fill:#202522}.finger-text{font:700 10px ui-monospace,monospace;fill:#6c706b}.key-signature{font:20px Georgia,serif;fill:#202522}
+.note-symbol.active .note-stem,.note-symbol.active .note-flag{stroke:var(--red)}.note-symbol.active .note-name-text,.note-symbol.active .finger-text{fill:var(--red)}
+.clef{font:52px Georgia,serif;fill:#202522}.time-sig{font:700 19px Georgia,serif;fill:#202522}.measure-no{font:700 10px ui-monospace,monospace;fill:#6c706b}.chord-symbol{font:800 16px Georgia,serif;fill:#173f32}.accidental{font:20px Georgia,serif;fill:#202522}.note-name-text{font:800 10px ui-monospace,monospace;fill:#202522}.finger-text{font:700 9px ui-monospace,monospace;fill:#6c706b}.key-signature{font:20px Georgia,serif;fill:#202522}
 .progress{height:6px;margin-top:10px;background:#e3d9c7;overflow:hidden}.progress>div{height:100%;width:0;background:var(--green);transition:width .06s linear}
 .score-help,.hint,footer{color:var(--muted);font-size:11px;line-height:1.6}.score-help{margin:9px 0 0}
 #tab{margin:0;overflow:auto;padding:12px;background:#fff;border:1px solid var(--line);font:700 12px/1.65 ui-monospace,monospace;white-space:pre}

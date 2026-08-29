@@ -163,7 +163,8 @@
     if(parts.accidental){
       group.appendChild(svgEl("text",{x:x-22,y:y+7,class:"accidental"},parts.accidental==="#"?"♯":"♭"));
     }
-    group.appendChild(svgEl("text",{x:x-4,y:151,class:"finger-text"},note.finger||""));
+    group.appendChild(svgEl("text",{x:x,y:145,class:"note-name-text","text-anchor":"middle"},note.name));
+    group.appendChild(svgEl("text",{x:x,y:159,class:"finger-text","text-anchor":"middle"},note.finger||""));
     group.addEventListener("click",()=>{
       state.noteIndex=index;
       renderCurrentNote();

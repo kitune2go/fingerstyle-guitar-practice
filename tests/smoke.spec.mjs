@@ -33,6 +33,10 @@ test("score renders actual five-line systems and note heads", async ({ page }) =
 
   const noteCount=await page.locator(".note-head").count();
   expect(noteCount).toBeGreaterThan(20);
+  await expect(page.locator(".note-name-text")).toHaveCount(noteCount);
+  await expect(page.locator(".finger-text")).toHaveCount(noteCount);
+  await expect(page.locator(".note-name-text").first()).toHaveText("E4");
+  await expect(page.locator(".finger-text").first()).toHaveText("i");
 
   const firstHead=page.locator(".note-head").first();
   await expect(firstHead).toBeVisible();
