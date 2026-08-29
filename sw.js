@@ -1,4 +1,4 @@
-const CACHE_NAME = "fingerstyle-practice-v2";
+const CACHE_NAME = "fingerstyle-practice-v3";
 const APP_SHELL = [
   "./",
   "./index.html",
