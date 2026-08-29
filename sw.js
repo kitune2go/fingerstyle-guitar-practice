@@ -42,7 +42,15 @@ async function precacheLessons(cache) {
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then(async (cache) => {
-      await addAllReporting(cache, APP_SHELL, "app shell");
+      // The app shell is all-or-nothing: a worker that activates with part of
+      // the shell missing serves a half-broken app offline, and it replaces a
+      // previous worker that was serving a complete one. Rejecting here fails
+      // the install, so the older working worker stays in charge.
+      const complete = await addAllReporting(cache, APP_SHELL, "app shell");
+      if (!complete) throw new Error("[sw] app shell incomplete, keeping the previous worker");
+
+      // Lesson data is discovered from the index rather than declared, and a
+      // single missing lesson only costs that lesson offline. Warn and carry on.
       await precacheLessons(cache);
     })
   );
