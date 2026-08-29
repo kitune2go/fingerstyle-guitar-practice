@@ -30,12 +30,14 @@ button.primary{background:var(--green);color:#fff}button:disabled{opacity:.4}
 .section-title{display:flex;align-items:end;justify-content:space-between;gap:12px;padding-bottom:10px;border-bottom:3px double var(--ink);margin-bottom:12px}.section-title.compact{margin-bottom:10px}
 .section-title h2{margin:4px 0 0;font-size:22px}.section-title>span{color:var(--muted);letter-spacing:.06em}
 .backing-toggle{font-size:12px}.backing-toggle.active{background:var(--green);color:#fff}
+.preview-backing{width:100%;margin-top:10px;background:#fff;border:2px solid var(--green);color:var(--green)}
+.preview-backing:active{transform:translateY(1px)}
 .chord-progression{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:11px}
 .chord-chip{display:grid;gap:3px;padding:9px 6px;border:1px solid var(--line);background:#fff;text-align:center}
 .chord-chip small{color:var(--muted);font:700 8px ui-monospace,monospace}.chord-chip strong{font:800 15px Georgia,serif}
 .chord-chip.active{background:var(--green-light);border-color:var(--green)}
 .staff-systems{display:grid;gap:10px}
-.staff-system{width:100%;display:block;background:#fff;border:1px solid var(--line);overflow:visible}
+.staff-system{width:100%;height:auto;aspect-ratio:360/170;display:block;background:#fff;border:1px solid var(--line);overflow:visible}
 .staff-line,.bar-line,.ledger{stroke:#252a26;stroke-width:1.2}.bar-line{stroke-width:1.8}
 .note-head{fill:#202522;stroke:#202522;stroke-width:1.2}.note-head.open{fill:#fff}.note-stem,.note-flag{stroke:#202522;stroke-width:2.2;fill:none;stroke-linecap:round}
 .note-symbol{cursor:pointer}.note-symbol.active .note-head{fill:var(--red);stroke:var(--red)}.note-symbol.active .note-head.open{fill:#fff;stroke:var(--red);stroke-width:2.4}
