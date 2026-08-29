@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node scripts/validate-lessons.mjs && node scripts/validate-phrases.mjs",
+    "test": "node scripts/validate-lessons.mjs && node scripts/validate-phrases.mjs && node scripts/validate-shell.mjs",
     "test:e2e": "playwright test",
     "serve": "python3 -m http.server 8000"
   },
