@@ -10,14 +10,62 @@
       "bpm": 60,
       "rightHand": "i m i m i m i m",
       "notes": [
-        {"name":"E4","string":1,"fret":0,"beats":1,"finger":"i"},
-        {"name":"E4","string":1,"fret":0,"beats":1,"finger":"m"},
-        {"name":"E4","string":1,"fret":0,"beats":1,"finger":"i"},
-        {"name":"E4","string":1,"fret":0,"beats":1,"finger":"m"},
-        {"name":"E4","string":1,"fret":0,"beats":1,"finger":"i"},
-        {"name":"E4","string":1,"fret":0,"beats":1,"finger":"m"},
-        {"name":"E4","string":1,"fret":0,"beats":1,"finger":"i"},
-        {"name":"E4","string":1,"fret":0,"beats":1,"finger":"m"}
+        {
+          "name": "E4",
+          "string": 1,
+          "fret": 0,
+          "beats": 1,
+          "finger": "i"
+        },
+        {
+          "name": "E4",
+          "string": 1,
+          "fret": 0,
+          "beats": 1,
+          "finger": "m"
+        },
+        {
+          "name": "E4",
+          "string": 1,
+          "fret": 0,
+          "beats": 1,
+          "finger": "i"
+        },
+        {
+          "name": "E4",
+          "string": 1,
+          "fret": 0,
+          "beats": 1,
+          "finger": "m"
+        },
+        {
+          "name": "E4",
+          "string": 1,
+          "fret": 0,
+          "beats": 1,
+          "finger": "i"
+        },
+        {
+          "name": "E4",
+          "string": 1,
+          "fret": 0,
+          "beats": 1,
+          "finger": "m"
+        },
+        {
+          "name": "E4",
+          "string": 1,
+          "fret": 0,
+          "beats": 1,
+          "finger": "i"
+        },
+        {
+          "name": "E4",
+          "string": 1,
+          "fret": 0,
+          "beats": 1,
+          "finger": "m"
+        }
       ]
     },
     {
@@ -28,14 +76,62 @@
       "bpm": 56,
       "rightHand": "i m i m i m i m",
       "notes": [
-        {"name":"G3","string":3,"fret":0,"beats":1,"finger":"i"},
-        {"name":"B3","string":2,"fret":0,"beats":1,"finger":"m"},
-        {"name":"E4","string":1,"fret":0,"beats":1,"finger":"i"},
-        {"name":"B3","string":2,"fret":0,"beats":1,"finger":"m"},
-        {"name":"G3","string":3,"fret":0,"beats":1,"finger":"i"},
-        {"name":"B3","string":2,"fret":0,"beats":1,"finger":"m"},
-        {"name":"E4","string":1,"fret":0,"beats":1,"finger":"i"},
-        {"name":"B3","string":2,"fret":0,"beats":1,"finger":"m"}
+        {
+          "name": "G3",
+          "string": 3,
+          "fret": 0,
+          "beats": 1,
+          "finger": "i"
+        },
+        {
+          "name": "B3",
+          "string": 2,
+          "fret": 0,
+          "beats": 1,
+          "finger": "m"
+        },
+        {
+          "name": "E4",
+          "string": 1,
+          "fret": 0,
+          "beats": 1,
+          "finger": "i"
+        },
+        {
+          "name": "B3",
+          "string": 2,
+          "fret": 0,
+          "beats": 1,
+          "finger": "m"
+        },
+        {
+          "name": "G3",
+          "string": 3,
+          "fret": 0,
+          "beats": 1,
+          "finger": "i"
+        },
+        {
+          "name": "B3",
+          "string": 2,
+          "fret": 0,
+          "beats": 1,
+          "finger": "m"
+        },
+        {
+          "name": "E4",
+          "string": 1,
+          "fret": 0,
+          "beats": 1,
+          "finger": "i"
+        },
+        {
+          "name": "B3",
+          "string": 2,
+          "fret": 0,
+          "beats": 1,
+          "finger": "m"
+        }
       ]
     },
     {
@@ -46,17 +142,83 @@
       "bpm": 60,
       "rightHand": "i m i m i m i m i m i",
       "notes": [
-        {"name":"G3","string":3,"fret":0,"beats":1,"finger":"i"},
-        {"name":"A3","string":3,"fret":2,"beats":1,"finger":"m"},
-        {"name":"B3","string":2,"fret":0,"beats":1,"finger":"i"},
-        {"name":"C4","string":2,"fret":1,"beats":1,"finger":"m"},
-        {"name":"D4","string":2,"fret":3,"beats":1,"finger":"i"},
-        {"name":"E4","string":1,"fret":0,"beats":1,"finger":"m"},
-        {"name":"D4","string":2,"fret":3,"beats":1,"finger":"i"},
-        {"name":"C4","string":2,"fret":1,"beats":1,"finger":"m"},
-        {"name":"B3","string":2,"fret":0,"beats":1,"finger":"i"},
-        {"name":"A3","string":3,"fret":2,"beats":1,"finger":"m"},
-        {"name":"G3","string":3,"fret":0,"beats":2,"finger":"i"}
+        {
+          "name": "G3",
+          "string": 3,
+          "fret": 0,
+          "beats": 1,
+          "finger": "i"
+        },
+        {
+          "name": "A3",
+          "string": 3,
+          "fret": 2,
+          "beats": 1,
+          "finger": "m"
+        },
+        {
+          "name": "B3",
+          "string": 2,
+          "fret": 0,
+          "beats": 1,
+          "finger": "i"
+        },
+        {
+          "name": "C4",
+          "string": 2,
+          "fret": 1,
+          "beats": 1,
+          "finger": "m"
+        },
+        {
+          "name": "D4",
+          "string": 2,
+          "fret": 3,
+          "beats": 1,
+          "finger": "i"
+        },
+        {
+          "name": "E4",
+          "string": 1,
+          "fret": 0,
+          "beats": 1,
+          "finger": "m"
+        },
+        {
+          "name": "D4",
+          "string": 2,
+          "fret": 3,
+          "beats": 1,
+          "finger": "i"
+        },
+        {
+          "name": "C4",
+          "string": 2,
+          "fret": 1,
+          "beats": 1,
+          "finger": "m"
+        },
+        {
+          "name": "B3",
+          "string": 2,
+          "fret": 0,
+          "beats": 1,
+          "finger": "i"
+        },
+        {
+          "name": "A3",
+          "string": 3,
+          "fret": 2,
+          "beats": 1,
+          "finger": "m"
+        },
+        {
+          "name": "G3",
+          "string": 3,
+          "fret": 0,
+          "beats": 2,
+          "finger": "i"
+        }
       ]
     },
     {
@@ -65,16 +227,78 @@
       "subtitle": "左手移動と右手交互を分離する",
       "objective": "1弦だけでA–C–Dを往復し、左手の移動量が増えても右手i–mの周期を固定します。",
       "bpm": 64,
-      "rightHand": "i m i m i m i m",
+      "rightHand": "i m i m i m i m i m",
       "notes": [
-        {"name":"A4","string":1,"fret":5,"beats":0.5,"finger":"i"},
-        {"name":"C5","string":1,"fret":8,"beats":0.5,"finger":"m"},
-        {"name":"D5","string":1,"fret":10,"beats":1,"finger":"i"},
-        {"name":"C5","string":1,"fret":8,"beats":1,"finger":"m"},
-        {"name":"A4","string":1,"fret":5,"beats":1,"finger":"i"},
-        {"name":"C5","string":1,"fret":8,"beats":0.5,"finger":"m"},
-        {"name":"D5","string":1,"fret":10,"beats":0.5,"finger":"i"},
-        {"name":"A4","string":1,"fret":5,"beats":2,"finger":"m"}
+        {
+          "name": "A4",
+          "string": 1,
+          "fret": 5,
+          "beats": 0.5,
+          "finger": "i"
+        },
+        {
+          "name": "C5",
+          "string": 1,
+          "fret": 8,
+          "beats": 0.5,
+          "finger": "m"
+        },
+        {
+          "name": "D5",
+          "string": 1,
+          "fret": 10,
+          "beats": 1,
+          "finger": "i"
+        },
+        {
+          "name": "C5",
+          "string": 1,
+          "fret": 8,
+          "beats": 1,
+          "finger": "m"
+        },
+        {
+          "name": "A4",
+          "string": 1,
+          "fret": 5,
+          "beats": 1,
+          "finger": "i"
+        },
+        {
+          "name": "C5",
+          "string": 1,
+          "fret": 8,
+          "beats": 0.5,
+          "finger": "m"
+        },
+        {
+          "name": "D5",
+          "string": 1,
+          "fret": 10,
+          "beats": 0.5,
+          "finger": "i"
+        },
+        {
+          "name": "A4",
+          "string": 1,
+          "fret": 5,
+          "beats": 1,
+          "finger": "m"
+        },
+        {
+          "name": "C5",
+          "string": 1,
+          "fret": 8,
+          "beats": 1,
+          "finger": "i"
+        },
+        {
+          "name": "A4",
+          "string": 1,
+          "fret": 5,
+          "beats": 1,
+          "finger": "m"
+        }
       ]
     }
   ]
