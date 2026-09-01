@@ -28,15 +28,6 @@
       "durationMinutes": 10,
       "level": 1,
       "path": "lessons/003.json"
-    },
-    {
-      "id": "004",
-      "date": "2026-09-01",
-      "title": "A7ブルース・ロック 8小節",
-      "subtitle": "コードと単音を切り替えず、一続きに弾く",
-      "durationMinutes": 15,
-      "level": 3,
-      "path": "lessons/004.json"
     }
   ]
 }
