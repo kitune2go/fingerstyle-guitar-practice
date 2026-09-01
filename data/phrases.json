@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "updatedAt": "2026-08-29T13:20:00+09:00",
+  "updatedAt": "2026-09-01T22:35:00+09:00",
   "phrases": [
     {
       "id": "c-major-eight-bars",
@@ -1021,6 +1021,474 @@
         }
       ],
       "rightHand": "i m i m i m i m i m i m i m i m i m i m i m i m i m i m i"
+    },
+    {
+      "id": "a7-blues-rock-eight-bars",
+      "title": "A7ブルース・ロック 8小節",
+      "subtitle": "譜割りを追いながら、コード感と単音を一続きにする",
+      "objective": "Char系のブルース・ロック語法を手がかりにしたオリジナル8小節です。フレーズ練習の譜面表示と再生で、8分音符と伸ばす音の位置を確認してください。特にC→C#、1音チョーキング、スライド、5h7p5に相当する動きを意識します。",
+      "key": "A",
+      "keyLabel": "A Blues / A7",
+      "bpm": 84,
+      "timeSignature": "4/4",
+      "measures": 8,
+      "groove": "rock8",
+      "chords": [
+        "A7",
+        "A7",
+        "D7",
+        "D7",
+        "A7",
+        "A7",
+        "E7",
+        "A7"
+      ],
+      "notes": [
+        {
+          "name": "A2",
+          "string": 6,
+          "fret": 5,
+          "beats": 0.5,
+          "finger": "D"
+        },
+        {
+          "name": "C#4",
+          "string": 3,
+          "fret": 6,
+          "beats": 0.5,
+          "finger": "U"
+        },
+        {
+          "name": "E4",
+          "string": 2,
+          "fret": 5,
+          "beats": 0.5,
+          "finger": "D"
+        },
+        {
+          "name": "F#4",
+          "string": 2,
+          "fret": 7,
+          "beats": 0.5,
+          "finger": "U"
+        },
+        {
+          "name": "E4",
+          "string": 2,
+          "fret": 5,
+          "beats": 0.5,
+          "finger": "D"
+        },
+        {
+          "name": "C#4",
+          "string": 3,
+          "fret": 6,
+          "beats": 0.5,
+          "finger": "U"
+        },
+        {
+          "name": "C4",
+          "string": 3,
+          "fret": 5,
+          "beats": 0.5,
+          "finger": "D"
+        },
+        {
+          "name": "A3",
+          "string": 4,
+          "fret": 7,
+          "beats": 0.5,
+          "finger": "U"
+        },
+        {
+          "name": "C4",
+          "string": 3,
+          "fret": 5,
+          "beats": 0.5,
+          "finger": "D"
+        },
+        {
+          "name": "C#4",
+          "string": 3,
+          "fret": 6,
+          "beats": 0.5,
+          "finger": "U",
+          "technique": "hammer"
+        },
+        {
+          "name": "E4",
+          "string": 2,
+          "fret": 5,
+          "beats": 0.5,
+          "finger": "D"
+        },
+        {
+          "name": "G#4",
+          "string": 2,
+          "fret": 7,
+          "beats": 1,
+          "finger": "U",
+          "technique": "full-step-bend"
+        },
+        {
+          "name": "F#4",
+          "string": 2,
+          "fret": 7,
+          "beats": 0.5,
+          "finger": "D"
+        },
+        {
+          "name": "E4",
+          "string": 2,
+          "fret": 5,
+          "beats": 0.5,
+          "finger": "U"
+        },
+        {
+          "name": "C#4",
+          "string": 3,
+          "fret": 6,
+          "beats": 0.5,
+          "finger": "D"
+        },
+        {
+          "name": "D3",
+          "string": 5,
+          "fret": 5,
+          "beats": 0.5,
+          "finger": "D"
+        },
+        {
+          "name": "D4",
+          "string": 3,
+          "fret": 7,
+          "beats": 0.5,
+          "finger": "U"
+        },
+        {
+          "name": "F#4",
+          "string": 2,
+          "fret": 7,
+          "beats": 0.5,
+          "finger": "D"
+        },
+        {
+          "name": "G4",
+          "string": 2,
+          "fret": 8,
+          "beats": 0.5,
+          "finger": "U"
+        },
+        {
+          "name": "F#4",
+          "string": 2,
+          "fret": 7,
+          "beats": 0.5,
+          "finger": "D"
+        },
+        {
+          "name": "D4",
+          "string": 3,
+          "fret": 7,
+          "beats": 0.5,
+          "finger": "U"
+        },
+        {
+          "name": "C4",
+          "string": 3,
+          "fret": 5,
+          "beats": 0.5,
+          "finger": "D"
+        },
+        {
+          "name": "A3",
+          "string": 4,
+          "fret": 7,
+          "beats": 0.5,
+          "finger": "U"
+        },
+        {
+          "name": "D4",
+          "string": 3,
+          "fret": 7,
+          "beats": 0.5,
+          "finger": "D"
+        },
+        {
+          "name": "F#4",
+          "string": 2,
+          "fret": 7,
+          "beats": 0.5,
+          "finger": "U"
+        },
+        {
+          "name": "A4",
+          "string": 2,
+          "fret": 10,
+          "beats": 0.5,
+          "finger": "D",
+          "technique": "slide"
+        },
+        {
+          "name": "B4",
+          "string": 2,
+          "fret": 10,
+          "beats": 1,
+          "finger": "U",
+          "technique": "full-step-bend"
+        },
+        {
+          "name": "A4",
+          "string": 2,
+          "fret": 10,
+          "beats": 0.5,
+          "finger": "D"
+        },
+        {
+          "name": "F#4",
+          "string": 2,
+          "fret": 7,
+          "beats": 0.5,
+          "finger": "U"
+        },
+        {
+          "name": "D4",
+          "string": 3,
+          "fret": 7,
+          "beats": 0.5,
+          "finger": "D"
+        },
+        {
+          "name": "A2",
+          "string": 6,
+          "fret": 5,
+          "beats": 0.5,
+          "finger": "D"
+        },
+        {
+          "name": "C4",
+          "string": 3,
+          "fret": 5,
+          "beats": 0.5,
+          "finger": "U"
+        },
+        {
+          "name": "C#4",
+          "string": 3,
+          "fret": 6,
+          "beats": 0.5,
+          "finger": "D",
+          "technique": "hammer"
+        },
+        {
+          "name": "E4",
+          "string": 2,
+          "fret": 5,
+          "beats": 0.5,
+          "finger": "U"
+        },
+        {
+          "name": "C#4",
+          "string": 3,
+          "fret": 6,
+          "beats": 0.5,
+          "finger": "D"
+        },
+        {
+          "name": "C4",
+          "string": 3,
+          "fret": 5,
+          "beats": 0.5,
+          "finger": "U"
+        },
+        {
+          "name": "A3",
+          "string": 4,
+          "fret": 7,
+          "beats": 0.5,
+          "finger": "D"
+        },
+        {
+          "name": "E3",
+          "string": 5,
+          "fret": 7,
+          "beats": 0.5,
+          "finger": "U"
+        },
+        {
+          "name": "C4",
+          "string": 3,
+          "fret": 5,
+          "beats": 0.5,
+          "finger": "D"
+        },
+        {
+          "name": "C#4",
+          "string": 3,
+          "fret": 6,
+          "beats": 0.5,
+          "finger": "U",
+          "technique": "hammer"
+        },
+        {
+          "name": "E4",
+          "string": 2,
+          "fret": 5,
+          "beats": 0.5,
+          "finger": "D"
+        },
+        {
+          "name": "F#4",
+          "string": 2,
+          "fret": 7,
+          "beats": 0.5,
+          "finger": "U",
+          "technique": "hammer"
+        },
+        {
+          "name": "E4",
+          "string": 2,
+          "fret": 5,
+          "beats": 0.5,
+          "finger": "D",
+          "technique": "pull"
+        },
+        {
+          "name": "C#4",
+          "string": 3,
+          "fret": 6,
+          "beats": 0.5,
+          "finger": "U"
+        },
+        {
+          "name": "C4",
+          "string": 3,
+          "fret": 5,
+          "beats": 0.5,
+          "finger": "D"
+        },
+        {
+          "name": "A3",
+          "string": 4,
+          "fret": 7,
+          "beats": 0.5,
+          "finger": "U"
+        },
+        {
+          "name": "E3",
+          "string": 5,
+          "fret": 7,
+          "beats": 0.5,
+          "finger": "D"
+        },
+        {
+          "name": "G#3",
+          "string": 4,
+          "fret": 6,
+          "beats": 0.5,
+          "finger": "U"
+        },
+        {
+          "name": "B3",
+          "string": 3,
+          "fret": 4,
+          "beats": 0.5,
+          "finger": "D"
+        },
+        {
+          "name": "D4",
+          "string": 2,
+          "fret": 3,
+          "beats": 0.5,
+          "finger": "U"
+        },
+        {
+          "name": "C#4",
+          "string": 2,
+          "fret": 2,
+          "beats": 0.5,
+          "finger": "D"
+        },
+        {
+          "name": "A3",
+          "string": 3,
+          "fret": 2,
+          "beats": 0.5,
+          "finger": "U"
+        },
+        {
+          "name": "F#3",
+          "string": 4,
+          "fret": 4,
+          "beats": 0.5,
+          "finger": "D"
+        },
+        {
+          "name": "D3",
+          "string": 5,
+          "fret": 5,
+          "beats": 0.5,
+          "finger": "U"
+        },
+        {
+          "name": "A2",
+          "string": 6,
+          "fret": 5,
+          "beats": 0.5,
+          "finger": "D"
+        },
+        {
+          "name": "C4",
+          "string": 3,
+          "fret": 5,
+          "beats": 0.5,
+          "finger": "U"
+        },
+        {
+          "name": "C#4",
+          "string": 3,
+          "fret": 6,
+          "beats": 0.5,
+          "finger": "D",
+          "technique": "hammer"
+        },
+        {
+          "name": "E4",
+          "string": 2,
+          "fret": 5,
+          "beats": 0.5,
+          "finger": "U"
+        },
+        {
+          "name": "C#4",
+          "string": 3,
+          "fret": 6,
+          "beats": 0.5,
+          "finger": "D"
+        },
+        {
+          "name": "C4",
+          "string": 3,
+          "fret": 5,
+          "beats": 0.5,
+          "finger": "U"
+        },
+        {
+          "name": "A3",
+          "string": 4,
+          "fret": 7,
+          "beats": 0.5,
+          "finger": "D"
+        },
+        {
+          "name": "A2",
+          "string": 6,
+          "fret": 5,
+          "beats": 0.5,
+          "finger": "U"
+        }
+      ],
+      "rightHand": "D U D U を基本に、ハンマリング／プル／スライド／チョーキングでは右手を省略してもよい。まず84 BPMで譜割りを確認する。"
     }
   ]
 }
