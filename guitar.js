@@ -1,3 +1,5 @@
+import { createSamplePlayer } from "./core/sample-player.js";
+
 (() => {
   "use strict";
 
@@ -5,6 +7,7 @@
   if (!app) return;
 
   const byId = (id) => document.getElementById(id);
+  const SOUND_MODE_KEY = "fingerstyle-sound-mode";
   // Both resolved against the document so they are comparable, and so the
   // fallback stays inside the deployment (a project GitHub Pages site is served
   // from a subpath, where an origin-relative "/data/" is always a 404).
@@ -23,6 +26,9 @@
     nextBeatTime: 0,
     beatInBar: 0,
     audioContext: null,
+    samplePlayer: null,
+    sampleLoad: null,
+    soundMode: readSoundMode(),
   };
 
   // setInterval drifts, and drifts worst on phones, which is the one thing a
@@ -30,6 +36,71 @@
   // only use the timer to top the queue up.
   const CLICK_LOOKAHEAD = 0.15;
   const CLICK_TICK_MS = 25;
+  const METRONOME_SAMPLES = ["closedHat", "tom"];
+
+  function readSoundMode() {
+    try {
+      return localStorage.getItem(SOUND_MODE_KEY) === "synth" ? "synth" : "samples";
+    } catch {
+      return "samples";
+    }
+  }
+
+  function saveSoundMode() {
+    try {
+      localStorage.setItem(SOUND_MODE_KEY, state.soundMode);
+    } catch (error) {
+      console.warn("[app] could not save sound mode:", error);
+    }
+  }
+
+  function renderSoundMode(status = "idle") {
+    const button = byId("sound-mode-toggle");
+    if (!button) return;
+
+    const real = state.soundMode === "samples";
+    if (!real) status = "idle";
+    const labels = {
+      idle: real ? "音色：リアル" : "音色：合成",
+      loading: "音色：読込中…",
+      partial: "音色：リアル（一部）",
+      failed: "音源失敗：合成",
+    };
+    button.textContent = labels[status] ?? labels.idle;
+    button.setAttribute("aria-pressed", String(real));
+    button.setAttribute("aria-busy", String(status === "loading"));
+    button.setAttribute(
+      "aria-label",
+      real ? "リアル音源を使用中。合成音に切り替える" : "合成音を使用中。リアル音源に切り替える"
+    );
+  }
+
+  async function fetchArrayBuffer(url) {
+    const response = await fetch(url, { cache: "force-cache" });
+    if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+    return response.arrayBuffer();
+  }
+
+  async function prepareRealSamples() {
+    if (state.soundMode !== "samples" || !state.audioContext) return;
+    if (!state.samplePlayer) {
+      state.samplePlayer = createSamplePlayer({
+        context: state.audioContext,
+        fetchArrayBuffer,
+      });
+    }
+    if (!state.sampleLoad) {
+      renderSoundMode("loading");
+      state.sampleLoad = state.samplePlayer.load(METRONOME_SAMPLES).finally(() => {
+        state.sampleLoad = null;
+      });
+    }
+
+    const result = await state.sampleLoad;
+    renderSoundMode(
+      result.failed.length === 0 ? "idle" : result.loaded.length ? "partial" : "failed"
+    );
+  }
 
   const escapeHtml = (value) =>
     String(value ?? "")
@@ -249,16 +320,28 @@
 
   function scheduleClick(time, accent) {
     const context = state.audioContext;
-    const oscillator = context.createOscillator();
-    const gain = context.createGain();
-    oscillator.frequency.setValueAtTime(accent ? 1320 : 880, time);
-    gain.gain.setValueAtTime(0.0001, time);
-    gain.gain.exponentialRampToValueAtTime(accent ? 0.2 : 0.13, time + 0.005);
-    gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.055);
-    oscillator.connect(gain);
-    gain.connect(context.destination);
-    oscillator.start(time);
-    oscillator.stop(time + 0.06);
+    const sampled = state.soundMode === "samples" && state.samplePlayer?.schedule(
+      accent ? "tom" : "closedHat",
+      {
+        time,
+        destination: context.destination,
+        gain: accent ? 0.25 : 0.18,
+        duration: accent ? 0.18 : 0.09,
+      }
+    );
+
+    if (!sampled) {
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+      oscillator.frequency.setValueAtTime(accent ? 1320 : 880, time);
+      gain.gain.setValueAtTime(0.0001, time);
+      gain.gain.exponentialRampToValueAtTime(accent ? 0.2 : 0.13, time + 0.005);
+      gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.055);
+      oscillator.connect(gain);
+      gain.connect(context.destination);
+      oscillator.start(time);
+      oscillator.stop(time + 0.06);
+    }
 
     const button = byId("metronome-toggle");
     if (!button) return;
@@ -283,6 +366,7 @@
   async function startMetronome() {
     const context = await ensureAudio();
     if (!context) return;
+    if (state.soundMode === "samples") await prepareRealSamples();
     stopMetronome();
 
     state.metronomeRunning = true;
@@ -306,6 +390,18 @@
   function changeTempo(amount) {
     state.tempo = Math.min(160, Math.max(40, state.tempo + amount));
     setText("tempo-value", state.tempo);
+  }
+
+  function toggleSoundMode() {
+    state.soundMode = state.soundMode === "samples" ? "synth" : "samples";
+    saveSoundMode();
+    renderSoundMode();
+    if (state.soundMode === "samples" && state.audioContext) {
+      void prepareRealSamples().catch((error) => {
+        console.warn("[audio] sample load failed; using synthesis:", error);
+        renderSoundMode("failed");
+      });
+    }
   }
 
   function showLoadError(error) {
@@ -340,6 +436,7 @@
     byId("next-lesson")?.addEventListener("click", () => void selectLesson(state.position + 1).catch(() => {}));
     byId("tempo-down")?.addEventListener("click", () => changeTempo(-2));
     byId("tempo-up")?.addEventListener("click", () => changeTempo(2));
+    byId("sound-mode-toggle")?.addEventListener("click", toggleSoundMode);
     byId("metronome-toggle")?.addEventListener("click", () => {
       if (state.metronomeRunning) stopMetronome();
       else void startMetronome().catch(() => stopMetronome());
@@ -350,6 +447,7 @@
 
   async function bootstrap() {
     bindEvents();
+    renderSoundMode();
     try {
       const loaded = await loadIndex();
       state.index = loaded.index;

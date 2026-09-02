@@ -11,6 +11,8 @@ test("basic practice loads on mobile", async ({ page }) => {
   await expect(page.getByRole("heading",{name:"指弾きギター練習帖"})).toBeVisible();
   await expect(page.locator("#lesson-title")).not.toHaveText("読み込み中です。");
   await expect(page.getByRole("link",{name:"フレーズ"})).toBeVisible();
+  await expect(page.locator("#sound-mode-toggle")).toHaveText("音色：リアル");
+  await expect(page.locator("#sound-mode-toggle")).toHaveAttribute("aria-pressed","true");
 
   const fits=await page.evaluate(()=>document.documentElement.scrollWidth<=document.documentElement.clientWidth);
   expect(fits).toBeTruthy();
@@ -54,7 +56,7 @@ test("score renders actual five-line systems and note heads", async ({ page }) =
   expect(errors).toEqual([]);
 });
 
-test("backing actually creates chord bass and drum audio nodes", async ({ page }) => {
+test("real backing creates sampled guitar bass and drum audio nodes", async ({ page }) => {
   await page.addInitScript(() => {
     window.__audioAudit={oscillators:0,buffers:0,gains:0,compressors:0};
     const Ctx=window.AudioContext||window.webkitAudioContext;
@@ -95,12 +97,91 @@ test("backing actually creates chord bass and drum audio nodes", async ({ page }
 
   const audit=await page.evaluate(()=>window.__audioAudit);
   expect(audit.compressors).toBeGreaterThanOrEqual(1);
-  expect(audit.oscillators).toBeGreaterThanOrEqual(6);
-  expect(audit.buffers).toBeGreaterThanOrEqual(1);
-  expect(audit.gains).toBeGreaterThanOrEqual(8);
+  expect(audit.oscillators).toBe(0);
+  expect(audit.buffers).toBeGreaterThanOrEqual(20);
+  expect(audit.gains).toBeGreaterThanOrEqual(20);
 
   await page.locator("#backing-bass").click();
   await expect(page.locator("#backing-bass")).toHaveAttribute("aria-pressed","false");
+});
+
+test("the phrase player can switch back to its synthesis fallback", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__audioAudit={oscillators:0,buffers:0};
+    const Ctx=window.AudioContext||window.webkitAudioContext;
+    if(!Ctx) return;
+    const proto=Ctx.prototype;
+    const originalOsc=proto.createOscillator;
+    const originalBuffer=proto.createBufferSource;
+    proto.createOscillator=function(...args){
+      window.__audioAudit.oscillators++;
+      return originalOsc.apply(this,args);
+    };
+    proto.createBufferSource=function(...args){
+      window.__audioAudit.buffers++;
+      return originalBuffer.apply(this,args);
+    };
+  });
+
+  await page.goto(base+"/phrase.html");
+  await page.locator("#sound-mode-toggle").click();
+  await expect(page.locator("#sound-mode-toggle")).toHaveAttribute("aria-pressed","false");
+  await expect(page.locator("#sound-mode-note")).toContainText("合成音");
+
+  await page.getByRole("button",{name:"▶ 伴奏だけ1小節"}).click();
+  await page.waitForTimeout(180);
+  const audit=await page.evaluate(()=>window.__audioAudit);
+  expect(audit.oscillators).toBeGreaterThanOrEqual(12);
+  expect(audit.buffers).toBeGreaterThanOrEqual(8);
+});
+
+test("a phrase melody note uses the nylon guitar sample", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__sampleStarts=0;
+    window.__oscillatorStarts=0;
+    const sampleStart=AudioBufferSourceNode.prototype.start;
+    AudioBufferSourceNode.prototype.start=function(...args){
+      window.__sampleStarts++;
+      return sampleStart.apply(this,args);
+    };
+    const oscillatorStart=OscillatorNode.prototype.start;
+    OscillatorNode.prototype.start=function(...args){
+      window.__oscillatorStarts++;
+      return oscillatorStart.apply(this,args);
+    };
+  });
+
+  await page.goto(base+"/phrase.html");
+  await page.locator("#play-note").click();
+  await page.waitForTimeout(80);
+  const audit=await page.evaluate(()=>({
+    samples:window.__sampleStarts,
+    oscillators:window.__oscillatorStarts
+  }));
+  expect(audit.samples).toBe(1);
+  expect(audit.oscillators).toBe(0);
+});
+
+test("a sample load failure falls back to synthesis instead of silence", async ({ page }) => {
+  await page.addInitScript(() => {
+    const originalFetch=window.fetch.bind(window);
+    window.fetch=(input,init)=>{
+      const url=String(input instanceof Request?input.url:input);
+      if(url.includes("/assets/audio/")) return Promise.resolve(new Response("",{status:503}));
+      return originalFetch(input,init);
+    };
+    window.__oscillatorStarts=0;
+    const start=OscillatorNode.prototype.start;
+    OscillatorNode.prototype.start=function(...args){
+      window.__oscillatorStarts++;
+      return start.apply(this,args);
+    };
+  });
+
+  await page.goto(base+"/phrase.html");
+  await page.locator("#play-note").click();
+  await expect(page.locator("#sound-mode-toggle")).toHaveText("音源失敗：合成");
+  expect(await page.evaluate(()=>window.__oscillatorStarts)).toBeGreaterThanOrEqual(2);
 });
 
 test("full phrase transport schedules melody plus backing", async ({ page }) => {
@@ -168,10 +249,69 @@ test("rhythm practice is integrated and interactive", async ({ page }) => {
   await expect(page.locator("#patternSelect option")).not.toHaveCount(0);
   await expect(page.getByRole("link",{name:"基礎"})).toBeVisible();
   await expect(page.getByRole("link",{name:"フレーズ"})).toBeVisible();
+  await expect(page.locator("#soundModeBtn")).toHaveText("音色：リアル");
 
   const fits=await page.evaluate(()=>document.documentElement.scrollWidth<=document.documentElement.clientWidth);
   expect(fits).toBeTruthy();
   expect(errors).toEqual([]);
+});
+
+test("basic and rhythm practice schedule real percussion samples", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__sources=[];
+    window.__oscillators=0;
+    const sourceStart=AudioBufferSourceNode.prototype.start;
+    AudioBufferSourceNode.prototype.start=function(when){
+      window.__sources.push({when,duration:this.buffer?.duration});
+      return sourceStart.call(this,when);
+    };
+    const oscillatorStart=OscillatorNode.prototype.start;
+    OscillatorNode.prototype.start=function(when){
+      window.__oscillators++;
+      return oscillatorStart.call(this,when);
+    };
+  });
+
+  await page.goto(base+"/index.html");
+  await page.locator("#tempo-up").evaluate(button => {
+    for(let i=0;i<50;i+=1) button.click();
+  });
+  await page.locator("#metronome-toggle").click();
+  await expect(page.locator("#metronome-toggle")).toHaveText("STOP");
+  await page.waitForFunction(() => window.__sources.length >= 2);
+  let audit=await page.evaluate(()=>({sources:window.__sources,oscillators:window.__oscillators}));
+  expect(audit.sources.length).toBeGreaterThanOrEqual(2);
+  expect(new Set(audit.sources.map(source=>source.duration.toFixed(2))).size).toBeGreaterThanOrEqual(2);
+  expect(audit.oscillators).toBe(0);
+  await page.locator("#metronome-toggle").click();
+
+  await page.goto(base+"/rhythm.html");
+  await page.locator("#addLayerBtn").click();
+  await page.locator("#addLayerBtn").click();
+  await page.locator("#addLayerBtn").click();
+  await page.evaluate(()=>{ window.__sources.length=0; window.__oscillators=0; });
+  await page.locator("#startBtn").click();
+  await expect(page.locator("#stateText")).toHaveText("再生中");
+  await page.waitForFunction(() => window.__sources.length >= 4);
+  audit=await page.evaluate(()=>({sources:window.__sources,oscillators:window.__oscillators}));
+  expect(audit.sources.length).toBeGreaterThanOrEqual(4);
+  expect(new Set(audit.sources.slice(0,4).map(source=>source.duration.toFixed(3))).size).toBe(4);
+  expect(audit.oscillators).toBe(0);
+  await page.locator("#stopBtn").click();
+});
+
+test("sound mode choice is shared by all three practice pages", async ({ page }) => {
+  await page.goto(base+"/index.html");
+  await page.locator("#sound-mode-toggle").click();
+  await expect(page.locator("#sound-mode-toggle")).toHaveAttribute("aria-pressed","false");
+
+  await page.getByRole("link",{name:"フレーズ"}).click();
+  await expect(page.locator("#sound-mode-toggle")).toHaveAttribute("aria-pressed","false");
+  await expect(page.locator("#sound-mode-toggle")).toHaveText("音色：合成");
+
+  await page.getByRole("link",{name:"リズム"}).click();
+  await expect(page.locator("#soundModeBtn")).toHaveAttribute("aria-pressed","false");
+  await expect(page.locator("#soundModeBtn")).toHaveText("音色：合成");
 });
 
 test("service worker registers and precaches lesson data", async ({ page }) => {
@@ -201,6 +341,19 @@ test("service worker registers and precaches lesson data", async ({ page }) => {
   expect(cached.some((path) => path.endsWith("/data/lessons/001.json"))).toBeTruthy();
   expect(cached.some((path) => path.endsWith("/data/phrases.json"))).toBeTruthy();
   expect(cached.some((path) => path.endsWith("/phrase.js"))).toBeTruthy();
+  expect(cached.some((path) => path.endsWith("/core/sample-player.js"))).toBeTruthy();
+  expect(cached.some((path) => path.endsWith("/assets/audio/guitar-nylon/e4.mp3"))).toBeTruthy();
+  expect(cached.some((path) => path.endsWith("/assets/audio/drums/kick.wav"))).toBeTruthy();
+  expect(cached.some((path) => path.endsWith("/audio-credits.html"))).toBeTruthy();
+});
+
+test("audio credits are reachable from the practice UI", async ({ page }) => {
+  await page.goto(base+"/phrase.html");
+  await page.getByRole("link",{name:"音源クレジット"}).click();
+  await expect(page.getByRole("heading",{name:"音源クレジット"})).toBeVisible();
+  await expect(page.getByRole("heading",{name:"ナイロンギター／エレキベース"})).toBeVisible();
+  await expect(page.getByRole("heading",{name:"アコースティックドラム"})).toBeVisible();
+  await expect(page.getByRole("link",{name:"Creative Commons Attribution 3.0"})).toHaveCount(2);
 });
 
 test("key signature replaces per-note accidentals in G major", async ({ page }) => {
@@ -314,11 +467,13 @@ const instrumentMasterGain = () => {
     };
   }
 
-  const start = OscillatorNode.prototype.start;
-  OscillatorNode.prototype.start = function (when) {
-    window.__starts.push(when);
-    return start.call(this, when);
-  };
+  for (const Source of [OscillatorNode, AudioBufferSourceNode]) {
+    const start = Source.prototype.start;
+    Source.prototype.start = function (when) {
+      window.__starts.push(when);
+      return start.call(this, when);
+    };
+  }
 
   // Replays the recorded automation to get the gain actually in force at `t`.
   // cancelScheduledValues(x) has to drop everything already queued at or after
@@ -351,14 +506,19 @@ const instrumentMasterGain = () => {
   };
 };
 
-async function gainAtFirstNoteAfterStop(page, startPlayback) {
+async function gainAtFirstNoteAfterStop(page, startButtonId) {
   await page.getByRole("button", { name: "▶ 再生" }).click();
   await page.waitForTimeout(400);
   // Discard what the lookahead queued before the stop; only the new sound matters.
   await page.evaluate(() => { window.__auto.length = 0; window.__starts.length = 0; });
 
-  await page.getByRole("button", { name: "■ 停止" }).click();
-  await startPlayback();                       // no wait: the worst case
+  // Dispatch both actions in one browser task. This keeps the assertion about
+  // the audio-clock fade window deterministic instead of including the
+  // Playwright round-trip between two separate clicks.
+  await page.evaluate((buttonId) => {
+    document.getElementById("stop").click();
+    document.getElementById(buttonId).click();
+  }, startButtonId);
   await page.waitForTimeout(300);
 
   return page.evaluate(() => {
@@ -372,8 +532,7 @@ test("playing straight after stop is not swallowed by the stop's fade", async ({
   await page.addInitScript(instrumentMasterGain);
   await page.goto(base + "/phrase.html");
 
-  const { offset, gain } = await gainAtFirstNoteAfterStop(page, () =>
-    page.getByRole("button", { name: "▶ 再生" }).click());
+  const { offset, gain } = await gainAtFirstNoteAfterStop(page, "play");
 
   // The note really does land inside the window the fade used to cover.
   expect(offset).toBeLessThan(0.12);
@@ -384,8 +543,7 @@ test("a single note straight after stop is not swallowed either", async ({ page 
   await page.addInitScript(instrumentMasterGain);
   await page.goto(base + "/phrase.html");
 
-  const { offset, gain } = await gainAtFirstNoteAfterStop(page, () =>
-    page.getByRole("button", { name: "♪ この音" }).click());
+  const { offset, gain } = await gainAtFirstNoteAfterStop(page, "play-note");
 
   expect(offset).toBeLessThan(0.12);
   expect(gain).toBeCloseTo(0.78, 3);

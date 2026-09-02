@@ -20,6 +20,21 @@ function referencesIn(html) {
   return found;
 }
 
+function filesBelow(root, directory, predicate) {
+  const base = path.join(root, directory);
+  if (!fs.existsSync(base)) return [];
+  const found = [];
+  const visit = (current) => {
+    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+      const target = path.join(current, entry.name);
+      if (entry.isDirectory()) visit(target);
+      else if (predicate(entry.name)) found.push(path.relative(root, target).split(path.sep).join("/"));
+    }
+  };
+  visit(base);
+  return found;
+}
+
 export function checkShell(root) {
   const errors = [];
   const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
@@ -48,6 +63,12 @@ export function checkShell(root) {
     for (const file of fs.readdirSync(coreDir).filter((f) => f.endsWith(".js"))) {
       if (!shell.has(`core/${file}`)) errors.push(`sw.js: core/${file} がAPP_SHELLにありません`);
     }
+  }
+
+  // Sample playback also happens behind module imports. Every shipped audio
+  // file must be available before the app goes offline after its first visit.
+  for (const file of filesBelow(root, "assets/audio", (name) => /\.(?:ogg|mp3|wav)$/i.test(name))) {
+    if (!shell.has(file)) errors.push(`sw.js: 音源 ${file} がAPP_SHELLにありません`);
   }
 
   // Everything APP_SHELL names explicitly must exist, data files included — a

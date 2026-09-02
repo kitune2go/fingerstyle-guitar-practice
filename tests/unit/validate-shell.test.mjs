@@ -6,7 +6,7 @@ import path from "node:path";
 import { checkShell } from "../../scripts/validate-shell.mjs";
 
 // Builds a minimal repo whose only interesting part is the shell wiring.
-function fixture({ shell, files = [], core = [] }) {
+function fixture({ shell, files = [], core = [], audio = [] }) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "shell-"));
   fs.writeFileSync(
     path.join(root, "sw.js"),
@@ -30,6 +30,11 @@ function fixture({ shell, files = [], core = [] }) {
   if (core.length) {
     fs.mkdirSync(path.join(root, "core"), { recursive: true });
     for (const file of core) fs.writeFileSync(path.join(root, "core", file), "");
+  }
+  for (const file of audio) {
+    const target = path.join(root, "assets/audio", file);
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, "sample");
   }
   return root;
 }
@@ -89,6 +94,24 @@ test("a core module missing from the shell is reported", () => {
 test("core modules present in the shell pass", () => {
   const { errors } = checkShell(fixture({
     shell: [...COMPLETE, "./core/music.js"], files: PRESENT, core: ["music.js"]
+  }));
+  assert.deepEqual(errors, []);
+});
+
+test("an audio sample missing from the shell is reported", () => {
+  const { errors } = checkShell(fixture({
+    shell: COMPLETE, files: PRESENT, audio: ["drums/kick.wav"]
+  }));
+  assert.equal(errors.length, 1);
+  assert.match(errors[0], /assets\/audio\/drums\/kick\.wav/);
+});
+
+test("audio samples present in the shell pass", () => {
+  const sample = "assets/audio/drums/kick.wav";
+  const { errors } = checkShell(fixture({
+    shell: [...COMPLETE, `./${sample}`],
+    files: PRESENT,
+    audio: ["drums/kick.wav"]
   }));
   assert.deepEqual(errors, []);
 });

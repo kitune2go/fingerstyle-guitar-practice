@@ -387,11 +387,35 @@
       font-size: .71rem;
       line-height: 1.45;
     }
+    .sound-row {
+      display: grid;
+      grid-template-columns: 132px 1fr;
+      gap: 10px;
+      align-items: center;
+    }
+    .sound-mode-toggle {
+      min-height: 40px;
+      border-color: #38bdf8;
+      background: #082f49;
+      color: #e0f2fe;
+      font-size: .72rem;
+      font-weight: 850;
+    }
+    .sound-mode-toggle[aria-pressed="false"] {
+      border-color: #475569;
+      background: #1e293b;
+      color: #cbd5e1;
+    }
+    .sound-mode-toggle[aria-busy="true"] { cursor: wait; opacity: .72; }
+    .sound-mode-note { color: var(--muted); font-size: .72rem; line-height: 1.45; }
+    .audio-credit { color: #94a3b8; }
     @media (max-width: 360px) {
       .panel { padding: 10px; }
       .part-label { font-size: .68rem; }
       .steps { gap: 0; }
       .cell { border-radius: 1px; }
+      .sound-row { grid-template-columns: 1fr; }
+      .sound-mode-note { text-align: center; }
     }
   
     .unified-mode-nav{position:sticky;top:0;z-index:100;display:grid;grid-template-columns:repeat(3,1fr);width:100%;max-width:760px;margin:0 auto;background:rgba(15,23,42,.96);backdrop-filter:blur(12px);border-bottom:1px solid #334155}
@@ -425,6 +449,11 @@
           <input id="bpmRange" type="range" min="40" max="200" value="60" />
           <input id="bpmNumber" type="number" min="40" max="200" value="60" />
         </div>
+      </div>
+
+      <div class="sound-row">
+        <button id="soundModeBtn" class="sound-mode-toggle" type="button" aria-pressed="true">音色：リアル</button>
+        <span id="soundModeNote" class="sound-mode-note">Voice＝タム／右手＝ハイハット／左手＝スネア／足＝キック</span>
       </div>
 
       <div class="buttons">
@@ -478,13 +507,18 @@
       <div class="legend" id="legend"></div>
       <div class="sync-note">
         1拍12分割で16分音符と3連系を両立。各プリセットはジャンルの典型的な骨格を独立練習向けに単純化しています。
+        <a class="audio-credit" href="./audio-credits.html">音源クレジット</a>
       </div>
     </section>
   </main>
 
-  <script>
+  <script type="module">
+    import { createSamplePlayer } from "./core/sample-player.js";
+
     const STEPS_PER_BEAT = 12;
     const STEPS_PER_BAR = 48;
+    const SOUND_MODE_KEY = "fingerstyle-sound-mode";
+    const RHYTHM_SAMPLES = ["tom", "closedHat", "snare", "kick"];
 
     const Q = [0, 12, 24, 36];
     const E = [0, 6, 12, 18, 24, 30, 36, 42];
@@ -493,10 +527,10 @@
     const SWUNG8 = [0, 8, 12, 20, 24, 32, 36, 44];
 
     const partDefs = [
-      { key: "voice", label: "Voice", freq: 920, gain: 0.095, duration: 0.030 },
-      { key: "right", label: "R.Hand", freq: 690, gain: 0.085, duration: 0.026 },
-      { key: "left", label: "L.Hand", freq: 460, gain: 0.085, duration: 0.032 },
-      { key: "foot", label: "Foot", freq: 150, gain: 0.15, duration: 0.060 }
+      { key: "voice", label: "Voice", sample: "tom", sampleGain: 0.12, sampleDuration: 0.16, freq: 920, gain: 0.095, duration: 0.030 },
+      { key: "right", label: "R.Hand", sample: "closedHat", sampleGain: 0.09, sampleDuration: 0.07, freq: 690, gain: 0.085, duration: 0.026 },
+      { key: "left", label: "L.Hand", sample: "snare", sampleGain: 0.12, sampleDuration: 0.14, freq: 460, gain: 0.085, duration: 0.032 },
+      { key: "foot", label: "Foot", sample: "kick", sampleGain: 0.17, sampleDuration: 0.20, freq: 150, gain: 0.15, duration: 0.060 }
     ];
 
     const patterns = {
@@ -665,6 +699,8 @@
     const orbitViewBtn = document.getElementById("orbitViewBtn");
     const ghostBtn = document.getElementById("ghostBtn");
     const ghostStatus = document.getElementById("ghostStatus");
+    const soundModeBtn = document.getElementById("soundModeBtn");
+    const soundModeNote = document.getElementById("soundModeNote");
     const gridView = document.getElementById("gridView");
     const orbitView = document.getElementById("orbitView");
     const orbitSvg = document.getElementById("orbitSvg");
@@ -683,6 +719,10 @@
 
     let audioCtx = null;
     let running = false;
+    let starting = false;
+    let soundMode = readSoundMode();
+    let samplePlayer = null;
+    let sampleLoad = null;
     let nextStep = 0;
     let nextNoteTime = 0;
     let schedulerId = null;
@@ -692,6 +732,84 @@
     const visualQueue = [];
     const lookaheadMs = 20;
     const scheduleAheadSec = 0.10;
+
+    function readSoundMode() {
+      try {
+        return localStorage.getItem(SOUND_MODE_KEY) === "synth" ? "synth" : "samples";
+      } catch {
+        return "samples";
+      }
+    }
+
+    function saveSoundMode() {
+      try {
+        localStorage.setItem(SOUND_MODE_KEY, soundMode);
+      } catch (error) {
+        console.warn("[rhythm] could not save sound mode:", error);
+      }
+    }
+
+    function renderSoundMode(status = "idle") {
+      const real = soundMode === "samples";
+      if (!real) status = "idle";
+      const labels = {
+        idle: real ? "音色：リアル" : "音色：合成",
+        loading: "音色：読込中…",
+        partial: "音色：リアル（一部）",
+        failed: "音源失敗：合成"
+      };
+      const notes = {
+        idle: real
+          ? "Voice＝タム／右手＝ハイハット／左手＝スネア／足＝キック"
+          : "4パートを高さの違う合成クリックで再生",
+        loading: "打楽器サンプルを読み込んでいます",
+        partial: "読めないパートだけ合成クリックで補います",
+        failed: "サンプルを読めないため合成クリックで再生します"
+      };
+      soundModeBtn.textContent = labels[status] || labels.idle;
+      soundModeNote.textContent = notes[status] || notes.idle;
+      soundModeBtn.setAttribute("aria-pressed", String(real));
+      soundModeBtn.setAttribute("aria-busy", String(status === "loading"));
+      soundModeBtn.setAttribute(
+        "aria-label",
+        real ? "リアル音源を使用中。合成音に切り替える" : "合成音を使用中。リアル音源に切り替える"
+      );
+    }
+
+    async function fetchArrayBuffer(url) {
+      const response = await fetch(url, { cache: "force-cache" });
+      if (!response.ok) throw new Error(response.status + " " + response.statusText);
+      return response.arrayBuffer();
+    }
+
+    async function prepareRealSamples() {
+      if (soundMode !== "samples" || !audioCtx) return;
+      if (!samplePlayer) {
+        samplePlayer = createSamplePlayer({ context: audioCtx, fetchArrayBuffer });
+      }
+      if (!sampleLoad) {
+        renderSoundMode("loading");
+        sampleLoad = samplePlayer.load(RHYTHM_SAMPLES).finally(() => {
+          sampleLoad = null;
+        });
+      }
+      const result = await sampleLoad;
+      renderSoundMode(
+        result.failed.length === 0 ? "idle" : result.loaded.length ? "partial" : "failed"
+      );
+    }
+
+    function toggleSoundMode() {
+      soundMode = soundMode === "samples" ? "synth" : "samples";
+      saveSoundMode();
+      renderSoundMode();
+      if (soundMode === "samples" && audioCtx) {
+        void prepareRealSamples().catch(error => {
+          console.warn("[rhythm] sample load failed; using synthesis:", error);
+          renderSoundMode("failed");
+        });
+      }
+    }
 
     function currentPattern() {
       return patterns[currentPatternKey];
@@ -1057,6 +1175,16 @@
     }
 
     function makeClick(time, part) {
+      ensurePartGainBuses();
+      const sampled = soundMode === "samples" && samplePlayer?.schedule(part.sample, {
+        time,
+        destination: partGainBuses.get(part.key),
+        gain: part.sampleGain,
+        duration: part.sampleDuration,
+        release: 0.04
+      });
+      if (sampled) return;
+
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
 
@@ -1067,7 +1195,6 @@
       gain.gain.exponentialRampToValueAtTime(part.gain, time + 0.0025);
       gain.gain.exponentialRampToValueAtTime(0.0001, time + part.duration);
 
-      ensurePartGainBuses();
       osc.connect(gain);
       gain.connect(partGainBuses.get(part.key));
 
@@ -1178,33 +1305,40 @@
     }
 
     async function start() {
-      if (running) return;
-
-      if (!audioCtx) {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)({
-          latencyHint: "interactive"
-        });
-      }
-
-      if (audioCtx.state === "suspended") {
-        await audioCtx.resume();
-      }
-
-      ensurePartGainBuses();
-      resetGhostCycle();
-      running = true;
-      clearVisuals();
-
-      nextStep = 0;
-      nextNoteTime = audioCtx.currentTime + 0.08;
-
+      if (running || starting) return;
+      starting = true;
       startBtn.disabled = true;
-      stopBtn.disabled = false;
-      stateText.textContent = "再生中";
 
-      scheduler();
-      schedulerId = setInterval(scheduler, lookaheadMs);
-      rafId = requestAnimationFrame(visualLoop);
+      try {
+        if (!audioCtx) {
+          audioCtx = new (window.AudioContext || window.webkitAudioContext)({
+            latencyHint: "interactive"
+          });
+        }
+
+        if (audioCtx.state === "suspended") {
+          await audioCtx.resume();
+        }
+        if (soundMode === "samples") await prepareRealSamples();
+
+        ensurePartGainBuses();
+        resetGhostCycle();
+        running = true;
+        clearVisuals();
+
+        nextStep = 0;
+        nextNoteTime = audioCtx.currentTime + 0.08;
+
+        stopBtn.disabled = false;
+        stateText.textContent = "再生中";
+
+        scheduler();
+        schedulerId = setInterval(scheduler, lookaheadMs);
+        rafId = requestAnimationFrame(visualLoop);
+      } finally {
+        starting = false;
+        if (!running) startBtn.disabled = false;
+      }
     }
 
     function stop() {
@@ -1229,13 +1363,17 @@
     bpmRange.addEventListener("input", e => setBpm(e.target.value));
     bpmNumber.addEventListener("input", e => setBpm(e.target.value));
     patternSelect.addEventListener("change", e => applyPattern(e.target.value));
-    startBtn.addEventListener("click", start);
+    startBtn.addEventListener("click", () => start().catch(error => {
+      stateText.textContent = "再生を開始できませんでした";
+      console.error("[rhythm] could not start:", error);
+    }));
     stopBtn.addEventListener("click", stop);
     addLayerBtn.addEventListener("click", addNextPart);
     resetLayerBtn.addEventListener("click", resetToVoice);
     gridViewBtn.addEventListener("click", () => setView("grid"));
     orbitViewBtn.addEventListener("click", () => setView("orbit"));
     ghostBtn.addEventListener("click", toggleGhostMode);
+    soundModeBtn.addEventListener("click", toggleSoundMode);
 
     buildPatternSelect();
     buildPartButtons();
@@ -1243,6 +1381,7 @@
     buildBoard();
     setView(currentView);
     updateGhostUI();
+    renderSoundMode();
   </script>
   <script src="register-sw.js" defer></script>
 </body>

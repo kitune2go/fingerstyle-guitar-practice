@@ -405,15 +405,16 @@ UIで「次のLvまで40%」と出すための表示用の値です。**能力�
 
 ## 7. エンジン層の分離 — 今の構造では拡張できない
 
-現在 `phrase.js` は 700行で、データ取得・音楽モデル・SVG製譜・音源合成・スケジューリング・UIを全て抱えています。
+現在 `phrase.js` は、データ取得・音楽モデル・SVG製譜・合成音フォールバック・スケジューリング・UIを抱えています。
 `guitar.js` はメトロノームのスケジューラを別実装で重複して持っています。
 
 ドリルが40種類に増えると、この形では毎回スケジューラと製譜器を書き直すことになります。**先に切り出します。**
 
 ```
 core/                      画面を知らない。グローバル環境に依存しない
+  sample-player.js         実装済み。サンプル読込・音高補間・AudioClock発音
   clock.js                 先読みオーディオスケジューラ（現在2箇所に重複）
-  synth.js                 メロディ／伴奏／ドラムの音源
+  synth.js                 合成音フォールバックの共通化（現在は各画面に残る）
   pitch.js                 YIN ピッチ検出
   onset.js                 スペクトラルフラックス オンセット検出
   calibration.js           入出力レイテンシ校正
@@ -437,14 +438,14 @@ modes/                     画面。core を組み合わせるだけ
 | 層 | モジュール | 境界 |
 |---|---|---|
 | 純ロジック | `music.js` `metrics.js` `prescribe.js` | プラットフォーム非依存。DOMもWeb Audioも使わない。**Nodeから直接テストできる** |
-| オーディオ | `clock.js` `synth.js` `pitch.js` `onset.js` `calibration.js` | `AudioContext` を引数で受け取る。グローバル参照なし |
+| オーディオ | `sample-player.js` `clock.js` `synth.js` `pitch.js` `onset.js` `calibration.js` | `AudioContext` を引数で受け取る。グローバル参照なし |
 | アダプタ | `notation.js` `store.js` | **プラットフォームAPIを使う。** ただし画面固有のUIや状態は知らない。`notation.js` は `host.ownerDocument` 経由でのみDOMを生成し、`store.js` は IndexedDB を包む |
 
 `notation.js` がDOMを作るのは設計違反ではありません。要件は**画面から独立していること**であって、
 DOMに触れないことではありません。Nodeで直接テストできるのは純ロジック層だけであり、
 オーディオ層とアダプタ層はブラウザテストで担保します。
 
-**移行順序：** ESモジュール化の下準備 → `music.js` → `clock.js` の重複解消 → `notation.js`。
+**移行順序：** ESモジュール化と `sample-player.js` は実装済み。次に `music.js` → `clock.js` の重複解消 → `notation.js`。
 以降の新規実装は core 前提。既存3画面は動いたまま段階的に置き換えます（詳細は `docs/TASK-P0.md`）。
 
 ---

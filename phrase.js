@@ -1,11 +1,15 @@
+import { createSamplePlayer } from "./core/sample-player.js";
+
 (() => {
   "use strict";
 
   const $ = (id) => document.getElementById(id);
+  const SOUND_MODE_KEY="fingerstyle-sound-mode";
   const state = {
     data:null, phrase:null, index:0, noteIndex:0,
-    audio:null, noiseBuffer:null, mix:null,
-    running:false, loop:false, follow:true,
+    audio:null, noiseBuffer:null, mix:null, samplePlayer:null, sampleLoad:null,
+    running:false, starting:false, loop:false, follow:true,
+    soundMode:readSoundMode(),
     backing:{ chords:true, bass:true, drums:true },
     scheduler:null, raf:null, previewTimer:null,
     nextGrid:0, nextGridTime:0, finished:false,
@@ -15,6 +19,7 @@
   };
 
   const MASTER_LEVEL=.78;
+  const PHRASE_SAMPLES=["nylonGuitar","electricBass","kick","snare","closedHat"];
   const MIDDLE_LINE_Y=90;
   const STEM_LENGTH=35;
 
@@ -26,6 +31,81 @@
     C:48,"C#":49,Db:49,D:50,"D#":51,Eb:51,E:52,F:53,"F#":54,Gb:54,
     G:55,"G#":56,Ab:56,A:57,"A#":58,Bb:58,B:59
   };
+
+  function readSoundMode(){
+    try{
+      return localStorage.getItem(SOUND_MODE_KEY)==="synth"?"synth":"samples";
+    }catch{
+      return "samples";
+    }
+  }
+
+  function saveSoundMode(){
+    try{
+      localStorage.setItem(SOUND_MODE_KEY,state.soundMode);
+    }catch(error){
+      console.warn("[phrase] could not save sound mode:",error);
+    }
+  }
+
+  function renderSoundMode(status="idle"){
+    const button=$("sound-mode-toggle");
+    const note=$("sound-mode-note");
+    if(!button||!note) return;
+
+    const real=state.soundMode==="samples";
+    if(!real) status="idle";
+    const labels={
+      idle:real?"音色：リアル":"音色：合成",
+      loading:"音色：読込中…",
+      partial:"音色：リアル（一部）",
+      failed:"音源失敗：合成"
+    };
+    const notes={
+      idle:real?"ナイロンギター・エレキベース・生ドラム":"通信不要の軽量な合成音",
+      loading:"サンプル音源を読み込んでいます",
+      partial:"読めない音だけ合成音で補います",
+      failed:"サンプルを読めないため合成音で再生します"
+    };
+    button.textContent=labels[status]||labels.idle;
+    note.textContent=notes[status]||notes.idle;
+    button.setAttribute("aria-pressed",String(real));
+    button.setAttribute("aria-busy",String(status==="loading"));
+    button.setAttribute("aria-label",real?"リアル音源を使用中。合成音に切り替える":"合成音を使用中。リアル音源に切り替える");
+  }
+
+  async function fetchArrayBuffer(url){
+    const response=await fetch(url,{cache:"force-cache"});
+    if(!response.ok) throw new Error(response.status+" "+response.statusText);
+    return response.arrayBuffer();
+  }
+
+  async function prepareRealSamples(){
+    if(state.soundMode!=="samples"||!state.audio) return;
+    if(!state.samplePlayer){
+      state.samplePlayer=createSamplePlayer({context:state.audio,fetchArrayBuffer});
+    }
+    if(!state.sampleLoad){
+      renderSoundMode("loading");
+      state.sampleLoad=state.samplePlayer.load(PHRASE_SAMPLES).finally(()=>{
+        state.sampleLoad=null;
+      });
+    }
+    const result=await state.sampleLoad;
+    renderSoundMode(result.failed.length===0?"idle":result.loaded.length?"partial":"failed");
+  }
+
+  function toggleSoundMode(){
+    state.soundMode=state.soundMode==="samples"?"synth":"samples";
+    saveSoundMode();
+    renderSoundMode();
+    if(state.soundMode==="samples"&&state.audio){
+      void prepareRealSamples().catch(error=>{
+        console.warn("[phrase] sample load failed; using synthesis:",error);
+        renderSoundMode("failed");
+      });
+    }
+  }
 
   // Order in which sharps and flats appear in a key signature, with the treble
   // staff Y each glyph sits on (same coordinate space as staffY()).
@@ -472,6 +552,8 @@
       const data=state.noiseBuffer.getChannelData(0);
       for(let i=0;i<length;i++) data[i]=Math.random()*2-1;
     }
+
+    if(state.soundMode==="samples") await prepareRealSamples();
   }
 
   function envelopeGain(time,peak,decay,bus){
@@ -484,6 +566,17 @@
   }
 
   function scheduleMelody(note,time,durationSec){
+    const sampleDuration=Math.max(.16,Math.min(1.8,durationSec*.92+.08));
+    const sampled=state.soundMode==="samples"&&state.samplePlayer?.schedule("nylonGuitar",{
+      time,
+      destination:state.mix.melody,
+      midi:noteToMidi(note.name),
+      gain:.44,
+      duration:sampleDuration,
+      release:.07
+    });
+    if(sampled) return;
+
     const freq=noteToFrequency(note.name);
     const gain=envelopeGain(time,.19,Math.max(.18,Math.min(1.6,durationSec*.92+.12)),state.mix.melody);
     const osc=state.audio.createOscillator();
@@ -523,11 +616,21 @@
   function scheduleChord(name,time,durationSec,accent=1){
     const info=chordInfo(name);
     info.intervals.forEach((interval,i)=>{
+      const midi=info.root+12+interval;
+      const attack=time+i*.018;
+      const sampled=state.soundMode==="samples"&&state.samplePlayer?.schedule("nylonGuitar",{
+        time:attack,
+        destination:state.mix.chords,
+        midi,
+        gain:.15*accent,
+        duration:Math.max(.2,durationSec),
+        release:.08
+      });
+      if(sampled) return;
+
       const osc=state.audio.createOscillator();
       const gain=state.audio.createGain();
-      const midi=info.root+12+interval;
       const freq=midiToFrequency(midi);
-      const attack=time+i*.018;
 
       osc.type=i===0?"triangle":"sine";
       osc.frequency.setValueAtTime(freq,attack);
@@ -544,6 +647,15 @@
 
   function scheduleBass(name,time){
     const info=chordInfo(name);
+    const sampled=state.soundMode==="samples"&&state.samplePlayer?.schedule("electricBass",{
+      time,
+      destination:state.mix.bass,
+      midi:info.root,
+      gain:.32,
+      duration:.38,
+      release:.07
+    });
+    if(sampled) return;
 
     const fundamental=state.audio.createOscillator();
     const harmonic=state.audio.createOscillator();
@@ -567,6 +679,15 @@
   }
 
   function scheduleKick(time){
+    const sampled=state.soundMode==="samples"&&state.samplePlayer?.schedule("kick",{
+      time,
+      destination:state.mix.drums,
+      gain:.32,
+      duration:.22,
+      release:.06
+    });
+    if(sampled) return;
+
     const osc=state.audio.createOscillator();
     const gain=state.audio.createGain();
 
@@ -582,7 +703,16 @@
     osc.stop(time+.15);
   }
 
-  function scheduleNoise(time,peak,decay,highpass){
+  function scheduleNoise(time,peak,decay,highpass,sampleName,sampleGain){
+    const sampled=state.soundMode==="samples"&&state.samplePlayer?.schedule(sampleName,{
+      time,
+      destination:state.mix.drums,
+      gain:sampleGain,
+      duration:Math.max(decay+.02,sampleName === "snare" ? .18 : .07),
+      release:.04
+    });
+    if(sampled) return;
+
     const source=state.audio.createBufferSource();
     source.buffer=state.noiseBuffer;
 
@@ -625,11 +755,11 @@
 
     if(state.backing.drums){
       // Closed hat on every eighth.
-      scheduleNoise(time,.028,.045,5200);
+      scheduleNoise(time,.028,.045,5200,"closedHat",.14);
       // Kick on beats 1 and 3.
       if(inBar===0||inBar===4) scheduleKick(time);
       // Snare on beats 2 and 4.
-      if(inBar===2||inBar===6) scheduleNoise(time,.095,.105,850);
+      if(inBar===2||inBar===6) scheduleNoise(time,.095,.105,850,"snare",.26);
     }
   }
 
@@ -690,23 +820,29 @@
   }
 
   async function play(){
-    if(state.running) return;
-    await ensureAudio();
-    restoreMaster();
-
-    state.running=true;
-    state.nextGrid=0;
-    state.nextGridTime=state.audio.currentTime+.08;
-    state.visualQueue.length=0;
-    state.finished=false;
-    state.followedMeasure=-1;
-
+    if(state.running||state.starting) return;
+    state.starting=true;
     $("play").disabled=true;
-    $("stop").disabled=false;
+    try{
+      await ensureAudio();
+      restoreMaster();
 
-    schedulerTick();
-    state.scheduler=setInterval(schedulerTick,25);
-    state.raf=requestAnimationFrame(visualLoop);
+      state.running=true;
+      state.nextGrid=0;
+      state.nextGridTime=state.audio.currentTime+.08;
+      state.visualQueue.length=0;
+      state.finished=false;
+      state.followedMeasure=-1;
+
+      $("stop").disabled=false;
+
+      schedulerTick();
+      state.scheduler=setInterval(schedulerTick,25);
+      state.raf=requestAnimationFrame(visualLoop);
+    }finally{
+      state.starting=false;
+      if(!state.running) $("play").disabled=false;
+    }
   }
 
   // stop() ducks the master bus for ~120ms to swallow the tail of notes already
@@ -807,6 +943,7 @@
 
   async function bootstrap(){
     try{
+      renderSoundMode();
       await loadData();
       buildSelect();
       renderPhrase();
@@ -816,6 +953,7 @@
         renderPhrase();
       });
       $("tempo").addEventListener("input",(e)=>$("tempo-label").textContent=e.target.value);
+      $("sound-mode-toggle").addEventListener("click",toggleSoundMode);
       $("play").addEventListener("click",()=>play().catch(alert));
       $("stop").addEventListener("click",()=>stop());
       $("loop").addEventListener("click",()=>{
