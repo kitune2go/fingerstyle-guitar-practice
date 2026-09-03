@@ -29,6 +29,7 @@ import { createSamplePlayer } from "./core/sample-player.js";
     samplePlayer: null,
     sampleLoad: null,
     soundMode: readSoundMode(),
+    metronomeStarting: false,
   };
 
   // setInterval drifts, and drifts worst on phones, which is the one thing a
@@ -59,7 +60,7 @@ import { createSamplePlayer } from "./core/sample-player.js";
     if (!button) return;
 
     const real = state.soundMode === "samples";
-    if (!real) status = "idle";
+    if (!real && status !== "failed") status = "idle";
     const labels = {
       idle: real ? "音色：リアル" : "音色：合成",
       loading: "音色：読込中…",
@@ -97,9 +98,16 @@ import { createSamplePlayer } from "./core/sample-player.js";
     }
 
     const result = await state.sampleLoad;
-    renderSoundMode(
-      result.failed.length === 0 ? "idle" : result.loaded.length ? "partial" : "failed"
-    );
+    if (state.soundMode !== "samples") return result;
+    if (result.loaded.length === 0) {
+      // Retry after a reload, but expose and use the effective fallback for the
+      // rest of this session instead of announcing unavailable samples.
+      state.soundMode = "synth";
+      renderSoundMode("failed");
+    } else {
+      renderSoundMode(result.failed.length === 0 ? "idle" : "partial");
+    }
+    return result;
   }
 
   const escapeHtml = (value) =>
@@ -364,19 +372,26 @@ import { createSamplePlayer } from "./core/sample-player.js";
   }
 
   async function startMetronome() {
-    const context = await ensureAudio();
-    if (!context) return;
-    if (state.soundMode === "samples") await prepareRealSamples();
-    stopMetronome();
-
-    state.metronomeRunning = true;
-    state.beatInBar = 0;
-    state.nextBeatTime = context.currentTime + 0.06;
-    metronomeTick();
-    state.metronomeTimer = window.setInterval(metronomeTick, CLICK_TICK_MS);
-
     const button = byId("metronome-toggle");
-    if (button) button.textContent = "STOP";
+    if (state.metronomeRunning || state.metronomeStarting) return;
+    state.metronomeStarting = true;
+    if (button) button.disabled = true;
+    try {
+      const context = await ensureAudio();
+      if (!context) return;
+      if (state.soundMode === "samples") await prepareRealSamples();
+      stopMetronome();
+
+      state.metronomeRunning = true;
+      state.beatInBar = 0;
+      state.nextBeatTime = context.currentTime + 0.06;
+      metronomeTick();
+      state.metronomeTimer = window.setInterval(metronomeTick, CLICK_TICK_MS);
+      if (button) button.textContent = "STOP";
+    } finally {
+      state.metronomeStarting = false;
+      if (button) button.disabled = false;
+    }
   }
 
   function stopMetronome() {

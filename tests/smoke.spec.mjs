@@ -181,7 +181,38 @@ test("a sample load failure falls back to synthesis instead of silence", async (
   await page.goto(base+"/phrase.html");
   await page.locator("#play-note").click();
   await expect(page.locator("#sound-mode-toggle")).toHaveText("音源失敗：合成");
+  await expect(page.locator("#sound-mode-toggle")).toHaveAttribute("aria-pressed","false");
+  await expect(page.locator("#sound-mode-toggle")).toHaveAttribute("aria-label",/合成音を使用中/);
   expect(await page.evaluate(()=>window.__oscillatorStarts)).toBeGreaterThanOrEqual(2);
+});
+
+test("phrase audio actions are serialized while their required sample loads", async ({ page }) => {
+  await page.addInitScript(() => {
+    const originalFetch=window.fetch.bind(window);
+    window.fetch=async(input,init)=>{
+      const url=String(input instanceof Request?input.url:input);
+      if(url.includes("/assets/audio/")) await new Promise(resolve=>setTimeout(resolve,120));
+      return originalFetch(input,init);
+    };
+    window.__sampleStarts=0;
+    const start=AudioBufferSourceNode.prototype.start;
+    AudioBufferSourceNode.prototype.start=function(...args){
+      window.__sampleStarts++;
+      return start.apply(this,args);
+    };
+  });
+
+  await page.goto(base+"/phrase.html");
+  await page.evaluate(()=>{
+    const button=document.getElementById("play-note");
+    button.click();
+    button.click();
+    button.click();
+  });
+  await expect(page.locator("#play-note")).toBeDisabled();
+  await expect(page.locator("#preview-backing")).toBeDisabled();
+  await expect(page.locator("#play-note")).toBeEnabled();
+  expect(await page.evaluate(()=>window.__sampleStarts)).toBe(1);
 });
 
 test("full phrase transport schedules melody plus backing", async ({ page }) => {

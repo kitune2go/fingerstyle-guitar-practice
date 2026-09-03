@@ -751,7 +751,7 @@
 
     function renderSoundMode(status = "idle") {
       const real = soundMode === "samples";
-      if (!real) status = "idle";
+      if (!real && status !== "failed") status = "idle";
       const labels = {
         idle: real ? "音色：リアル" : "音色：合成",
         loading: "音色：読込中…",
@@ -794,9 +794,14 @@
         });
       }
       const result = await sampleLoad;
-      renderSoundMode(
-        result.failed.length === 0 ? "idle" : result.loaded.length ? "partial" : "failed"
-      );
+      if (soundMode !== "samples") return result;
+      if (result.loaded.length === 0) {
+        soundMode = "synth";
+        renderSoundMode("failed");
+      } else {
+        renderSoundMode(result.failed.length === 0 ? "idle" : "partial");
+      }
+      return result;
     }
 
     function toggleSoundMode() {

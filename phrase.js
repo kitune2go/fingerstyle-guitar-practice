@@ -7,7 +7,7 @@ import { createSamplePlayer } from "./core/sample-player.js";
   const SOUND_MODE_KEY="fingerstyle-sound-mode";
   const state = {
     data:null, phrase:null, index:0, noteIndex:0,
-    audio:null, noiseBuffer:null, mix:null, samplePlayer:null, sampleLoad:null,
+    audio:null, noiseBuffer:null, mix:null, samplePlayer:null,
     running:false, starting:false, loop:false, follow:true,
     soundMode:readSoundMode(),
     backing:{ chords:true, bass:true, drums:true },
@@ -54,7 +54,7 @@ import { createSamplePlayer } from "./core/sample-player.js";
     if(!button||!note) return;
 
     const real=state.soundMode==="samples";
-    if(!real) status="idle";
+    if(!real&&status!=="failed") status="idle";
     const labels={
       idle:real?"音色：リアル":"音色：合成",
       loading:"音色：読込中…",
@@ -80,19 +80,24 @@ import { createSamplePlayer } from "./core/sample-player.js";
     return response.arrayBuffer();
   }
 
-  async function prepareRealSamples(){
+  async function prepareRealSamples(names=PHRASE_SAMPLES){
     if(state.soundMode!=="samples"||!state.audio) return;
+    if(!names.length) return {requested:[],loaded:[],failed:[]};
     if(!state.samplePlayer){
       state.samplePlayer=createSamplePlayer({context:state.audio,fetchArrayBuffer});
     }
-    if(!state.sampleLoad){
-      renderSoundMode("loading");
-      state.sampleLoad=state.samplePlayer.load(PHRASE_SAMPLES).finally(()=>{
-        state.sampleLoad=null;
-      });
+    renderSoundMode("loading");
+    const result=await state.samplePlayer.load(names);
+    if(state.soundMode!=="samples") return result;
+    if(result.loaded.length===0){
+      // Keep the saved preference untouched so a reload retries a transient
+      // failure, while the current session and assistive state tell the truth.
+      state.soundMode="synth";
+      renderSoundMode("failed");
+    }else{
+      renderSoundMode(result.failed.length===0?"idle":"partial");
     }
-    const result=await state.sampleLoad;
-    renderSoundMode(result.failed.length===0?"idle":result.loaded.length?"partial":"failed");
+    return result;
   }
 
   function toggleSoundMode(){
@@ -538,7 +543,24 @@ import { createSamplePlayer } from "./core/sample-player.js";
     state.mix={master,melody,chords,bass,drums,compressor};
   }
 
-  async function ensureAudio(){
+  function backingSampleNames(){
+    const names=[];
+    if(state.backing.chords) names.push("nylonGuitar");
+    if(state.backing.bass) names.push("electricBass");
+    if(state.backing.drums) names.push("kick","snare","closedHat");
+    return names;
+  }
+
+  function setAudioEntriesPending(pending){
+    const playButton=$("play");
+    const noteButton=$("play-note");
+    const backingButton=$("preview-backing");
+    if(playButton) playButton.disabled=pending||state.running;
+    if(noteButton) noteButton.disabled=pending;
+    if(backingButton) backingButton.disabled=pending;
+  }
+
+  async function ensureAudio(requiredSamples=PHRASE_SAMPLES){
     const AudioContext=window.AudioContext||window.webkitAudioContext;
     if(!AudioContext) throw new Error("このブラウザはWeb Audioに対応していません。");
     if(!state.audio) state.audio=new AudioContext({latencyHint:"interactive"});
@@ -553,7 +575,7 @@ import { createSamplePlayer } from "./core/sample-player.js";
       for(let i=0;i<length;i++) data[i]=Math.random()*2-1;
     }
 
-    if(state.soundMode==="samples") await prepareRealSamples();
+    if(state.soundMode==="samples") await prepareRealSamples(requiredSamples);
   }
 
   function envelopeGain(time,peak,decay,bus){
@@ -822,9 +844,9 @@ import { createSamplePlayer } from "./core/sample-player.js";
   async function play(){
     if(state.running||state.starting) return;
     state.starting=true;
-    $("play").disabled=true;
+    setAudioEntriesPending(true);
     try{
-      await ensureAudio();
+      await ensureAudio(["nylonGuitar",...backingSampleNames()]);
       restoreMaster();
 
       state.running=true;
@@ -841,7 +863,7 @@ import { createSamplePlayer } from "./core/sample-player.js";
       state.raf=requestAnimationFrame(visualLoop);
     }finally{
       state.starting=false;
-      if(!state.running) $("play").disabled=false;
+      setAudioEntriesPending(false);
     }
   }
 
@@ -882,39 +904,55 @@ import { createSamplePlayer } from "./core/sample-player.js";
     state.finished=false;
     state.followedMeasure=-1;
 
-    $("play").disabled=false;
+    setAudioEntriesPending(false);
     $("stop").disabled=true;
     if(resetProgress) updateProgress(0);
   }
 
   async function playOne(){
-    await ensureAudio();
-    restoreMaster();
-    const note=state.phrase.notes[state.noteIndex];
-    scheduleMelody(note,state.audio.currentTime+.02,Number(note.beats)*secondsPerBeat());
-    highlightNote(state.noteIndex);
+    if(state.starting) return;
+    state.starting=true;
+    setAudioEntriesPending(true);
+    try{
+      await ensureAudio(["nylonGuitar"]);
+      restoreMaster();
+      const note=state.phrase.notes[state.noteIndex];
+      scheduleMelody(note,state.audio.currentTime+.02,Number(note.beats)*secondsPerBeat());
+      highlightNote(state.noteIndex);
+    }finally{
+      state.starting=false;
+      setAudioEntriesPending(false);
+    }
   }
 
   async function previewBacking(){
-    await ensureAudio();
-    restoreMaster();
-    const measure=measureForNote(state.noteIndex);
-    const chord=state.phrase.chords[measure];
-    const start=state.audio.currentTime+.05;
-    const step=secondsPerBeat()/2;
+    if(state.starting) return;
+    state.starting=true;
+    setAudioEntriesPending(true);
+    try{
+      await ensureAudio(backingSampleNames());
+      restoreMaster();
+      const measure=measureForNote(state.noteIndex);
+      const chord=state.phrase.chords[measure];
+      const start=state.audio.currentTime+.05;
+      const step=secondsPerBeat()/2;
 
-    for(let inBar=0;inBar<8;inBar++){
-      scheduleBackingGrid(inBar,start+inBar*step,chord);
-    }
+      for(let inBar=0;inBar<8;inBar++){
+        scheduleBackingGrid(inBar,start+inBar*step,chord);
+      }
 
-    const button=$("preview-backing");
-    if(button){
-      button.textContent="♪ M"+(measure+1)+" "+chord+" 再生中";
-      if(state.previewTimer) window.clearTimeout(state.previewTimer);
-      state.previewTimer=window.setTimeout(()=>{
-        button.textContent="▶ 伴奏だけ1小節";
-        state.previewTimer=null;
-      },Math.ceil(step*8*1000)+150);
+      const button=$("preview-backing");
+      if(button){
+        button.textContent="♪ M"+(measure+1)+" "+chord+" 再生中";
+        if(state.previewTimer) window.clearTimeout(state.previewTimer);
+        state.previewTimer=window.setTimeout(()=>{
+          button.textContent="▶ 伴奏だけ1小節";
+          state.previewTimer=null;
+        },Math.ceil(step*8*1000)+150);
+      }
+    }finally{
+      state.starting=false;
+      setAudioEntriesPending(false);
     }
   }
 
