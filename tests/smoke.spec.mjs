@@ -189,9 +189,13 @@ test("a sample load failure falls back to synthesis instead of silence", async (
 test("phrase audio actions are serialized while their required sample loads", async ({ page }) => {
   await page.addInitScript(() => {
     const originalFetch=window.fetch.bind(window);
+    window.__audioFetches=[];
     window.fetch=async(input,init)=>{
       const url=String(input instanceof Request?input.url:input);
-      if(url.includes("/assets/audio/")) await new Promise(resolve=>setTimeout(resolve,120));
+      if(url.includes("/assets/audio/")){
+        window.__audioFetches.push(url);
+        await new Promise(resolve=>setTimeout(resolve,120));
+      }
       return originalFetch(input,init);
     };
     window.__sampleStarts=0;
@@ -217,6 +221,9 @@ test("phrase audio actions are serialized while their required sample loads", as
   expect(pendingState).toEqual({play:true,note:true,backing:true});
   await expect(page.locator("#play-note")).toBeEnabled();
   expect(await page.evaluate(()=>window.__sampleStarts)).toBe(1);
+  const fetched=await page.evaluate(()=>window.__audioFetches);
+  expect(fetched).toHaveLength(5);
+  expect(fetched.every(url=>url.includes("/assets/audio/guitar-nylon/"))).toBeTruthy();
 });
 
 test("full phrase transport schedules melody plus backing", async ({ page }) => {
