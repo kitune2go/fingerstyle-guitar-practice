@@ -58,7 +58,7 @@ phrase.js       core/ を使うように書き換え
 guitar.js       スケジューラを core/clock.js に置き換え
 index.html      script タグを module 化
 phrase.html     script タグを module 化
-sw.js           APP_SHELL に core/*.js を追加、CACHE_NAME を v9 へ
+sw.js           APP_SHELL に core/*.js を追加、CACHE_NAME を v10 へ
 package.json    test スクリプトに単体テストを追加
 scripts/validate-phrases.mjs  重複ロジックを core/music.js の import に置き換え
 .github/workflows/validate.yml  node --check の対象に core/*.js を追加
@@ -249,7 +249,7 @@ DOMを作ること自体は、このモジュールの役割です。
 
 2. **`sw.js`** — 新しいモジュールがキャッシュされないと、オフラインで真っ白になります。
    ```js
-   const CACHE_NAME = "fingerstyle-practice-v9";   // 音源追加時の v8 から上げる
+   const CACHE_NAME = "fingerstyle-practice-v10";  // リズム分割時の v9 から上げる
    ```
    `APP_SHELL` に `"./core/music.js"`, `"./core/clock.js"`, `"./core/notation.js"` を追加。
 
@@ -318,7 +318,7 @@ node -e 'import("./core/music.js").then(m => console.log(Object.keys(m).length +
 # 3. 単体テスト + データ検証
 npm test
 
-# 4. ブラウザテスト13件（テストコードは変更しないこと）
+# 4. ブラウザテスト24件（テストコードは変更しないこと）
 npm install
 npx playwright install chromium
 npm run test:e2e
@@ -332,7 +332,7 @@ npm run serve   # http://localhost:8000
 
 - 基礎: メトロノームのSTART/STOP、±ボタンでテンポ変更（動作中に変えても位相が飛ばないこと）、課の前後移動
 - フレーズ: 再生・停止・ループ、フレーズ切替（C長調とト長調の両方）、音符タップ、前/次、追従ON/OFF、伴奏3種のON/OFF
-- DevTools の Application → Service Workers に `v9` のキャッシュが登録され、`core/*.js` が入っていること
+- DevTools の Application → Service Workers に `v10` のキャッシュが登録され、`core/*.js` が入っていること
 - Console にエラーが1件も出ないこと
 
 ---
@@ -348,7 +348,7 @@ npm run serve   # http://localhost:8000
 - [ ] `phrase.js` の行数が明確に減っている（目安: 829行 → 480行以下）
 - [ ] `guitar.js` から `setInterval` によるスケジューラ実装が消えている
 - [ ] `scripts/validate-phrases.mjs` に `noteToMidi` の再実装が残っていない
-- [ ] `sw.js` の `CACHE_NAME` が `v9`、`APP_SHELL` に `core/*.js` の3ファイルがある
+- [ ] `sw.js` の `CACHE_NAME` が `v10`、`APP_SHELL` に `core/*.js` の3ファイルがある
 - [ ] `index.html` と `phrase.html` のアプリスクリプトが `type="module"`
 - [ ] 譜面の見た目が変わっていない（C長調・ト長調の両方をスクリーンショットで比較）
 
@@ -394,7 +394,7 @@ npm run serve   # http://localhost:8000
 ```
 index.html    guitar.js の script タグを type="module" へ
 phrase.html   phrase.js の script タグを type="module" へ
-sw.js         CACHE_NAME を v9 へ
+sw.js         CACHE_NAME を v10 へ
 ```
 
 - **この時点では `import` を1行も足さない。** ファイルの中身は変えません
@@ -442,7 +442,7 @@ sw.js              APP_SHELL に ./core/notation.js を追加
 
 ### CACHE_NAME について
 
-**バージョンを上げるのは Commit 1 の一度だけ**（v8 → v9）で構いません。
+**バージョンを上げるのは Commit 1 の一度だけ**（v9 → v10）で構いません。
 Commit 2〜4 は `APP_SHELL` へエントリを足すだけです。
 ブランチ全体が1つの単位としてデプロイされるため、途中の版が配信されることはありません。
 

@@ -21,8 +21,10 @@ jobs:
         run: |
           node --check guitar.js
           node --check phrase.js
+          node --check rhythm.js
           node --check register-sw.js
           node --check sw.js
+          find core rhythm -type f -name '*.js' -exec node --check {} \;
 
       - name: Validate lesson and phrase data
         run: npm test

@@ -56,12 +56,12 @@ export function checkShell(root) {
     if (!shell.has(src)) errors.push(`sw.js: manifest のアイコン ${src} がAPP_SHELLにありません`);
   }
 
-  // Anything under core/ is loaded by an ES module import, which no HTML
-  // attribute reveals, so check the directory directly.
-  const coreDir = path.join(root, "core");
-  if (fs.existsSync(coreDir)) {
-    for (const file of fs.readdirSync(coreDir).filter((f) => f.endsWith(".js"))) {
-      if (!shell.has(`core/${file}`)) errors.push(`sw.js: core/${file} がAPP_SHELLにありません`);
+  // Modules imported below the page entry points are invisible to HTML
+  // attributes, so every shipped module in both shared and rhythm namespaces
+  // must be checked recursively.
+  for (const directory of ["core", "rhythm"]) {
+    for (const file of filesBelow(root, directory, (name) => name.endsWith(".js"))) {
+      if (!shell.has(file)) errors.push(`sw.js: ${file} がAPP_SHELLにありません`);
     }
   }
 

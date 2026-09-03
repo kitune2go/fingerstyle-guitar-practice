@@ -298,6 +298,58 @@ test("rhythm practice is integrated and interactive", async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
+test("rhythm pattern metadata, expression marks and visual offset survive integration", async ({ page }) => {
+  await page.goto(base+"/rhythm.html");
+
+  await page.locator("#patternSelect").selectOption("afro12");
+  await expect(page.locator("#meterDisplay")).toHaveText("12/8 ・ 1小節");
+  await expect(page.locator("#bpmLabel")).toHaveText("96");
+  await expect(page.locator("#patternInfo")).toContainText("1拍 = 付点4分音符");
+
+  await page.locator("#offsetRange").evaluate((input) => {
+    input.value="25";
+    input.dispatchEvent(new Event("input",{bubbles:true}));
+  });
+  await expect(page.locator("#offsetLabel")).toHaveText("+25 ms");
+  await page.locator("#offsetResetBtn").click();
+  await expect(page.locator("#offsetLabel")).toHaveText("0 ms");
+
+  await page.locator("#patternSelect").selectOption("funk16");
+  await expect(page.locator(".orbit-marker.accent")).not.toHaveCount(0);
+  await expect(page.locator(".orbit-marker.note-ghost")).not.toHaveCount(0);
+
+  await page.locator("#gridViewBtn").click();
+  await expect(page.locator("#gridView")).toBeVisible();
+  await expect(page.locator(".cell.event.accent")).not.toHaveCount(0);
+  await expect(page.locator(".cell.event.note-ghost")).not.toHaveCount(0);
+});
+
+test("rhythm sample failure falls back to expressive synthesis", async ({ page }) => {
+  await page.addInitScript(() => {
+    const originalFetch=window.fetch.bind(window);
+    window.fetch=(input,init)=>{
+      const url=String(input instanceof Request?input.url:input);
+      if(url.includes("/assets/audio/")) return Promise.resolve(new Response("",{status:503}));
+      return originalFetch(input,init);
+    };
+    window.__rhythmOscillators=0;
+    const start=OscillatorNode.prototype.start;
+    OscillatorNode.prototype.start=function(...args){
+      window.__rhythmOscillators++;
+      return start.apply(this,args);
+    };
+  });
+
+  await page.goto(base+"/rhythm.html");
+  await page.locator("#startBtn").click();
+  await expect(page.locator("#stateText")).toHaveText("再生中");
+  await expect(page.locator("#soundModeBtn")).toHaveText("音源失敗：合成");
+  await expect(page.locator("#soundModeBtn")).toHaveAttribute("aria-pressed","false");
+  await expect(page.locator("#soundModeBtn")).toHaveAttribute("aria-label",/合成音を使用中/);
+  await page.waitForFunction(() => window.__rhythmOscillators > 0);
+  await page.locator("#stopBtn").click();
+});
+
 test("basic and rhythm practice schedule real percussion samples", async ({ page }) => {
   await page.addInitScript(() => {
     window.__sources=[];
@@ -383,6 +435,9 @@ test("service worker registers and precaches lesson data", async ({ page }) => {
   expect(cached.some((path) => path.endsWith("/data/lessons/001.json"))).toBeTruthy();
   expect(cached.some((path) => path.endsWith("/data/phrases.json"))).toBeTruthy();
   expect(cached.some((path) => path.endsWith("/phrase.js"))).toBeTruthy();
+  expect(cached.some((path) => path.endsWith("/rhythm.js"))).toBeTruthy();
+  expect(cached.some((path) => path.endsWith("/rhythm/core/audio-engine.js"))).toBeTruthy();
+  expect(cached.some((path) => path.endsWith("/rhythm/views/orbit-view.js"))).toBeTruthy();
   expect(cached.some((path) => path.endsWith("/core/sample-player.js"))).toBeTruthy();
   expect(cached.some((path) => path.endsWith("/assets/audio/guitar-nylon/e4.mp3"))).toBeTruthy();
   expect(cached.some((path) => path.endsWith("/assets/audio/drums/kick.wav"))).toBeTruthy();

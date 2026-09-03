@@ -6,7 +6,7 @@ import path from "node:path";
 import { checkShell } from "../../scripts/validate-shell.mjs";
 
 // Builds a minimal repo whose only interesting part is the shell wiring.
-function fixture({ shell, files = [], core = [], audio = [] }) {
+function fixture({ shell, files = [], core = [], rhythm = [], audio = [] }) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "shell-"));
   fs.writeFileSync(
     path.join(root, "sw.js"),
@@ -29,7 +29,19 @@ function fixture({ shell, files = [], core = [], audio = [] }) {
   );
   if (core.length) {
     fs.mkdirSync(path.join(root, "core"), { recursive: true });
-    for (const file of core) fs.writeFileSync(path.join(root, "core", file), "");
+    for (const file of core) {
+      const target = path.join(root, "core", file);
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.writeFileSync(target, "");
+    }
+  }
+  if (rhythm.length) {
+    fs.mkdirSync(path.join(root, "rhythm"), { recursive: true });
+    for (const file of rhythm) {
+      const target = path.join(root, "rhythm", file);
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.writeFileSync(target, "");
+    }
   }
   for (const file of audio) {
     const target = path.join(root, "assets/audio", file);
@@ -94,6 +106,28 @@ test("a core module missing from the shell is reported", () => {
 test("core modules present in the shell pass", () => {
   const { errors } = checkShell(fixture({
     shell: [...COMPLETE, "./core/music.js"], files: PRESENT, core: ["music.js"]
+  }));
+  assert.deepEqual(errors, []);
+});
+
+test("nested rhythm modules missing from the shell are reported", () => {
+  const { errors } = checkShell(fixture({
+    shell: COMPLETE,
+    files: PRESENT,
+    rhythm: ["pattern-model.js", "core/scheduler.js"]
+  }));
+  assert.equal(errors.length, 2);
+  assert.match(errors.join(" "), /rhythm\/pattern-model\.js/);
+  assert.match(errors.join(" "), /rhythm\/core\/scheduler\.js/);
+});
+
+test("nested core and rhythm modules present in the shell pass", () => {
+  const modules = ["./core/audio/player.js", "./rhythm/views/orbit-view.js"];
+  const { errors } = checkShell(fixture({
+    shell: [...COMPLETE, ...modules],
+    files: PRESENT,
+    core: ["audio/player.js"],
+    rhythm: ["views/orbit-view.js"]
   }));
   assert.deepEqual(errors, []);
 });

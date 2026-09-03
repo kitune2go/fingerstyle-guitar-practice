@@ -1,4 +1,4 @@
-const CACHE_NAME = "fingerstyle-practice-v8";
+const CACHE_NAME = "fingerstyle-practice-v9";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -9,6 +9,15 @@ const APP_SHELL = [
   "./phrase.css",
   "./phrase.js",
   "./rhythm.html",
+  "./rhythm.css",
+  "./rhythm.js",
+  "./rhythm/pattern-model.js",
+  "./rhythm/core/audio-engine.js",
+  "./rhythm/core/scheduler.js",
+  "./rhythm/core/visual-clock.js",
+  "./rhythm/modes/ghost-mode.js",
+  "./rhythm/views/grid-view.js",
+  "./rhythm/views/orbit-view.js",
   "./audio-credits.html",
   "./core/sample-player.js",
   "./assets/audio/guitar-nylon/g3.mp3",

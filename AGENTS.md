@@ -21,7 +21,7 @@
 ```
 index.html   基礎     10分レッスン。TAB譜とメトロノーム        guitar.js  / guitar.css
 phrase.html  フレーズ  五線譜 + TAB + Web Audio再生・伴奏      phrase.js  / phrase.css
-rhythm.html  リズム   口・右手・左手・足の独立練習            単一ファイル（インライン）
+rhythm.html  リズム   口・右手・左手・足の独立練習            rhythm.js / rhythm.css / rhythm/
 sw.js        オフライン用 Service Worker
 data/        教材JSON（唯一の教材ソース）
 scripts/     データ検証。npm test から実行される
@@ -97,12 +97,13 @@ role="button"  tabindex="0"
 npm install                      # 開発依存（Playwright）
 npx playwright install chromium
 
-node --check guitar.js && node --check phrase.js && node --check sw.js
-npm test                         # データ検証3種
-npm run test:e2e                 # ブラウザテスト13件
+node --check guitar.js && node --check phrase.js && node --check rhythm.js && node --check sw.js
+find core rhythm -type f -name '*.js' -exec node --check {} \;
+npm test                         # 単体テスト + データ／シェル検証3種
+npm run test:e2e                 # ブラウザ回帰テスト
 ```
 
-`npm test` は3つの検証を順に走らせます。
+`npm test` は `tests/unit/*.test.mjs` の単体テスト後、3つの検証を順に走らせます。
 
 | 検証 | 内容 |
 |---|---|
@@ -139,7 +140,8 @@ npm run test:e2e                 # ブラウザテスト13件
 | 事項 | 現状 |
 |---|---|
 | **記譜オクターブ** | ギターは記譜より1オクターブ低く鳴ります。`staffY` はこれを前提にしています |
-| **拍子** | 4/4のみ。8分音符グリッド8個/小節が**7箇所へ直書き**されています |
+| **フレーズの拍子** | 4/4のみ。8分音符グリッド8個/小節が**7箇所へ直書き**されています |
+| **リズムの拍子** | パターン定義から導出。4/4・3/4・5/4・6/8・7/8・12/8を表現可能 |
 | **音価** | 0.5 / 1 / 2 / 4 拍のみ。休符・タイ・付点・連符は未対応 |
 | **調** | `phrase.js` の `keyFifths` にある調のみ。バリデータが他を拒否します |
 | **声部** | 単旋律のみ。複声部は未対応 |
