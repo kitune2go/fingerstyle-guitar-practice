@@ -203,14 +203,18 @@ test("phrase audio actions are serialized while their required sample loads", as
   });
 
   await page.goto(base+"/phrase.html");
-  await page.evaluate(()=>{
+  const pendingState=await page.evaluate(()=>{
     const button=document.getElementById("play-note");
     button.click();
     button.click();
     button.click();
+    return {
+      play:document.getElementById("play").disabled,
+      note:button.disabled,
+      backing:document.getElementById("preview-backing").disabled
+    };
   });
-  await expect(page.locator("#play-note")).toBeDisabled();
-  await expect(page.locator("#preview-backing")).toBeDisabled();
+  expect(pendingState).toEqual({play:true,note:true,backing:true});
   await expect(page.locator("#play-note")).toBeEnabled();
   expect(await page.evaluate(()=>window.__sampleStarts)).toBe(1);
 });
