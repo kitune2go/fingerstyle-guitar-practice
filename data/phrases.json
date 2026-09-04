@@ -1488,7 +1488,8 @@
           "finger": "U"
         }
       ],
-      "rightHand": "D U D U を基本に、ハンマリング／プル／スライド／チョーキングでは右手を省略してもよい。まず84 BPMで譜割りを確認する。"
+      "rightHand": "D U D U を基本に、ハンマリング／プル／スライド／チョーキングでは右手を省略してもよい。まず84 BPMで譜割りを確認する。",
+      "rightHandSequence": "D U D U D U D U D U D U D U D D U D U D U D U D U D U D U D D U D U D U D U D U D U D U D U D U D U D U D U D U D U D U D U"
     }
   ]
 }
