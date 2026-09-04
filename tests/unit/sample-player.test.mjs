@@ -6,7 +6,7 @@ import {
 } from "../../core/sample-player.js";
 
 function fakeContext() {
-  const created = { sources: [], gains: [] };
+  const created = { sources: [], gains: [], panners: [] };
   const context = {
     currentTime: 4,
     destination: { name: "speakers" },
@@ -36,6 +36,17 @@ function fakeContext() {
       created.gains.push(node);
       return node;
     },
+    createStereoPanner() {
+      const automation = [];
+      const node = {
+        pan: { setValueAtTime(value, time) { automation.push([value, time]); } },
+        automation,
+        connections: [],
+        connect(next) { this.connections.push(next); },
+      };
+      created.panners.push(node);
+      return node;
+    },
   };
   return { context, created };
 }
@@ -46,10 +57,14 @@ const testInstruments = {
     { path: "assets/audio/guitar-nylon/e4.mp3", midi: 64 },
   ],
   click: [{ path: "assets/audio/drums/hihat-closed.wav", midi: null }],
+  variedClick: [
+    { path: "assets/audio/drums/snare.wav", midi: null },
+    { path: "assets/audio/drums/snare-2.wav", midi: null },
+  ],
 };
 
 test("the shipped catalogue lists every local sample exactly once", () => {
-  assert.equal(SAMPLE_ASSET_PATHS.length, 10);
+  assert.equal(SAMPLE_ASSET_PATHS.length, 43);
   assert.equal(new Set(SAMPLE_ASSET_PATHS).size, SAMPLE_ASSET_PATHS.length);
   assert.ok(SAMPLE_ASSET_PATHS.every((path) => path.startsWith("assets/audio/")));
 });
@@ -109,6 +124,61 @@ test("schedule chooses the nearest pitch and uses the audio clock", async () => 
   assert.equal(created.sources[0].started, 7.25);
   assert.ok(created.sources[0].stopped > 7.25);
   assert.equal(created.gains[0].connections[0], context.destination);
+});
+
+test("unpitched recordings rotate while timing stays on the audio clock", async () => {
+  const { context } = fakeContext();
+  const player = createSamplePlayer({
+    context,
+    instruments: testInstruments,
+    fetchArrayBuffer: async () => ({ duration: 1 }),
+  });
+  await player.load("variedClick");
+
+  const first = player.schedule("variedClick", { time: 8, gain: 0.5 });
+  const second = player.schedule("variedClick", { time: 8.5, gain: 0.5 });
+
+  assert.equal(first.zone.path, "assets/audio/drums/snare.wav");
+  assert.equal(second.zone.path, "assets/audio/drums/snare-2.wav");
+  assert.equal(first.source.started, 8);
+  assert.equal(second.source.started, 8.5);
+  assert.equal(first.peak, 0.5);
+  assert.ok(second.peak < first.peak);
+});
+
+test("humanize can be disabled for an exact repeat", async () => {
+  const { context } = fakeContext();
+  const player = createSamplePlayer({
+    context,
+    instruments: testInstruments,
+    fetchArrayBuffer: async () => ({ duration: 1 }),
+  });
+  await player.load("variedClick");
+
+  const first = player.schedule("variedClick", { gain: 0.5, humanize: false });
+  const second = player.schedule("variedClick", { gain: 0.5, humanize: false });
+
+  assert.equal(first.zone.path, second.zone.path);
+  assert.equal(first.rate, 1);
+  assert.equal(second.rate, 1);
+  assert.equal(first.peak, 0.5);
+  assert.equal(second.peak, 0.5);
+});
+
+test("pan uses a stereo panner when the context provides one", async () => {
+  const { context, created } = fakeContext();
+  const player = createSamplePlayer({
+    context,
+    instruments: testInstruments,
+    fetchArrayBuffer: async () => ({ duration: 1 }),
+  });
+  await player.load("click");
+
+  const event = player.schedule("click", { time: 5, pan: 2 });
+
+  assert.ok(event.panner);
+  assert.deepEqual(created.panners[0].automation, [[1, 5]]);
+  assert.equal(created.panners[0].connections[0], context.destination);
 });
 
 test("a missing sample is silent until a later load retry succeeds", async () => {

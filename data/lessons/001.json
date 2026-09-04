@@ -19,6 +19,19 @@
     "rhythm": "4/4 ・ 四分音符",
     "rightHandPattern": "i m i m | i m i m | i m i",
     "tip": "iで弾いた音とmで弾いた音を聴き比べます。どちらか一方だけ大きければ、強い方ではなく弱い方に音量を合わせてください。",
+    "playback": [
+      { "string": 3, "fret": 0, "beats": 1 },
+      { "string": 3, "fret": 2, "beats": 1 },
+      { "string": 2, "fret": 0, "beats": 1 },
+      { "string": 2, "fret": 1, "beats": 1 },
+      { "string": 2, "fret": 3, "beats": 1 },
+      { "string": 1, "fret": 0, "beats": 1 },
+      { "string": 2, "fret": 3, "beats": 1 },
+      { "string": 2, "fret": 1, "beats": 1 },
+      { "string": 2, "fret": 0, "beats": 1 },
+      { "string": 3, "fret": 2, "beats": 1 },
+      { "string": 3, "fret": 0, "beats": 1 }
+    ],
     "tab": [
       "   i m i m   i m i m   i m i",
       "e|--------|--0-----|------|",

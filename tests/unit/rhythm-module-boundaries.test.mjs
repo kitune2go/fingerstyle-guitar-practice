@@ -18,10 +18,10 @@ import { createGhostMode, GHOST_BLOCK_BARS } from "../../rhythm/modes/ghost-mode
 import { patterns } from "../../rhythm/pattern-model.js";
 
 const PART_DEFS = [
-  { key: "voice", label: "Voice", sample: "tom", sampleGain: 0.12, sampleDuration: 0.16, freq: 920, gain: 0.095, duration: 0.030 },
-  { key: "right", label: "R.Hand", sample: "closedHat", sampleGain: 0.09, sampleDuration: 0.07, freq: 690, gain: 0.085, duration: 0.026 },
-  { key: "left", label: "L.Hand", sample: "snare", sampleGain: 0.12, sampleDuration: 0.14, freq: 460, gain: 0.085, duration: 0.032 },
-  { key: "foot", label: "Foot", sample: "kick", sampleGain: 0.17, sampleDuration: 0.20, freq: 150, gain: 0.15, duration: 0.060 }
+  { key: "voice", label: "Voice", sample: "tom", sampleGain: 0.12, sampleDuration: 0.16, samplePan: -0.1, freq: 920, gain: 0.095, duration: 0.030 },
+  { key: "right", label: "R.Hand", sample: "closedHat", accentSample: "openHat", sampleGain: 0.09, sampleDuration: 0.07, accentSampleDuration: 0.2, samplePan: -0.26, freq: 690, gain: 0.085, duration: 0.026 },
+  { key: "left", label: "L.Hand", sample: "snare", sampleGain: 0.12, sampleDuration: 0.14, samplePan: 0.18, freq: 460, gain: 0.085, duration: 0.032 },
+  { key: "foot", label: "Foot", sample: "kick", sampleGain: 0.17, sampleDuration: 0.20, samplePan: 0, freq: 150, gain: 0.15, duration: 0.060 }
 ];
 
 function approximately(actual, expected, epsilon = 1e-12) {
@@ -402,10 +402,14 @@ test("audio engine schedules expressive samples for every rhythm part and falls 
       true
     );
   }
-  assert.deepEqual(scheduled.map(hit => hit.name), ["tom", "closedHat", "snare", "kick"]);
+  assert.deepEqual(scheduled.map(hit => hit.name), ["tom", "openHat", "snare", "kick"]);
   PART_DEFS.forEach((part, index) => {
     approximately(scheduled[index].gain, part.sampleGain * 0.5 * 1.35);
-    assert.equal(scheduled[index].duration, part.sampleDuration);
+    assert.equal(
+      scheduled[index].duration,
+      part.accentSampleDuration ?? part.sampleDuration
+    );
+    assert.equal(scheduled[index].pan, part.samplePan);
     assert.equal(scheduled[index].destination, context.gains[index]);
   });
   assert.equal(context.oscillators.length, 0);

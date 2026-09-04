@@ -19,6 +19,37 @@ test("basic practice loads on mobile", async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
+test("basic practice plays its TAB as sampled guitar instead of clicks", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__lessonSources=[];
+    window.__lessonOscillators=0;
+    const sourceStart=AudioBufferSourceNode.prototype.start;
+    AudioBufferSourceNode.prototype.start=function(when){
+      window.__lessonSources.push(when);
+      return sourceStart.call(this,when);
+    };
+    const oscillatorStart=OscillatorNode.prototype.start;
+    OscillatorNode.prototype.start=function(...args){
+      window.__lessonOscillators++;
+      return oscillatorStart.apply(this,args);
+    };
+  });
+
+  await page.goto(base+"/index.html");
+  await page.locator("#play-lesson").click();
+  await page.waitForFunction(()=>window.__lessonSources.length>=8);
+
+  const audit=await page.evaluate(()=>({
+    sources:window.__lessonSources,
+    oscillators:window.__lessonOscillators
+  }));
+  expect(audit.sources).toHaveLength(8);
+  expect(audit.sources.every((time,index,array)=>index===0||time>array[index-1])).toBeTruthy();
+  expect(audit.oscillators).toBe(0);
+  await page.getByRole("button",{name:"■ お手本停止"}).click();
+  await expect(page.locator("#play-lesson")).toHaveText("▶ お手本");
+});
+
 test("score renders actual five-line systems and note heads", async ({ page }) => {
   const errors=[];
   page.on("pageerror",error=>errors.push(error.message));
@@ -93,7 +124,8 @@ test("real backing creates sampled guitar bass and drum audio nodes", async ({ p
   await expect(page.locator("#backing-drums")).toHaveAttribute("aria-pressed","true");
 
   await page.getByRole("button",{name:"▶ 伴奏だけ1小節"}).click();
-  await page.waitForTimeout(180);
+  await expect(page.locator("#preview-backing")).toBeEnabled();
+  await page.waitForFunction(()=>window.__audioAudit.buffers>=20);
 
   const audit=await page.evaluate(()=>window.__audioAudit);
   expect(audit.compressors).toBeGreaterThanOrEqual(1);
@@ -153,7 +185,8 @@ test("a phrase melody note uses the nylon guitar sample", async ({ page }) => {
 
   await page.goto(base+"/phrase.html");
   await page.locator("#play-note").click();
-  await page.waitForTimeout(80);
+  await expect(page.locator("#play-note")).toBeEnabled();
+  await page.waitForFunction(()=>window.__sampleStarts===1);
   const audit=await page.evaluate(()=>({
     samples:window.__sampleStarts,
     oscillators:window.__oscillatorStarts
@@ -222,7 +255,7 @@ test("phrase audio actions are serialized while their required sample loads", as
   await expect(page.locator("#play-note")).toBeEnabled();
   expect(await page.evaluate(()=>window.__sampleStarts)).toBe(1);
   const fetched=await page.evaluate(()=>window.__audioFetches);
-  expect(fetched).toHaveLength(5);
+  expect(fetched).toHaveLength(29);
   expect(fetched.every(url=>url.includes("/assets/audio/guitar-nylon/"))).toBeTruthy();
 });
 

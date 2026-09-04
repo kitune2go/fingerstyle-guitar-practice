@@ -32,6 +32,9 @@ import { createSamplePlayer } from "./core/sample-player.js";
     metronomeStarting: false,
     metronomeSources: new Set(),
     metronomePulseTimers: new Set(),
+    lessonPlaybackStarting: false,
+    lessonPlaybackGeneration: 0,
+    lessonPlaybackSources: new Set(),
   };
 
   // setInterval drifts, and drifts worst on phones, which is the one thing a
@@ -40,6 +43,7 @@ import { createSamplePlayer } from "./core/sample-player.js";
   const CLICK_LOOKAHEAD = 0.15;
   const CLICK_TICK_MS = 25;
   const METRONOME_SAMPLES = ["closedHat", "tom"];
+  const OPEN_STRING_MIDI = Object.freeze({ 1: 64, 2: 59, 3: 55, 4: 50, 5: 45, 6: 40 });
 
   function readSoundMode() {
     try {
@@ -84,7 +88,7 @@ import { createSamplePlayer } from "./core/sample-player.js";
     return response.arrayBuffer();
   }
 
-  async function prepareRealSamples() {
+  async function prepareRealSamples(names = METRONOME_SAMPLES) {
     if (state.soundMode !== "samples" || !state.audioContext) return;
     if (!state.samplePlayer) {
       state.samplePlayer = createSamplePlayer({
@@ -92,14 +96,17 @@ import { createSamplePlayer } from "./core/sample-player.js";
         fetchArrayBuffer,
       });
     }
-    if (!state.sampleLoad) {
+    const requested = typeof names === "string" ? [names] : [...names];
+    const key = [...requested].sort().join("|");
+    if (!state.sampleLoad || state.sampleLoad.key !== key) {
       renderSoundMode("loading");
-      state.sampleLoad = state.samplePlayer.load(METRONOME_SAMPLES).finally(() => {
-        state.sampleLoad = null;
+      const promise = state.samplePlayer.load(requested).finally(() => {
+        if (state.sampleLoad?.promise === promise) state.sampleLoad = null;
       });
+      state.sampleLoad = { key, promise };
     }
 
-    const result = await state.sampleLoad;
+    const result = await state.sampleLoad.promise;
     if (state.soundMode !== "samples") return result;
     if (result.loaded.length === 0) {
       // Retry after a reload, but expose and use the effective fallback for the
@@ -232,6 +239,7 @@ import { createSamplePlayer } from "./core/sample-player.js";
   function renderLesson() {
     const lesson = state.lesson;
     if (!lesson) return;
+    stopLessonPlayback();
 
     document.title = `${lesson.id} ${lesson.title}｜指弾きギター練習帖`;
     setText("lesson-number", lesson.id);
@@ -270,6 +278,12 @@ import { createSamplePlayer } from "./core/sample-player.js";
     if (musicXml) {
       musicXml.hidden = !lesson.assets?.musicXml;
       musicXml.onclick = () => window.open(assetUrl(lesson.assets.musicXml), "_blank", "noopener,noreferrer");
+    }
+
+    const playLesson = byId("play-lesson");
+    if (playLesson) {
+      playLesson.hidden = !Array.isArray(lesson.score?.playback) || lesson.score.playback.length === 0;
+      renderLessonPlaybackButton();
     }
 
     const previous = byId("previous-lesson");
@@ -326,6 +340,131 @@ import { createSamplePlayer } from "./core/sample-player.js";
     if (!state.audioContext) state.audioContext = new AudioContext({ latencyHint: "interactive" });
     if (state.audioContext.state === "suspended") await state.audioContext.resume();
     return state.audioContext;
+  }
+
+  function renderLessonPlaybackButton() {
+    const button = byId("play-lesson");
+    if (!button) return;
+    const playing = state.lessonPlaybackSources.size > 0;
+    button.textContent = state.lessonPlaybackStarting
+      ? "読込中…"
+      : playing
+        ? "■ お手本停止"
+        : "▶ お手本";
+    button.disabled = state.lessonPlaybackStarting;
+    button.setAttribute("aria-pressed", String(playing));
+  }
+
+  function trackLessonPlaybackSource(source, generation) {
+    state.lessonPlaybackSources.add(source);
+    source.addEventListener("ended", () => {
+      if (generation !== state.lessonPlaybackGeneration) return;
+      state.lessonPlaybackSources.delete(source);
+      if (state.lessonPlaybackSources.size === 0) renderLessonPlaybackButton();
+    }, { once: true });
+  }
+
+  function stopLessonPlayback() {
+    state.lessonPlaybackGeneration += 1;
+    state.lessonPlaybackStarting = false;
+    for (const source of state.lessonPlaybackSources) {
+      try {
+        source.stop();
+      } catch {
+        // Sources that ended between the click and this loop are already silent.
+      }
+    }
+    state.lessonPlaybackSources.clear();
+    renderLessonPlaybackButton();
+  }
+
+  function scheduleLessonNote(note, time, secondsPerBeat, generation) {
+    const context = state.audioContext;
+    const string = Number(note.string);
+    const midi = OPEN_STRING_MIDI[string] + Number(note.fret);
+    const duration = Math.max(0.16, Number(note.beats) * secondsPerBeat * 0.92);
+    const pan = (3.5 - string) * 0.055;
+    const sampled = state.soundMode === "samples" && state.samplePlayer?.schedule(
+      "nylonGuitar",
+      {
+        time,
+        destination: context.destination,
+        midi,
+        gain: 0.43,
+        duration,
+        attack: 0.001,
+        release: 0.09,
+        pan,
+      }
+    );
+
+    if (sampled) {
+      trackLessonPlaybackSource(sampled.source, generation);
+      return;
+    }
+
+    const oscillator = context.createOscillator();
+    const harmonic = context.createOscillator();
+    const gain = context.createGain();
+    const harmonicGain = context.createGain();
+    const frequency = 440 * (2 ** ((midi - 69) / 12));
+
+    oscillator.type = "triangle";
+    harmonic.type = "sine";
+    oscillator.frequency.setValueAtTime(frequency, time);
+    harmonic.frequency.setValueAtTime(frequency * 2, time);
+    gain.gain.setValueAtTime(0.0001, time);
+    gain.gain.exponentialRampToValueAtTime(0.18, time + 0.006);
+    gain.gain.exponentialRampToValueAtTime(0.0001, time + duration);
+    harmonicGain.gain.setValueAtTime(0.055, time);
+    harmonicGain.gain.exponentialRampToValueAtTime(0.0001, time + Math.min(0.16, duration));
+
+    oscillator.connect(gain);
+    harmonic.connect(harmonicGain);
+    harmonicGain.connect(gain);
+    gain.connect(context.destination);
+    trackLessonPlaybackSource(oscillator, generation);
+    trackLessonPlaybackSource(harmonic, generation);
+    oscillator.start(time);
+    harmonic.start(time);
+    oscillator.stop(time + duration + 0.01);
+    harmonic.stop(time + Math.min(0.17, duration) + 0.01);
+  }
+
+  async function toggleLessonPlayback() {
+    if (state.lessonPlaybackSources.size > 0) {
+      stopLessonPlayback();
+      return;
+    }
+    if (state.lessonPlaybackStarting) return;
+
+    const lesson = state.lesson;
+    const notes = lesson?.score?.playback;
+    if (!Array.isArray(notes) || notes.length === 0) return;
+
+    stopMetronome();
+    const generation = state.lessonPlaybackGeneration + 1;
+    state.lessonPlaybackGeneration = generation;
+    state.lessonPlaybackStarting = true;
+    renderLessonPlaybackButton();
+    try {
+      const context = await ensureAudio();
+      if (!context) return;
+      if (state.soundMode === "samples") await prepareRealSamples(["nylonGuitar"]);
+      if (generation !== state.lessonPlaybackGeneration || lesson !== state.lesson) return;
+
+      const secondsPerBeat = 60 / state.tempo;
+      let nextTime = context.currentTime + 0.06;
+      for (const note of notes) {
+        scheduleLessonNote(note, nextTime, secondsPerBeat, generation);
+        nextTime += Number(note.beats) * secondsPerBeat;
+      }
+    } finally {
+      if (generation === state.lessonPlaybackGeneration) {
+        state.lessonPlaybackStarting = false;
+        renderLessonPlaybackButton();
+      }
+    }
   }
 
   function trackMetronomeSource(source) {
@@ -394,6 +533,7 @@ import { createSamplePlayer } from "./core/sample-player.js";
   async function startMetronome() {
     const button = byId("metronome-toggle");
     if (state.metronomeRunning || state.metronomeStarting) return;
+    stopLessonPlayback();
     state.metronomeStarting = true;
     if (button) button.disabled = true;
     try {
@@ -441,6 +581,7 @@ import { createSamplePlayer } from "./core/sample-player.js";
   }
 
   function toggleSoundMode() {
+    stopLessonPlayback();
     state.soundMode = state.soundMode === "samples" ? "synth" : "samples";
     saveSoundMode();
     renderSoundMode();
@@ -485,6 +626,7 @@ import { createSamplePlayer } from "./core/sample-player.js";
     byId("tempo-down")?.addEventListener("click", () => changeTempo(-2));
     byId("tempo-up")?.addEventListener("click", () => changeTempo(2));
     byId("sound-mode-toggle")?.addEventListener("click", toggleSoundMode);
+    byId("play-lesson")?.addEventListener("click", () => void toggleLessonPlayback());
     byId("metronome-toggle")?.addEventListener("click", () => {
       if (state.metronomeRunning) stopMetronome();
       else void startMetronome().catch(() => stopMetronome());

@@ -14,12 +14,13 @@ import { createSamplePlayer } from "./core/sample-player.js";
     scheduler:null, raf:null, previewTimer:null,
     nextGrid:0, nextGridTime:0, finished:false,
     followedMeasure:-1,
+    chordStroke:0,
     visualQueue:[], noteStarts:new Map(), measures:[],
     layout:null
   };
 
   const MASTER_LEVEL=.78;
-  const PHRASE_SAMPLES=["nylonGuitar","electricBass","kick","snare","closedHat"];
+  const PHRASE_SAMPLES=["nylonGuitar","electricBass","kick","snare","closedHat","openHat"];
   const MIDDLE_LINE_Y=90;
   const STEM_LENGTH=35;
 
@@ -31,6 +32,18 @@ import { createSamplePlayer } from "./core/sample-player.js";
     C:48,"C#":49,Db:49,D:50,"D#":51,Eb:51,E:52,F:53,"F#":54,Gb:54,
     G:55,"G#":56,Ab:56,A:57,"A#":58,Bb:58,B:59
   };
+  const guitarChordVoicings = Object.freeze({
+    C:[48,52,55,60,64],
+    Am:[45,52,57,60,64],
+    F:[41,48,53,57,60,65],
+    G:[43,47,50,55,59,67],
+    D:[50,57,62,66],
+    D7:[50,57,60,66],
+    Em:[40,47,52,55,59,64],
+    E:[40,47,52,56,59,64],
+    E7:[40,47,50,52,56,64],
+    A7:[45,52,55,61,64]
+  });
 
   function readSoundMode(){
     try{
@@ -62,7 +75,7 @@ import { createSamplePlayer } from "./core/sample-player.js";
       failed:"音源失敗：合成"
     };
     const notes={
-      idle:real?"ナイロンギター・エレキベース・生ドラム":"通信不要の軽量な合成音",
+      idle:real?"多音程ナイロンギター・低音ベース・生ドラム":"通信不要の軽量な合成音",
       loading:"サンプル音源を読み込んでいます",
       partial:"読めない音だけ合成音で補います",
       failed:"サンプルを読めないため合成音で再生します"
@@ -547,7 +560,7 @@ import { createSamplePlayer } from "./core/sample-player.js";
     const names=[];
     if(state.backing.chords) names.push("nylonGuitar");
     if(state.backing.bass) names.push("electricBass");
-    if(state.backing.drums) names.push("kick","snare","closedHat");
+    if(state.backing.drums) names.push("kick","snare","closedHat","openHat");
     return names;
   }
 
@@ -595,7 +608,9 @@ import { createSamplePlayer } from "./core/sample-player.js";
       midi:noteToMidi(note.name),
       gain:.44,
       duration:sampleDuration,
-      release:.07
+      attack:.001,
+      release:.09,
+      pan:(3.5-Number(note.string||3.5))*.055
     });
     if(sampled) return;
 
@@ -637,16 +652,27 @@ import { createSamplePlayer } from "./core/sample-player.js";
 
   function scheduleChord(name,time,durationSec,accent=1){
     const info=chordInfo(name);
-    info.intervals.forEach((interval,i)=>{
-      const midi=info.root+12+interval;
-      const attack=time+i*.018;
+    const voicing=guitarChordVoicings[name]
+      ||[info.root,info.root+7,info.root+12,info.root+12+info.intervals[1]];
+    const strings=voicing.map((midi,index)=>({
+      midi,
+      pan:voicing.length===1?0:-.18+(index/(voicing.length-1))*.36
+    }));
+    const upstroke=state.chordStroke%2===1;
+    state.chordStroke+=1;
+    const stroke=upstroke?strings.slice(-4).reverse():strings;
+
+    stroke.forEach(({midi,pan},i)=>{
+      const attack=time+i*(upstroke ? .012 : .014);
       const sampled=state.soundMode==="samples"&&state.samplePlayer?.schedule("nylonGuitar",{
         time:attack,
         destination:state.mix.chords,
         midi,
-        gain:.15*accent,
-        duration:Math.max(.2,durationSec),
-        release:.08
+        gain:(upstroke ? .082 : .092)*accent,
+        duration:Math.max(.24,durationSec*(upstroke ? .76 : 1)),
+        attack:.001,
+        release:.11,
+        pan
       });
       if(sampled) return;
 
@@ -654,7 +680,7 @@ import { createSamplePlayer } from "./core/sample-player.js";
       const gain=state.audio.createGain();
       const freq=midiToFrequency(midi);
 
-      osc.type=i===0?"triangle":"sine";
+      osc.type=midi===voicing[0]?"triangle":"sine";
       osc.frequency.setValueAtTime(freq,attack);
       gain.gain.setValueAtTime(.0001,attack);
       gain.gain.exponentialRampToValueAtTime(.052*accent,attack+.018);
@@ -672,10 +698,11 @@ import { createSamplePlayer } from "./core/sample-player.js";
     const sampled=state.soundMode==="samples"&&state.samplePlayer?.schedule("electricBass",{
       time,
       destination:state.mix.bass,
-      midi:info.root,
-      gain:.32,
-      duration:.38,
-      release:.07
+      midi:info.root-12,
+      gain:.34,
+      duration:.46,
+      attack:.002,
+      release:.11
     });
     if(sampled) return;
 
@@ -686,8 +713,8 @@ import { createSamplePlayer } from "./core/sample-player.js";
 
     fundamental.type="triangle";
     harmonic.type="sine";
-    fundamental.frequency.setValueAtTime(midiToFrequency(info.root),time);
-    harmonic.frequency.setValueAtTime(midiToFrequency(info.root+12),time);
+    fundamental.frequency.setValueAtTime(midiToFrequency(info.root-12),time);
+    harmonic.frequency.setValueAtTime(midiToFrequency(info.root),time);
     harmonicGain.gain.setValueAtTime(.18,time);
     harmonicGain.gain.exponentialRampToValueAtTime(.0001,time+.24);
 
@@ -730,8 +757,9 @@ import { createSamplePlayer } from "./core/sample-player.js";
       time,
       destination:state.mix.drums,
       gain:sampleGain,
-      duration:Math.max(decay+.02,sampleName === "snare" ? .18 : .07),
-      release:.04
+      duration:Math.max(decay+.02,sampleName === "snare" ? .18 : sampleName === "openHat" ? .22 : .07),
+      release:.04,
+      pan:sampleName === "snare" ? .14 : -.22
     });
     if(sampled) return;
 
@@ -777,7 +805,8 @@ import { createSamplePlayer } from "./core/sample-player.js";
 
     if(state.backing.drums){
       // Closed hat on every eighth.
-      scheduleNoise(time,.028,.045,5200,"closedHat",.14);
+      const hat=inBar===7&&state.phrase.groove==="rock8"?"openHat":"closedHat";
+      scheduleNoise(time,.028,.045,5200,hat,hat==="openHat" ? .11 : .14);
       // Kick on beats 1 and 3.
       if(inBar===0||inBar===4) scheduleKick(time);
       // Snare on beats 2 and 4.
@@ -855,6 +884,7 @@ import { createSamplePlayer } from "./core/sample-player.js";
       state.visualQueue.length=0;
       state.finished=false;
       state.followedMeasure=-1;
+      state.chordStroke=0;
 
       $("stop").disabled=false;
 
@@ -936,6 +966,7 @@ import { createSamplePlayer } from "./core/sample-player.js";
       const chord=state.phrase.chords[measure];
       const start=state.audio.currentTime+.05;
       const step=secondsPerBeat()/2;
+      state.chordStroke=0;
 
       for(let inBar=0;inBar<8;inBar++){
         scheduleBackingGrid(inBar,start+inBar*step,chord);

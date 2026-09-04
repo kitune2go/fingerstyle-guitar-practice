@@ -19,6 +19,16 @@
     "rhythm": "4/4 ・ 四分音符",
     "rightHandPattern": "p i p m | p i p m",
     "tip": "親指の低音を少しだけ前に出し、iとmはその隙間へ置きます。高音を弾く瞬間に親指まで力む場合は、テンポを下げて右手を開き直してください。",
+    "playback": [
+      { "string": 6, "fret": 0, "beats": 1 },
+      { "string": 3, "fret": 0, "beats": 1 },
+      { "string": 4, "fret": 2, "beats": 1 },
+      { "string": 2, "fret": 0, "beats": 1 },
+      { "string": 6, "fret": 0, "beats": 1 },
+      { "string": 3, "fret": 0, "beats": 1 },
+      { "string": 4, "fret": 2, "beats": 1 },
+      { "string": 2, "fret": 0, "beats": 1 }
+    ],
     "tab": [
       "   p i p m | p i p m",
       "e|---------|---------|",

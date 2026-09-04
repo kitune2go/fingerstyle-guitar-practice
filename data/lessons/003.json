@@ -26,6 +26,16 @@
     "rhythm": "4/4 ・ 八分音符",
     "rightHandPattern": "p i m a | p i m a",
     "tip": "pは6弦または4弦、iは3弦、mは2弦、aは1弦を担当します。aを弾く瞬間に手首が持ち上がる場合は、テンポを下げて右手の形を保ってください。",
+    "playback": [
+      { "string": 6, "fret": 0, "beats": 0.5 },
+      { "string": 3, "fret": 0, "beats": 0.5 },
+      { "string": 2, "fret": 0, "beats": 0.5 },
+      { "string": 1, "fret": 0, "beats": 0.5 },
+      { "string": 4, "fret": 2, "beats": 0.5 },
+      { "string": 3, "fret": 0, "beats": 0.5 },
+      { "string": 2, "fret": 0, "beats": 0.5 },
+      { "string": 1, "fret": 0, "beats": 0.5 }
+    ],
     "tab": [
       "   p i m a   p i m a",
       "e|------0-|------0-|",

@@ -291,6 +291,13 @@ h1 {
   border-bottom: 3px double var(--ink);
 }
 
+.score-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
 .section-heading h2,
 .dialog-header h2 {
   margin: 0;

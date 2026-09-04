@@ -21,13 +21,13 @@ import { createGridView } from "./rhythm/views/grid-view.js";
 import { createOrbitView } from "./rhythm/views/orbit-view.js";
 
 const SOUND_MODE_KEY = "fingerstyle-sound-mode";
-const RHYTHM_SAMPLES = ["tom", "closedHat", "snare", "kick"];
+const RHYTHM_SAMPLES = ["tom", "closedHat", "openHat", "snare", "kick"];
 
 const partDefs = [
-  { key: "voice", label: "Voice", sample: "tom", sampleGain: 0.12, sampleDuration: 0.16, freq: 920, gain: 0.095, duration: 0.030 },
-  { key: "right", label: "R.Hand", sample: "closedHat", sampleGain: 0.09, sampleDuration: 0.07, freq: 690, gain: 0.085, duration: 0.026 },
-  { key: "left", label: "L.Hand", sample: "snare", sampleGain: 0.12, sampleDuration: 0.14, freq: 460, gain: 0.085, duration: 0.032 },
-  { key: "foot", label: "Foot", sample: "kick", sampleGain: 0.17, sampleDuration: 0.20, freq: 150, gain: 0.15, duration: 0.060 }
+  { key: "voice", label: "Voice", sample: "tom", sampleGain: 0.12, sampleDuration: 0.16, samplePan: -0.1, freq: 920, gain: 0.095, duration: 0.030 },
+  { key: "right", label: "R.Hand", sample: "closedHat", accentSample: "openHat", sampleGain: 0.09, sampleDuration: 0.07, accentSampleDuration: 0.2, samplePan: -0.26, freq: 690, gain: 0.085, duration: 0.026 },
+  { key: "left", label: "L.Hand", sample: "snare", sampleGain: 0.12, sampleDuration: 0.14, samplePan: 0.18, freq: 460, gain: 0.085, duration: 0.032 },
+  { key: "foot", label: "Foot", sample: "kick", sampleGain: 0.17, sampleDuration: 0.20, samplePan: 0, freq: 150, gain: 0.15, duration: 0.060 }
 ];
 
 const bpmRange = document.getElementById("bpmRange");
@@ -133,7 +133,7 @@ function renderSoundMode(status = "idle") {
   };
   const notes = {
     idle: real
-      ? "Voice＝タム／右手＝ハイハット／左手＝スネア／足＝キック"
+      ? "Voice＝3種のタム／右手＝ハイハット／左手＝3種のスネア／足＝キック"
       : "4パートを高さの違う合成クリックで再生",
     loading: "打楽器サンプルを読み込んでいます",
     partial: "読めないパートだけ合成クリックで補います",

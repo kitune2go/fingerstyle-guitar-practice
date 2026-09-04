@@ -89,12 +89,17 @@ export function createAudioEngine({
 
     ensurePartGainBuses();
     const bus = partGainBuses.get(part.key);
-    const sampled = soundMode === "samples" && part.sample && samplePlayer?.schedule(part.sample, {
+    const sampleName = event?.accent && part.accentSample ? part.accentSample : part.sample;
+    const sampleDuration = event?.accent && part.accentSampleDuration
+      ? part.accentSampleDuration
+      : part.sampleDuration;
+    const sampled = soundMode === "samples" && sampleName && samplePlayer?.schedule(sampleName, {
       time,
       destination: bus,
       gain: getEffectiveEventGain(part.sampleGain ?? part.gain, event),
-      duration: part.sampleDuration ?? null,
-      release: 0.04
+      duration: sampleDuration ?? null,
+      release: 0.04,
+      pan: part.samplePan ?? 0
     });
     if (sampled) return true;
 
