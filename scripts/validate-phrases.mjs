@@ -12,6 +12,9 @@ const pitchClass = { C:0,D:2,E:4,F:5,G:7,A:9,B:11 };
 const openMidi = { 1:64,2:59,3:55,4:50,5:45,6:40 };
 const supportedChords = /^(?:[A-G](?:#|b)?)(?:m)?(?:7)?$/;
 const allowedDurations = new Set([0.5,1,2,4]);
+const allowedRightHand = new Set(["p","i","m","a","D","U"]);
+const allowedTechniques = new Set(["hammer","pull","slide","full-step-bend"]);
+const techniquePitchOffsets = new Map([["full-step-bend",2]]);
 // Must stay in step with keyFifths in phrase.js: anything outside this set
 // would render with no key signature, which is a silently wrong score.
 const supportedKeys = new Set([
@@ -42,7 +45,8 @@ for(const phrase of data.phrases){
   });
 
   if(!Array.isArray(phrase.notes) || phrase.notes.length===0) throw new Error(phrase.id+": notes required");
-  const fingers=String(phrase.rightHand||"").trim().split(/\s+/).filter(Boolean);
+  if(!phrase.rightHand) throw new Error(phrase.id+": rightHand required");
+  const fingers=String(phrase.rightHandSequence??phrase.rightHand).trim().split(/\s+/).filter(Boolean);
   if(fingers.length!==phrase.notes.length) throw new Error(phrase.id+": rightHand count must match notes");
 
   let totalBeats=0;
@@ -55,10 +59,12 @@ for(const phrase of data.phrases){
     if(!Number.isInteger(note.string)||note.string<1||note.string>6) throw new Error(phrase.id+": invalid string at "+index);
     if(!Number.isInteger(note.fret)||note.fret<0||note.fret>24) throw new Error(phrase.id+": invalid fret at "+index);
     if(!allowedDurations.has(note.beats)) throw new Error(phrase.id+": unsupported duration at "+index);
-    if(!["p","i","m","a"].includes(note.finger)) throw new Error(phrase.id+": invalid right-hand finger at "+index);
+    if(!allowedRightHand.has(note.finger)) throw new Error(phrase.id+": invalid right-hand finger at "+index);
+    if(note.technique&&!allowedTechniques.has(note.technique)) throw new Error(phrase.id+": invalid technique at "+index);
 
     const tabMidi=openMidi[note.string]+note.fret;
-    if(midi!==tabMidi) throw new Error(phrase.id+": pitch/TAB mismatch at note "+index+" ("+note.name+")");
+    const expectedMidi=tabMidi+(techniquePitchOffsets.get(note.technique)??0);
+    if(midi!==expectedMidi) throw new Error(phrase.id+": pitch/TAB mismatch at note "+index+" ("+note.name+")");
     if(fingers[index]!==note.finger) throw new Error(phrase.id+": rightHand sequence mismatch at note "+index);
 
     totalBeats+=note.beats;
