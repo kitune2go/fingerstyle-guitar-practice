@@ -110,12 +110,17 @@
         <button id="next-lesson" type="button">次の課 →</button>
       </div>
 
-      <footer><span>FINGERSTYLE GUITAR PRACTICE</span><span>練習は短く、記録は長く。</span></footer>
+      <footer>
+        <span>FINGERSTYLE GUITAR PRACTICE</span>
+        <span>練習は短く、記録は長く。</span>
+        <a href="./audio-credits.html">音源クレジット</a>
+      </footer>
     </div>
 
     <aside class="metronome-dock" aria-label="メトロノーム">
       <button class="tempo-step" id="tempo-down" type="button" aria-label="テンポを下げる">−</button>
       <div class="tempo-display"><span>METRONOME</span><strong><span id="tempo-value">60</span> BPM</strong></div>
+      <button class="sound-mode-toggle" id="sound-mode-toggle" type="button" aria-pressed="true">音色：リアル</button>
       <button class="metronome-toggle" id="metronome-toggle" type="button">START</button>
       <button class="tempo-step" id="tempo-up" type="button" aria-label="テンポを上げる">＋</button>
     </aside>
@@ -128,6 +133,7 @@
       <div id="lesson-list" class="lesson-list"></div>
     </dialog>
   </main>
-  <script src="guitar.js" defer></script>
+  <script src="guitar.js" type="module"></script>
+  <script src="register-sw.js" defer></script>
 </body>
 </html>

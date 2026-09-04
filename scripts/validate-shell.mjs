@@ -1,0 +1,124 @@
+// Every local asset a page pulls in must also be precached by the service
+// worker. Forgetting one leaves the app broken offline with no visible error,
+// so this is enforced rather than remembered.
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+
+const PAGES = ["index.html", "phrase.html", "rhythm.html"];
+
+function localReference(owner, value) {
+  const reference = String(value).trim();
+  if (!reference || /^(?:[a-z][a-z0-9+.-]*:|\/\/|#)/i.test(reference)) return null;
+  const resolved = path.posix.normalize(
+    path.posix.join(path.posix.dirname(owner), reference.replace(/^\.\//, ""))
+  );
+  return resolved === "." ? "" : resolved.replace(/^\//, "");
+}
+
+// Local targets used by scripts, stylesheets, navigation and embedded media.
+function referencesInHtml(html, owner) {
+  const found = new Set();
+  for (const match of html.matchAll(/\b(?:src|href)\s*=\s*(?:(["'])(.*?)\1|([^\s>]+))/gi)) {
+    const reference = localReference(owner, match[2] ?? match[3]);
+    if (reference !== null) found.add(reference);
+  }
+  return found;
+}
+
+function referencesInCss(css, owner) {
+  const found = new Set();
+  for (const match of css.matchAll(/url\(\s*(?:(["'])(.*?)\1|([^)]*))\s*\)/g)) {
+    const reference = localReference(owner, match[2] ?? match[3]);
+    if (reference !== null) found.add(reference);
+  }
+  return found;
+}
+
+function filesBelow(root, directory, predicate) {
+  const base = path.join(root, directory);
+  if (!fs.existsSync(base)) return [];
+  const found = [];
+  const visit = (current) => {
+    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+      const target = path.join(current, entry.name);
+      if (entry.isDirectory()) visit(target);
+      else if (predicate(entry.name)) found.push(path.relative(root, target).split(path.sep).join("/"));
+    }
+  };
+  visit(base);
+  return found;
+}
+
+export function checkShell(root) {
+  const errors = [];
+  const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
+  const stylesheets = new Set();
+
+  const shell = new Set(
+    [...read("sw.js").matchAll(/^\s*"(\.\/[^"]*)"/gm)].map((m) => m[1].replace(/^\.\//, ""))
+  );
+
+  for (const page of PAGES) {
+    if (!shell.has(page)) errors.push(`sw.js: ページ ${page} がAPP_SHELLにありません`);
+    for (const ref of referencesInHtml(read(page), page)) {
+      if (!shell.has(ref)) errors.push(`sw.js: ${page} が読み込む ${ref} がAPP_SHELLにありません`);
+      if (ref.endsWith(".css")) stylesheets.add(ref);
+    }
+  }
+
+  // Images and fonts pulled from a stylesheet are browser requests too, even
+  // though they are invisible in the page's HTML attributes.
+  for (const stylesheet of stylesheets) {
+    if (!fs.existsSync(path.join(root, stylesheet))) continue;
+    for (const ref of referencesInCss(read(stylesheet), stylesheet)) {
+      if (!shell.has(ref)) {
+        errors.push(`sw.js: ${stylesheet} が読み込む ${ref} がAPP_SHELLにありません`);
+      }
+    }
+  }
+
+  // Icons declared in the manifest are fetched by the browser, not by a page.
+  for (const icon of JSON.parse(read("manifest.json")).icons ?? []) {
+    const src = String(icon.src).replace(/^\.\//, "");
+    if (!shell.has(src)) errors.push(`sw.js: manifest のアイコン ${src} がAPP_SHELLにありません`);
+  }
+
+  // Modules imported below the page entry points are invisible to HTML
+  // attributes, so every shipped module in both shared and rhythm namespaces
+  // must be checked recursively.
+  for (const directory of ["core", "rhythm"]) {
+    for (const file of filesBelow(root, directory, (name) => name.endsWith(".js"))) {
+      if (!shell.has(file)) errors.push(`sw.js: ${file} がAPP_SHELLにありません`);
+    }
+  }
+
+  // Sample playback also happens behind module imports. Every shipped audio
+  // file must be available before the app goes offline after its first visit.
+  for (const file of filesBelow(root, "assets/audio", (name) => /\.(?:ogg|mp3|wav)$/i.test(name))) {
+    if (!shell.has(file)) errors.push(`sw.js: 音源 ${file} がAPP_SHELLにありません`);
+  }
+
+  // Everything APP_SHELL names explicitly must exist, data files included — a
+  // typo there fails the install rather than being noticed. Lesson JSON is
+  // discovered from the index at install time and never listed here, so nothing
+  // legitimate is missing from this check. "./" is the page, not a file.
+  for (const entry of shell) {
+    if (entry === "") continue;
+    if (!fs.existsSync(path.join(root, entry))) {
+      errors.push(`sw.js: APP_SHELL の ${entry} が存在しません`);
+    }
+  }
+
+  return { errors, shellSize: shell.size };
+}
+
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+  const { errors, shellSize } = checkShell(root);
+  if (errors.length) {
+    console.error(`アプリシェル検証に失敗しました:\n\n${errors.map((e) => `- ${e}`).join("\n")}`);
+    process.exit(1);
+  }
+  console.log(`アプリシェル検証成功: ${shellSize}件のプリキャッシュ対象が全て解決しました。`);
+}

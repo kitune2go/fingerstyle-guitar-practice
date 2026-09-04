@@ -558,14 +558,18 @@ footer {
   letter-spacing: 0.11em;
 }
 
+footer a {
+  color: inherit;
+}
+
 .metronome-dock {
   position: fixed;
   z-index: 40;
   right: 50%;
   bottom: calc(12px + env(safe-area-inset-bottom));
   display: grid;
-  grid-template-columns: 40px 1fr 72px 40px;
-  width: min(calc(100% - 24px), 520px);
+  grid-template-columns: 40px 1fr 96px 72px 40px;
+  width: min(calc(100% - 24px), 620px);
   min-height: 62px;
   overflow: hidden;
   border: 1px solid #0e271f;
@@ -576,13 +580,30 @@ footer {
 }
 
 .tempo-step,
-.metronome-toggle {
+.metronome-toggle,
+.sound-mode-toggle {
   border: 0;
   border-right: 1px solid rgba(255, 255, 255, 0.18);
   background: transparent;
   color: white;
   cursor: pointer;
   font-weight: 900;
+}
+
+.sound-mode-toggle {
+  padding: 0 8px;
+  border-left: 1px solid rgba(255, 255, 255, 0.18);
+  font: 800 9px/1.25 ui-monospace, monospace;
+  letter-spacing: 0.03em;
+}
+
+.sound-mode-toggle[aria-pressed="true"] {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.sound-mode-toggle[aria-busy="true"] {
+  cursor: wait;
+  opacity: 0.72;
 }
 
 .tempo-step:last-child {
@@ -740,7 +761,7 @@ footer {
   }
 
   .metronome-dock {
-    grid-template-columns: 36px 1fr 66px 36px;
+    grid-template-columns: 36px minmax(78px, 1fr) 82px 60px 36px;
   }
 }
 

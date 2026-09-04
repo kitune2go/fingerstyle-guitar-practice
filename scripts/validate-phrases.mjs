@@ -12,6 +12,12 @@ const pitchClass = { C:0,D:2,E:4,F:5,G:7,A:9,B:11 };
 const openMidi = { 1:64,2:59,3:55,4:50,5:45,6:40 };
 const supportedChords = /^(?:[A-G](?:#|b)?)(?:m)?(?:7)?$/;
 const allowedDurations = new Set([0.5,1,2,4]);
+// Must stay in step with keyFifths in phrase.js: anything outside this set
+// would render with no key signature, which is a silently wrong score.
+const supportedKeys = new Set([
+  "C","Am","G","Em","D","Bm","A","F#m","E","C#m","B","G#m",
+  "F","Dm","Bb","Gm","Eb","Cm","Ab","Fm","Db","Bbm"
+]);
 
 function noteToMidi(name){
   const match=notePattern.exec(name);
@@ -26,6 +32,7 @@ for(const phrase of data.phrases){
 
   if(!phrase.title || !phrase.objective) throw new Error(phrase.id+": title/objective required");
   if(!phrase.key || !phrase.keyLabel) throw new Error(phrase.id+": key/keyLabel required");
+  if(!supportedKeys.has(phrase.key)) throw new Error(phrase.id+": key '"+phrase.key+"' has no key signature in the renderer");
   if(phrase.timeSignature!=="4/4") throw new Error(phrase.id+": only 4/4 is supported");
   if(!Number.isInteger(phrase.measures) || phrase.measures<4) throw new Error(phrase.id+": at least 4 measures required");
   if(!Number.isFinite(phrase.bpm) || phrase.bpm<40 || phrase.bpm>200) throw new Error(phrase.id+": bpm out of range");

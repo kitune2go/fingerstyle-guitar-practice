@@ -6,6 +6,8 @@
   <meta name="theme-color" content="#173f32">
   <title>フレーズ練習｜ギター練習帖</title>
   <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icon-192.svg">
+  <link rel="apple-touch-icon" href="icon-192.svg">
   <link rel="stylesheet" href="phrase.css">
 </head>
 <body>
@@ -44,6 +46,11 @@
         <input id="tempo" type="range" min="40" max="160" value="60">
       </div>
 
+      <div class="sound-row">
+        <button id="sound-mode-toggle" class="sound-mode-toggle" type="button" aria-pressed="true">音色：リアル</button>
+        <span id="sound-mode-note">ナイロンギター・エレキベース・生ドラム</span>
+      </div>
+
       <div class="transport">
         <button id="play" class="primary">▶ 再生</button>
         <button id="stop" disabled>■ 停止</button>
@@ -62,17 +69,20 @@
       </div>
       <button id="preview-backing" class="preview-backing" type="button">▶ 伴奏だけ1小節</button>
       <div id="chord-progression" class="chord-progression" aria-label="コード進行"></div>
-      <p class="hint">伴奏は練習用の合成音です。コード・ベース・ドラムを個別に消せます。「伴奏だけ1小節」で現在位置の伴奏を単独確認できます。</p>
+      <p class="hint">コード・ベース・ドラムを個別に消せます。「伴奏だけ1小節」で現在位置の伴奏を単独確認できます。</p>
     </section>
 
     <section class="panel score-panel">
       <div class="section-title">
         <div><span>STANDARD NOTATION</span><h2>五線譜</h2></div>
-        <span id="position-label">M1 / 1</span>
+        <div class="score-tools">
+          <button id="follow-toggle" type="button" aria-pressed="true">⇅ 追従ON</button>
+          <span id="position-label">M1 / 1</span>
+        </div>
       </div>
-      <div id="staff" class="staff-systems" role="img" aria-label="ギター五線譜"></div>
+      <div id="staff" class="staff-systems" role="group" aria-label="ギター五線譜"></div>
       <div class="progress"><div id="progress-bar"></div></div>
-      <p class="score-help">音符をタップすると、その音を選択できます。再生中は現在の音符が赤くなります。</p>
+      <p class="score-help">音符をタップ（キーボードならTabで移動してEnter）すると、その音を選択できます。再生中は現在の音符が赤くなります。</p>
     </section>
 
     <section class="panel">
@@ -100,9 +110,13 @@
       </div>
     </section>
 
-    <footer>基礎で動きを作り、フレーズで譜面・耳・指板・リズムを一つにつなぎます。</footer>
+    <footer>
+      基礎で動きを作り、フレーズで譜面・耳・指板・リズムを一つにつなぎます。
+      <a href="./audio-credits.html">音源クレジット</a>
+    </footer>
   </main>
 
-  <script src="phrase.js" defer></script>
+  <script src="phrase.js" type="module"></script>
+  <script src="register-sw.js" defer></script>
 </body>
 </html>

@@ -16,23 +16,43 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+
       - name: Check JavaScript syntax
         run: |
           node --check guitar.js
           node --check phrase.js
+          node --check rhythm.js
+          node --check register-sw.js
+          node --check sw.js
+          find core rhythm -type f -name '*.js' -exec node --check {} \;
+
       - name: Validate lesson and phrase data
         run: npm test
+
       - name: Check integrated pages
         run: |
           test -f index.html
           test -f phrase.html
           test -f rhythm.html
           test -f data/phrases.json
+
+      - name: Resolve Playwright version
+        id: playwright
+        run: echo "version=$(node -p "require('./package.json').devDependencies['@playwright/test']")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+
       - name: Install browser test runtime
-        run: |
-          npm install --no-save --no-package-lock @playwright/test@1.55.0
-          npx playwright install chromium
+        run: npm install --no-package-lock
+
+      - name: Install Chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+
       - name: Mobile browser smoke test
-        run: |
-          python3 -m http.server 4173 > /tmp/practice-http.log 2>&1 &
-          npx playwright test tests/smoke.spec.mjs --reporter=line
+        run: npm run test:e2e
