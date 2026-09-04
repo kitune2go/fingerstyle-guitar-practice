@@ -1,4 +1,4 @@
-const CACHE_NAME = "fingerstyle-practice-v9";
+const CACHE_NAME = "fingerstyle-practice-v10";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -46,15 +46,37 @@ async function addAllReporting(cache, urls, label) {
   return failed.length === 0;
 }
 
-// Lesson files are listed in the index, so discover them instead of hardcoding
-// a list that silently rots every time a lesson is added.
+function lessonAssetPaths(lesson) {
+  return Object.values(lesson.assets ?? {})
+    .flatMap((value) => Array.isArray(value) ? value : [value])
+    .filter((value) =>
+      typeof value === "string" &&
+      !/^(?:[a-z][a-z0-9+.-]*:|\/\/|\/)/i.test(value)
+    )
+    .map((value) => `./${value.replace(/^\.\//, "")}`);
+}
+
+async function precacheLesson(cache, path) {
+  const response = await fetch(path, { cache: "no-store" });
+  if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+  const lesson = await response.clone().json();
+  await cache.put(path, response);
+
+  const assets = lessonAssetPaths(lesson);
+  if (assets.length) await addAllReporting(cache, assets, `assets declared by ${path}`);
+}
+
+// Lesson files and their declared local assets are discovered from the index,
+// so adding a score never requires a second hand-maintained cache list.
 async function precacheLessons(cache) {
   try {
     const response = await fetch("./data/lessons-index.json", { cache: "no-store" });
     if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
     const index = await response.json();
     const paths = (index.lessons || []).map((lesson) => `./data/${lesson.path}`);
-    await addAllReporting(cache, paths, "lesson data");
+    const results = await Promise.allSettled(paths.map((path) => precacheLesson(cache, path)));
+    const failed = paths.filter((_, index) => results[index].status === "rejected");
+    if (failed.length) console.warn("[sw] lesson data could not be cached:", failed);
   } catch (error) {
     console.warn("[sw] lesson precache skipped:", error);
   }

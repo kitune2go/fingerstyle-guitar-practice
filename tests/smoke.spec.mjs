@@ -394,6 +394,37 @@ test("basic and rhythm practice schedule real percussion samples", async ({ page
   await page.locator("#stopBtn").click();
 });
 
+test("stopping the basic metronome cancels queued clicks and pulses", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__immediateOscillatorStops = 0;
+    const originalStop = OscillatorNode.prototype.stop;
+    OscillatorNode.prototype.stop = function (...args) {
+      if (args.length === 0) window.__immediateOscillatorStops += 1;
+      return originalStop.apply(this, args);
+    };
+  });
+
+  await page.goto(base + "/index.html");
+  await page.locator("#sound-mode-toggle").click();
+  await expect(page.locator("#sound-mode-toggle")).toHaveAttribute("aria-pressed", "false");
+
+  await page.evaluate(() => new Promise((resolve) => {
+    const button = document.getElementById("metronome-toggle");
+    const observer = new MutationObserver(() => {
+      if (button.textContent !== "STOP") return;
+      observer.disconnect();
+      button.click();
+      window.setTimeout(resolve, 180);
+    });
+    observer.observe(button, { attributes: true, childList: true, subtree: true });
+    button.click();
+  }));
+
+  await expect(page.locator("#metronome-toggle")).toHaveText("START");
+  await expect(page.locator("#metronome-toggle")).not.toHaveClass(/pulse/);
+  expect(await page.evaluate(() => window.__immediateOscillatorStops)).toBeGreaterThan(0);
+});
+
 test("sound mode choice is shared by all three practice pages", async ({ page }) => {
   await page.goto(base+"/index.html");
   await page.locator("#sound-mode-toggle").click();
@@ -433,6 +464,8 @@ test("service worker registers and precaches lesson data", async ({ page }) => {
 
   expect(cached.some((path) => path.endsWith("/data/lessons-index.json"))).toBeTruthy();
   expect(cached.some((path) => path.endsWith("/data/lessons/001.json"))).toBeTruthy();
+  expect(cached.some((path) => path.endsWith("/musicxml/001-right-hand-alternation.musicxml"))).toBeTruthy();
+  expect(cached.some((path) => path.endsWith("/musicxml/002-thumb-independence.musicxml"))).toBeTruthy();
   expect(cached.some((path) => path.endsWith("/data/phrases.json"))).toBeTruthy();
   expect(cached.some((path) => path.endsWith("/phrase.js"))).toBeTruthy();
   expect(cached.some((path) => path.endsWith("/rhythm.js"))).toBeTruthy();

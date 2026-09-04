@@ -30,6 +30,8 @@ import { createSamplePlayer } from "./core/sample-player.js";
     sampleLoad: null,
     soundMode: readSoundMode(),
     metronomeStarting: false,
+    metronomeSources: new Set(),
+    metronomePulseTimers: new Set(),
   };
 
   // setInterval drifts, and drifts worst on phones, which is the one thing a
@@ -326,6 +328,20 @@ import { createSamplePlayer } from "./core/sample-player.js";
     return state.audioContext;
   }
 
+  function trackMetronomeSource(source) {
+    state.metronomeSources.add(source);
+    source.addEventListener("ended", () => state.metronomeSources.delete(source), { once: true });
+  }
+
+  function scheduleMetronomePulse(callback, delay) {
+    let timer = null;
+    timer = window.setTimeout(() => {
+      state.metronomePulseTimers.delete(timer);
+      callback();
+    }, delay);
+    state.metronomePulseTimers.add(timer);
+  }
+
   function scheduleClick(time, accent) {
     const context = state.audioContext;
     const sampled = state.soundMode === "samples" && state.samplePlayer?.schedule(
@@ -338,7 +354,9 @@ import { createSamplePlayer } from "./core/sample-player.js";
       }
     );
 
-    if (!sampled) {
+    if (sampled) {
+      trackMetronomeSource(sampled.source);
+    } else {
       const oscillator = context.createOscillator();
       const gain = context.createGain();
       oscillator.frequency.setValueAtTime(accent ? 1320 : 880, time);
@@ -347,15 +365,17 @@ import { createSamplePlayer } from "./core/sample-player.js";
       gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.055);
       oscillator.connect(gain);
       gain.connect(context.destination);
+      trackMetronomeSource(oscillator);
       oscillator.start(time);
       oscillator.stop(time + 0.06);
     }
 
     const button = byId("metronome-toggle");
     if (!button) return;
-    window.setTimeout(() => {
+    scheduleMetronomePulse(() => {
+      if (!state.metronomeRunning) return;
       button.classList.add("pulse");
-      window.setTimeout(() => button.classList.remove("pulse"), 90);
+      scheduleMetronomePulse(() => button.classList.remove("pulse"), 90);
     }, Math.max(0, (time - context.currentTime) * 1000));
   }
 
@@ -398,8 +418,21 @@ import { createSamplePlayer } from "./core/sample-player.js";
     state.metronomeRunning = false;
     if (state.metronomeTimer) window.clearInterval(state.metronomeTimer);
     state.metronomeTimer = null;
+    for (const source of state.metronomeSources) {
+      try {
+        source.stop();
+      } catch {
+        // A source that ended between the scheduler tick and STOP is already silent.
+      }
+    }
+    state.metronomeSources.clear();
+    for (const timer of state.metronomePulseTimers) window.clearTimeout(timer);
+    state.metronomePulseTimers.clear();
     const button = byId("metronome-toggle");
-    if (button) button.textContent = "START";
+    if (button) {
+      button.classList.remove("pulse");
+      button.textContent = "START";
+    }
   }
 
   function changeTempo(amount) {

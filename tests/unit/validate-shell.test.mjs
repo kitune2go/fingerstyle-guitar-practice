@@ -6,7 +6,7 @@ import path from "node:path";
 import { checkShell } from "../../scripts/validate-shell.mjs";
 
 // Builds a minimal repo whose only interesting part is the shell wiring.
-function fixture({ shell, files = [], core = [], rhythm = [], audio = [] }) {
+function fixture({ shell, files = [], core = [], rhythm = [], audio = [], html = "", css = "" }) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "shell-"));
   fs.writeFileSync(
     path.join(root, "sw.js"),
@@ -20,9 +20,10 @@ function fixture({ shell, files = [], core = [], rhythm = [], audio = [] }) {
   }
   const page = (extra) =>
     `<link rel="manifest" href="manifest.json">\n<link rel="stylesheet" href="app.css">\n${extra}`;
-  fs.writeFileSync(path.join(root, "index.html"), page('<script src="app.js"></script>'));
+  fs.writeFileSync(path.join(root, "index.html"), page(`<script src="app.js"></script>${html}`));
   fs.writeFileSync(path.join(root, "phrase.html"), page(""));
   fs.writeFileSync(path.join(root, "rhythm.html"), page(""));
+  fs.writeFileSync(path.join(root, "app.css"), css);
   fs.writeFileSync(
     path.join(root, "manifest.json"),
     JSON.stringify({ icons: [{ src: "icon.svg" }] })
@@ -72,6 +73,28 @@ test("a script a page loads but the shell omits is reported", () => {
   }));
   assert.equal(errors.length, 1);
   assert.match(errors[0], /app\.js/);
+});
+
+test("an image a page loads but the shell omits is reported", () => {
+  const image = "images/example.png";
+  const { errors } = checkShell(fixture({
+    shell: COMPLETE,
+    files: [...PRESENT, image],
+    html: `<img src='./${image}' alt="">`
+  }));
+  assert.equal(errors.length, 1);
+  assert.match(errors[0], /images\/example\.png/);
+});
+
+test("an asset a stylesheet loads but the shell omits is reported", () => {
+  const font = "fonts/practice.woff2";
+  const { errors } = checkShell(fixture({
+    shell: COMPLETE,
+    files: [...PRESENT, font],
+    css: `@font-face { src: url("./${font}"); }`
+  }));
+  assert.equal(errors.length, 1);
+  assert.match(errors[0], /fonts\/practice\.woff2/);
 });
 
 test("a manifest icon the shell omits is reported", () => {

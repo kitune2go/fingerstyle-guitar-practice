@@ -7,15 +7,30 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const PAGES = ["index.html", "phrase.html", "rhythm.html"];
 
-// Local script/link targets, ignoring absolute URLs and bare fragments.
-function referencesIn(html) {
+function localReference(owner, value) {
+  const reference = String(value).trim();
+  if (!reference || /^(?:[a-z][a-z0-9+.-]*:|\/\/|#)/i.test(reference)) return null;
+  const resolved = path.posix.normalize(
+    path.posix.join(path.posix.dirname(owner), reference.replace(/^\.\//, ""))
+  );
+  return resolved === "." ? "" : resolved.replace(/^\//, "");
+}
+
+// Local targets used by scripts, stylesheets, navigation and embedded media.
+function referencesInHtml(html, owner) {
   const found = new Set();
-  for (const attr of [/<script[^>]+src="([^"]+)"/g, /<link[^>]+href="([^"]+)"/g]) {
-    for (const match of html.matchAll(attr)) {
-      const value = match[1];
-      if (/^(https?:)?\/\/|^data:|^#|^mailto:/.test(value)) continue;
-      found.add(value.replace(/^\.\//, ""));
-    }
+  for (const match of html.matchAll(/\b(?:src|href)\s*=\s*(?:(["'])(.*?)\1|([^\s>]+))/gi)) {
+    const reference = localReference(owner, match[2] ?? match[3]);
+    if (reference !== null) found.add(reference);
+  }
+  return found;
+}
+
+function referencesInCss(css, owner) {
+  const found = new Set();
+  for (const match of css.matchAll(/url\(\s*(?:(["'])(.*?)\1|([^)]*))\s*\)/g)) {
+    const reference = localReference(owner, match[2] ?? match[3]);
+    if (reference !== null) found.add(reference);
   }
   return found;
 }
@@ -38,6 +53,7 @@ function filesBelow(root, directory, predicate) {
 export function checkShell(root) {
   const errors = [];
   const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
+  const stylesheets = new Set();
 
   const shell = new Set(
     [...read("sw.js").matchAll(/^\s*"(\.\/[^"]*)"/gm)].map((m) => m[1].replace(/^\.\//, ""))
@@ -45,8 +61,20 @@ export function checkShell(root) {
 
   for (const page of PAGES) {
     if (!shell.has(page)) errors.push(`sw.js: ページ ${page} がAPP_SHELLにありません`);
-    for (const ref of referencesIn(read(page))) {
+    for (const ref of referencesInHtml(read(page), page)) {
       if (!shell.has(ref)) errors.push(`sw.js: ${page} が読み込む ${ref} がAPP_SHELLにありません`);
+      if (ref.endsWith(".css")) stylesheets.add(ref);
+    }
+  }
+
+  // Images and fonts pulled from a stylesheet are browser requests too, even
+  // though they are invisible in the page's HTML attributes.
+  for (const stylesheet of stylesheets) {
+    if (!fs.existsSync(path.join(root, stylesheet))) continue;
+    for (const ref of referencesInCss(read(stylesheet), stylesheet)) {
+      if (!shell.has(ref)) {
+        errors.push(`sw.js: ${stylesheet} が読み込む ${ref} がAPP_SHELLにありません`);
+      }
     }
   }
 
