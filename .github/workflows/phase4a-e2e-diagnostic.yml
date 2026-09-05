@@ -1,0 +1,49 @@
+name: Diagnose Phase 4A E2E
+
+on:
+  push:
+    branches:
+      - automation/phase4a-bootstrap
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout target branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/diagnostic-practice-focus
+      - name: Checkout implementation helper
+        uses: actions/checkout@v4
+        with:
+          ref: automation/phase4a-bootstrap
+          path: _phase4a_helper
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply Phase 4A implementation
+        run: |
+          node _phase4a_helper/scripts/apply-phase4a.mjs
+          rm -rf _phase4a_helper
+      - name: Install browser test runtime
+        run: npm install --no-package-lock
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Capture E2E output
+        run: |
+          set +e
+          npm run test:e2e > phase4a-e2e.txt 2>&1
+          status=$?
+          cat phase4a-e2e.txt
+          printf '%s\n' "$status" > phase4a-e2e-exit.txt
+          exit 0
+      - name: Upload E2E diagnostic
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase4a-e2e-diagnostic
+          path: |
+            phase4a-e2e.txt
+            phase4a-e2e-exit.txt
