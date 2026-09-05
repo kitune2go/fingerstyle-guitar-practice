@@ -1,6 +1,7 @@
 import { createScheduler } from "./core/clock.js";
+import { createRecorder } from "./core/recorder.js";
 import { createSamplePlayer } from "./core/sample-player.js";
-import { ASSIST_LABELS, buildPracticeTimeline, practiceAdvice, practiceRange, parsePracticeBackup, validateAttempt } from "./core/practice.js";
+import { ASSIST_LABELS, SELF_REVIEW_KEYS, buildPracticeTimeline, practiceAdvice, practiceRange, parsePracticeBackup, validateAttempt } from "./core/practice.js";
 import { createPracticeStore } from "./core/practice-store.js";
 import {
   buildPhraseModel,
@@ -32,6 +33,8 @@ import {
     sources:new Set(), events:[], repeatIndex:0, timeline:null,
     range:{start:1,end:1}, assist:"full", melody:true, countIn:0,
     run:null, pending:null, attempts:[], store:null, saving:false, preferences:{},
+    recorder:null, recordingRunId:null, recordingFinalizing:false, recordingResult:null,
+    pendingRecording:null, recordings:new Map(), pendingRecordingUrl:null, historyRecordingUrls:[],
     followedMeasure:-1,
     chordStroke:0,
     visualQueue:[], measures:[]
@@ -332,9 +335,11 @@ import {
 
   function setAudioEntriesPending(pending){
     const playButton=$("play");
+    const recordButton=$("record-play");
     const noteButton=$("play-note");
     const backingButton=$("preview-backing");
     if(playButton) playButton.disabled=pending||state.running;
+    if(recordButton) recordButton.disabled=pending||state.running;
     if(noteButton) noteButton.disabled=pending;
     if(backingButton) backingButton.disabled=pending;
     $("stop").disabled=!(pending||state.running||state.sources.size);
@@ -717,7 +722,131 @@ import {
     state.raf=requestAnimationFrame(visualLoop);
   }
 
-  async function play(){
+  function clearPendingRecordingUrl(){
+    if(state.pendingRecordingUrl){
+      URL.revokeObjectURL(state.pendingRecordingUrl);
+      state.pendingRecordingUrl=null;
+    }
+    const player=$("recording-player");
+    if(player){
+      player.removeAttribute("src");
+      player.load();
+    }
+  }
+
+  function clearHistoryRecordingUrls(){
+    for(const url of state.historyRecordingUrls) URL.revokeObjectURL(url);
+    state.historyRecordingUrls.length=0;
+  }
+
+  function resetSelfReview(){
+    for(const key of SELF_REVIEW_KEYS){
+      const select=$("review-"+key);
+      if(select) select.value="";
+    }
+  }
+
+  function clearPendingRecording(){
+    clearPendingRecordingUrl();
+    state.pendingRecording=null;
+    resetSelfReview();
+  }
+
+  function readSelfReview(){
+    if(!state.pendingRecording) return undefined;
+    const entries=SELF_REVIEW_KEYS.map(key=>[key,Number($("review-"+key).value)]);
+    if(!entries.every(([,value])=>Number.isInteger(value)&&value>=1&&value<=3)) return null;
+    return Object.fromEntries(entries);
+  }
+
+  function renderRecordingMonitor(){
+    const monitor=$("recording-monitor");
+    const player=$("recording-player");
+    const recording=state.pendingRecording;
+    monitor.hidden=!recording;
+    if(!recording){
+      clearPendingRecordingUrl();
+      return;
+    }
+    if(!state.pendingRecordingUrl){
+      state.pendingRecordingUrl=URL.createObjectURL(recording.blob);
+      player.src=state.pendingRecordingUrl;
+    }
+  }
+
+  function recordingMessage(error){
+    const byCode={
+      unsupported:"このブラウザは録音に対応していません。",
+      "media-devices-unsupported":"このブラウザではマイクを利用できません。",
+      denied:"マイクの利用が許可されませんでした。",
+      "no-device":"利用できるマイクが見つかりませんでした。",
+      "start-failed":"録音を開始できませんでした。",
+      "runtime-error":"録音中にエラーが発生しました。",
+      "stop-failed":"録音を終了できませんでした。"
+    };
+    return byCode[error?.code]||error?.message||"録音を利用できませんでした。";
+  }
+
+  function handleRecorderError(error){
+    if(error?.code==="cancelled") return;
+    state.recordingRunId=null;
+    state.recordingFinalizing=false;
+    state.recordingResult=null;
+    $("recording-status").textContent=recordingMessage(error)+" 通常の練習はそのまま利用できます。";
+    if(state.phrase) renderRecords();
+  }
+
+  function recordingRecord(attemptId,date,result){
+    return {
+      attemptId,
+      createdAt:date,
+      mimeType:result.mimeType||result.blob.type||"",
+      size:result.blob.size,
+      blob:result.blob,
+      settings:result.settings??{}
+    };
+  }
+
+  function attachRecordingResult(runId,result,limited=false){
+    if(!runId||!result) return;
+    const limitReached=limited||result.limitReached;
+    if(state.pending?.id!==runId){
+      state.recordingResult={runId,result,limited:limitReached};
+      if(limitReached) $("recording-status").textContent="録音は10分で停止しました。練習は続けられます。";
+      return;
+    }
+    clearPendingRecording();
+    state.pendingRecording=recordingRecord(runId,state.pending.date,result);
+    state.recordingResult=null;
+    state.recordingRunId=null;
+    state.recordingFinalizing=false;
+    $("recording-status").textContent=limitReached
+      ?"録音は10分で停止しました。聴き返して自己レビューできます。"
+      :"録音が完了しました。聴き返して自己レビューしてください。";
+    renderRecords();
+  }
+
+  function finalizeRecordingForRun(runId){
+    if(!runId||state.pending?.id!==runId) return;
+    const cached=state.recordingResult?.runId===runId?state.recordingResult:null;
+    if(cached){
+      attachRecordingResult(runId,cached.result,cached.limited);
+      return;
+    }
+    state.recordingFinalizing=true;
+    $("recording-status").textContent="録音を確定しています…";
+    renderRecords();
+    void state.recorder.stop().then(result=>{
+      if(result) attachRecordingResult(runId,result,result.limitReached);
+      else{
+        state.recordingRunId=null;
+        state.recordingFinalizing=false;
+        renderRecords();
+      }
+    }).catch(handleRecorderError);
+  }
+
+  async function play(withRecording=false){
     if(state.running||state.starting) return;
     stop();
     const generation=state.generation;
@@ -729,15 +858,38 @@ import {
       await ensureAudio([...(state.melody?["nylonGuitar"]:[]),...backingSampleNames()]);
       if(generation!==state.generation) return;
       restoreMaster();
+      const runId=crypto.randomUUID();
+      if(withRecording){
+        state.recordingRunId=runId;
+        $("recording-status").textContent="マイクを準備しています…";
+        try{
+          await state.recorder.start();
+        }catch(error){
+          if(generation===state.generation) handleRecorderError(error);
+          return;
+        }
+        if(generation!==state.generation){
+          state.recordingRunId=null;
+          await state.recorder.cancel();
+          return;
+        }
+      }else{
+        state.recordingRunId=null;
+      }
+      state.recordingResult=null;
+      state.recordingFinalizing=false;
       state.pending=null;
+      clearPendingRecording();
       state.timeline=buildPracticeTimeline(state.model,state.range);
       const countBeats=state.countIn*state.model.beatsPerBar;
       const spb=secondsPerBeat();
       const firstTime=state.audio.currentTime+.08;
       state.run={
-        phraseId:state.phrase.id,date:new Date().toISOString(),conditions:practiceConditions(),
+        id:runId,phraseId:state.phrase.id,date:new Date().toISOString(),conditions:practiceConditions(),
         startedAt:firstTime+countBeats*spb,spb,completedLoops:0
       };
+      if(withRecording) $("recording-status").textContent="録音中です。マイク音はスピーカーへ返しません。";
+      else $("recording-status").textContent="通常練習中です。マイクは使用していません。";
       const intro=Array.from({length:countBeats},(_,i)=>({beat:i-countBeats,countIn:i%state.model.beatsPerBar+1}));
       state.events=[...intro,...state.timeline.events,{beat:state.timeline.lengthBeats,complete:true}];
       state.repeatIndex=intro.length;
@@ -785,16 +937,22 @@ import {
   function stop(resetProgress=true){
     state.generation+=1;
     state.starting=false;
-    if(state.run){
+    const run=state.run;
+    const recordingRunId=state.recordingRunId;
+    if(run){
       consumeVisualEvents(false);
-      const run=state.run;
       const elapsedSec=Math.max(0,state.audio.currentTime-run.startedAt);
       state.pending=elapsedSec>0?{
-        id:crypto.randomUUID(),phraseId:run.phraseId,date:run.date,conditions:run.conditions,
+        id:run.id,phraseId:run.phraseId,date:run.date,conditions:run.conditions,
         observed:{transportCompleted:run.completedLoops>0,completedLoops:run.completedLoops,elapsedSec:Math.round(elapsedSec*100)/100}
       }:null;
       $("practice-status").textContent=rangeLabel()+" / "+run.completedLoops+"回再生完了";
       state.run=null;
+    }else if(recordingRunId&&state.recorder){
+      state.recordingRunId=null;
+      state.recordingResult=null;
+      state.recordingFinalizing=false;
+      void state.recorder.cancel().catch(handleRecorderError);
     }
     silenceTail();
     state.running=false;
@@ -811,6 +969,15 @@ import {
     setAudioEntriesPending(false);
     $("stop").disabled=true;
     if(resetProgress) updateProgress(0);
+    if(run&&recordingRunId){
+      if(state.pending?.id===recordingRunId) finalizeRecordingForRun(recordingRunId);
+      else{
+        state.recordingRunId=null;
+        state.recordingResult=null;
+        state.recordingFinalizing=false;
+        void state.recorder.cancel().catch(handleRecorderError);
+      }
+    }
     if(state.phrase) renderRecords();
   }
 
@@ -1005,14 +1172,17 @@ import {
   function renderRecords(){
     if(!state.phrase) return;
     const pending=state.pending?.phraseId===state.phrase.id?state.pending:null;
+    renderRecordingMonitor();
     $("attempt-summary").textContent=state.running?"練習中です。停止後に結果を記録できます。":pending
-      ?conditionsLabel(pending.conditions)+" / "+pending.observed.completedLoops+"回再生完了"
+      ?conditionsLabel(pending.conditions)+" / "+pending.observed.completedLoops+"回再生完了"+(state.recordingFinalizing?" / 録音確定中":"")
       :"再生して練習すると、条件と結果を記録できます。";
-    $("record-clean").disabled=state.saving||state.running||!pending?.observed.transportCompleted;
-    $("record-repeat").disabled=state.saving||state.running||!pending;
+    const reviewReady=!state.pendingRecording||Boolean(readSelfReview());
+    $("record-clean").disabled=state.saving||state.running||state.recordingFinalizing||!reviewReady||!pending?.observed.transportCompleted;
+    $("record-repeat").disabled=state.saving||state.running||state.recordingFinalizing||!reviewReady||!pending;
     const attempts=state.attempts.filter(item=>item.phraseId===state.phrase.id);
     $("practice-advice").textContent=practiceAdvice(attempts,practiceConditions());
     const recent=[...attempts].sort((a,b)=>Date.parse(b.date)-Date.parse(a.date)).slice(0,10);
+    clearHistoryRecordingUrls();
     $("attempt-list").replaceChildren();
     if(!recent.length){
       const item=document.createElement("li");
@@ -1025,23 +1195,81 @@ import {
       const detail=document.createElement("small");
       detail.textContent=conditionsLabel(attempt.conditions)+" / "+attempt.observed.completedLoops+"回再生完了";
       item.append(detail);
+      const recording=state.recordings.get(attempt.id);
+      if(recording){
+        const audio=document.createElement("audio");
+        const url=URL.createObjectURL(recording.blob);
+        state.historyRecordingUrls.push(url);
+        audio.controls=true;
+        audio.preload="metadata";
+        audio.src=url;
+        audio.setAttribute("aria-label","この練習の録音");
+        item.append(audio);
+        const remove=document.createElement("button");
+        remove.type="button";
+        remove.textContent="この録音を削除";
+        remove.addEventListener("click",()=>void deleteSavedRecording(attempt.id));
+        item.append(remove);
+      }
       $("attempt-list").append(item);
     }
   }
 
+  async function deleteSavedRecording(attemptId){
+    try{
+      await state.store.deleteRecording(attemptId);
+      state.recordings.delete(attemptId);
+      $("record-status").textContent="録音をこの端末から削除しました。練習記録は残しています。";
+      renderRecords();
+    }catch{
+      $("record-status").textContent="録音を削除できませんでした。もう一度お試しください。";
+    }
+  }
+
+  function deletePendingRecording(){
+    if(!state.pendingRecording) return;
+    clearPendingRecording();
+    $("recording-status").textContent="今回の録音を削除しました。練習結果はそのまま記録できます。";
+    renderRecords();
+  }
+
+  function retryRecording(){
+    if(state.running||state.starting||state.saving||state.recordingFinalizing) return;
+    state.pending=null;
+    clearPendingRecording();
+    renderRecords();
+    void play(true);
+  }
+
   async function saveRecord(clean){
     const pending=state.pending;
-    if(state.saving||state.running||!pending||pending.phraseId!==state.phrase.id) return;
+    if(state.saving||state.running||state.recordingFinalizing||!pending||pending.phraseId!==state.phrase.id) return;
+    const review=readSelfReview();
+    if(state.pendingRecording&&review===null){
+      $("record-status").textContent="録音を聴き返し、4項目の自己レビューを選んでください。";
+      return;
+    }
     state.saving=true;
     renderRecords();
     try{
-      const record=validateAttempt({...pending,reported:{clean}});
-      await state.store.addMany([record]);
+      const reported=review?{clean,review}:{clean};
+      const record=validateAttempt({...pending,reported});
+      const recording=state.pendingRecording?.attemptId===pending.id?state.pendingRecording:null;
+      await state.store.saveAttempt(record,recording);
+      if(recording) state.recordings.set(recording.attemptId,recording);
       state.attempts=await state.store.all();
-      if(state.pending?.id===pending.id) state.pending=null;
-      $("record-status").textContent="練習記録を保存しました（自己評価）。";
-    }catch{
-      $("record-status").textContent="記録を保存できませんでした。今回の結果は残してありますので、もう一度お試しください。";
+      if(state.pending?.id===pending.id){
+        state.pending=null;
+        clearPendingRecording();
+      }
+      $("record-status").textContent=recording
+        ?"練習記録と録音をこの端末へ保存しました（自己評価）。"
+        :"練習記録を保存しました（自己評価）。";
+    }catch(error){
+      const quota=error?.name==="QuotaExceededError"||error?.cause?.name==="QuotaExceededError";
+      $("record-status").textContent=quota
+        ?"端末の保存容量が不足しているため保存できませんでした。記録と録音は保存していません。今回の結果は残してありますので、不要な録音を削除して再試行してください。"
+        :"記録を保存できませんでした。記録と録音は保存していません。今回の結果は残してありますので、もう一度お試しください。";
     }finally{
       state.saving=false;
       renderRecords();
@@ -1058,7 +1286,7 @@ import {
       link.download="guitar-practice-"+new Date().toISOString().slice(0,10)+".json";
       link.click();
       setTimeout(()=>URL.revokeObjectURL(url),1000);
-      $("record-status").textContent=attempts.length+"件の記録を書き出しました。";
+      $("record-status").textContent=attempts.length+"件の記録を書き出しました。録音音声は含まれていません。";
     }catch{
       $("record-status").textContent="記録を書き出せませんでした。もう一度お試しください。";
     }
@@ -1072,7 +1300,7 @@ import {
       await state.store.addMany(attempts);
       state.attempts=await state.store.all();
       renderRecords();
-      $("record-status").textContent="記録を読み込みました。重複を除き全"+state.attempts.length+"件です。";
+      $("record-status").textContent="記録を読み込みました。重複を除き全"+state.attempts.length+"件です。端末内の録音は変更していません。";
     }catch(error){
       $("record-status").textContent="読み込めませんでした。既存の記録は保持しています。"+(error instanceof SyntaxError?"JSON形式を確認してください。":error.message);
     }finally{
@@ -1096,6 +1324,9 @@ import {
     $("melody-toggle").addEventListener("click",()=>{
       stop();state.melody=!state.melody;renderPracticeControls();savePracticePreferences();renderRecords();
     });
+    for(const key of SELF_REVIEW_KEYS) $("review-"+key).addEventListener("change",renderRecords);
+    $("delete-recording").addEventListener("click",deletePendingRecording);
+    $("retry-recording").addEventListener("click",retryRecording);
     $("record-clean").addEventListener("click",()=>void saveRecord(true));
     $("record-repeat").addEventListener("click",()=>void saveRecord(false));
     $("export-practice").addEventListener("click",()=>void exportPractice());
@@ -1110,10 +1341,17 @@ import {
   async function bootstrap(){
     try{
       renderSoundMode();
+      state.recorder=createRecorder({
+        mediaDevices:navigator.mediaDevices,
+        MediaRecorderClass:window.MediaRecorder,
+        onLimit:result=>attachRecordingResult(state.recordingRunId,result,true),
+        onError:handleRecorderError
+      });
       // A load event does not guarantee that the asynchronous lesson fetch has
       // finished. Accept audio actions now and let them await the same data.
       state.ready=loadData();
       $("play").addEventListener("click",()=>play().catch(alert));
+      $("record-play").addEventListener("click",()=>void play(true));
       $("stop").addEventListener("click",()=>stop());
       $("play-note").addEventListener("click",()=>playOne().catch(alert));
       $("preview-backing").addEventListener("click",()=>previewBacking().catch(alert));
@@ -1132,6 +1370,12 @@ import {
           state.attempts=attempts;renderRecords();
         }).catch(()=>{
           $("record-status").textContent="練習記録を読み込めませんでした。再生は利用できます。";
+        });
+        void state.store.allRecordings().then(recordings=>{
+          state.recordings=new Map(recordings.map(recording=>[recording.attemptId,recording]));
+          renderRecords();
+        }).catch(()=>{
+          $("record-status").textContent="端末内の録音を読み込めませんでした。通常の練習記録と再生は利用できます。";
         });
       }catch{
         $("record-status").textContent="練習記録を読み込めませんでした。再生は利用できます。";

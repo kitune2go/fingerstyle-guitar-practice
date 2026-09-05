@@ -53,9 +53,11 @@
 
       <div class="transport">
         <button id="play" class="primary">▶ 再生</button>
+        <button id="record-play" class="record-primary" type="button">● 録音して練習</button>
         <button id="stop" disabled>■ 停止</button>
         <button id="loop" aria-pressed="false">↻ ループOFF</button>
       </div>
+      <p id="recording-status" class="recording-status" role="status">録音はボタンを押した時だけマイクを使用します。</p>
       <p id="practice-status" class="practice-status" role="status">区間を選んで短く練習できます。</p>
     </section>
 
@@ -121,15 +123,31 @@
     <section class="panel practice-record" aria-labelledby="record-heading">
       <div class="section-title compact"><div><span>RECORD</span><h2 id="record-heading">今回の練習を記録</h2></div></div>
       <p id="attempt-summary">再生して練習すると、条件と結果を記録できます。</p>
+      <div id="recording-monitor" class="recording-monitor" hidden>
+        <strong>録音を聴き返す</strong>
+        <audio id="recording-player" controls preload="metadata"></audio>
+        <div class="practice-presets">
+          <button id="delete-recording" type="button">録音を削除</button>
+          <button id="retry-recording" type="button">録音してやり直す</button>
+        </div>
+        <fieldset class="self-review">
+          <legend>聴き返して自己レビュー</legend>
+          <label>不要弦・ノイズ<select id="review-noise"><option value="">選択</option><option value="1">1 要改善</option><option value="2">2 まずまず</option><option value="3">3 良い</option></select></label>
+          <label>音量・粒<select id="review-evenness"><option value="">選択</option><option value="1">1 要改善</option><option value="2">2 まずまず</option><option value="3">3 良い</option></select></label>
+          <label>音色<select id="review-tone"><option value="">選択</option><option value="1">1 要改善</option><option value="2">2 まずまず</option><option value="3">3 良い</option></select></label>
+          <label>フレーズの流れ<select id="review-flow"><option value="">選択</option><option value="1">1 要改善</option><option value="2">2 まずまず</option><option value="3">3 良い</option></select></label>
+        </fieldset>
+      </div>
       <div class="practice-presets">
-        <button id="record-clean" class="primary" type="button" disabled>音を揃えて弾けた</button>
-        <button id="record-repeat" type="button" disabled>もう一度練習する</button>
+        <button id="record-clean" class="primary" type="button" disabled>弾けた</button>
+        <button id="record-repeat" type="button" disabled>要復習として記録</button>
       </div>
       <p class="hint">自己評価の記録です。演奏音の自動採点は行いません。「弾けた」は選択区間を最後まで再生した後に記録できます。</p>
+      <p class="recording-policy">録音はこの端末内に保存され、練習記録JSONには含まれません。</p>
       <p id="practice-advice" class="practice-status"></p>
       <details><summary>このフレーズの履歴・バックアップ</summary>
         <ol id="attempt-list" class="attempt-list"></ol>
-        <p class="hint">バックアップは全フレーズの記録を含みます。読み込み時は既存の記録を残して追加します。</p>
+        <p class="hint">バックアップは全フレーズの記録を含みます。読み込み時は既存の記録を残して追加します。録音音声は含みません。</p>
         <div class="practice-presets"><button id="export-practice" type="button">記録を書き出す</button><button id="import-practice" type="button">記録を読み込む</button></div>
         <input id="practice-file" type="file" accept="application/json,.json" hidden>
       </details>
