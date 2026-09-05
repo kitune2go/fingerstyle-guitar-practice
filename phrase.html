@@ -56,6 +56,30 @@
         <button id="stop" disabled>■ 停止</button>
         <button id="loop" aria-pressed="false">↻ ループOFF</button>
       </div>
+      <p id="practice-status" class="practice-status" role="status">区間を選んで短く練習できます。</p>
+    </section>
+
+    <section class="panel practice-panel" aria-labelledby="practice-heading">
+      <div class="section-title compact"><div><span>PRACTICE</span><h2 id="practice-heading">小さく分けて覚える</h2></div></div>
+      <div class="practice-grid">
+        <label>開始小節<select id="range-start"></select></label>
+        <label>終了小節<select id="range-end"></select></label>
+      </div>
+      <div class="practice-presets">
+        <button id="range-one" type="button">1小節</button>
+        <button id="range-two" type="button">2小節</button>
+        <button id="range-all" type="button">全体</button>
+      </div>
+      <div class="practice-presets">
+        <button id="range-previous" type="button">← 前の区間</button>
+        <button id="range-next" type="button">次の区間 →</button>
+      </div>
+      <div class="practice-grid">
+        <label>予備拍<select id="count-in"><option value="0">なし</option><option value="1">1小節</option><option value="2">2小節</option></select></label>
+        <label>譜面の補助<select id="assist-mode"><option value="full">音名・TAB・運指あり</option><option value="no-names">音名なし</option><option value="staff">五線譜のみ</option><option value="memory">暗譜（譜面なし）</option></select></label>
+      </div>
+      <button id="melody-toggle" class="backing-toggle active" type="button" aria-pressed="true">♪ お手本メロディ ON</button>
+      <p class="hint">区間を選び「ループON」で反復できます。暗譜ではお手本もOFFにします。設定を変えると再生を停止します。</p>
     </section>
 
     <section class="panel backing-panel">
@@ -81,16 +105,35 @@
         </div>
       </div>
       <div id="staff" class="staff-systems" role="group" aria-label="ギター五線譜とTAB譜"></div>
+      <div id="memory-cover" hidden><p>譜面を隠しています。選んだ区間を思い出して弾いてみましょう。</p><button id="reveal-score" type="button">譜面を確認する</button></div>
       <div class="progress"><div id="progress-bar"></div></div>
       <p class="score-help">音符をタップ（キーボードならTabで移動してEnter）すると、その音を選択できます。再生中は現在の音符が赤くなります。</p>
     </section>
 
-    <section class="panel">
+    <section class="panel" id="tab-panel">
       <div class="section-title">
         <div><span>TABLATURE</span><h2>TAB / 右手</h2></div>
       </div>
       <pre id="tab"></pre>
       <div class="right-hand"><span>右手</span><code id="right-hand"></code></div>
+    </section>
+
+    <section class="panel practice-record" aria-labelledby="record-heading">
+      <div class="section-title compact"><div><span>RECORD</span><h2 id="record-heading">今回の練習を記録</h2></div></div>
+      <p id="attempt-summary">再生して練習すると、条件と結果を記録できます。</p>
+      <div class="practice-presets">
+        <button id="record-clean" class="primary" type="button" disabled>音を揃えて弾けた</button>
+        <button id="record-repeat" type="button" disabled>もう一度練習する</button>
+      </div>
+      <p class="hint">自己評価の記録です。演奏音の自動採点は行いません。「弾けた」は選択区間を最後まで再生した後に記録できます。</p>
+      <p id="practice-advice" class="practice-status"></p>
+      <details><summary>このフレーズの履歴・バックアップ</summary>
+        <ol id="attempt-list" class="attempt-list"></ol>
+        <p class="hint">バックアップは全フレーズの記録を含みます。読み込み時は既存の記録を残して追加します。</p>
+        <div class="practice-presets"><button id="export-practice" type="button">記録を書き出す</button><button id="import-practice" type="button">記録を読み込む</button></div>
+        <input id="practice-file" type="file" accept="application/json,.json" hidden>
+      </details>
+      <p id="record-status" role="status"></p>
     </section>
 
     <section class="panel note-trainer">

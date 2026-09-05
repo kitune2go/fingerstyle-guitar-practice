@@ -58,6 +58,26 @@ button.primary{background:var(--green);color:#fff}button:disabled{opacity:.4}
 .current-note{display:grid;grid-template-columns:82px repeat(3,1fr);gap:10px;align-items:center;margin:10px 0 14px;padding:14px;border:1px solid var(--line);background:var(--green-light)}
 .current-note strong{font:800 30px Georgia,serif;color:var(--green)}.current-note span{font-size:12px;font-weight:750}
 footer{text-align:center;padding:10px 6px 24px}
+.practice-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:12px}
+.practice-grid label{display:grid;gap:6px;font-size:14px;font-weight:700;min-width:0}
+.practice-grid select{padding:8px;min-width:0;font-size:14px}
+.practice-presets{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+.practice-presets button{flex:1 1 80px;padding:8px;font-size:14px}
+.practice-panel>.backing-toggle{width:100%;font-size:14px}
+.practice-panel .hint,.practice-record .hint{font-size:14px}
+.practice-status{margin:0;padding:10px 12px;background:var(--green-light);font-size:14px;line-height:1.6;overflow-wrap:anywhere}
+.practice-record p,.attempt-list{font-size:14px;line-height:1.7}
+.practice-record summary{cursor:pointer;min-height:44px;padding:12px 0;font-size:14px;font-weight:700}
+.attempt-list{padding-left:24px}.attempt-list li{padding:10px 0;border-bottom:1px solid var(--line)}
+.attempt-list small{display:block;font-size:13px;color:var(--muted)}
+.staff-system-mount.outside-range{opacity:.4}.staff-system-mount.in-range{border-color:var(--green)}
+[hidden]{display:none!important}
+#memory-cover{padding:18px;background:var(--green-light);line-height:1.7}
+body[data-assist="no-names"] .note-name-text{display:none}
+body[data-assist="no-names"] #note-name{visibility:hidden}
+body[data-assist="staff"] .note-name-text,body[data-assist="staff"] .finger-text{display:none}
+body[data-assist="staff"] .staff-system{aspect-ratio:480/170;overflow:hidden}
+button:focus-visible,select:focus-visible,input:focus-visible,summary:focus-visible{outline:3px solid var(--red);outline-offset:3px}
 @media(max-width:520px){
   .music-meta{grid-template-columns:1fr 1fr}.music-meta>div:nth-child(2){border-right:0}.music-meta>div:nth-child(-n+2){border-bottom:1px solid var(--line)}
   .backing-buttons{grid-template-columns:1fr}.chord-progression{grid-template-columns:repeat(4,1fr)}
