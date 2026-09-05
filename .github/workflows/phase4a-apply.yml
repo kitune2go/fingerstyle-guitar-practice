@@ -1,0 +1,55 @@
+name: Apply Phase 4A focus model
+
+on:
+  push:
+    branches:
+      - automation/phase4a-bootstrap
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout target branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/diagnostic-practice-focus
+          fetch-depth: 0
+      - name: Checkout implementation helper
+        uses: actions/checkout@v4
+        with:
+          ref: automation/phase4a-bootstrap
+          path: _phase4a_helper
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply Phase 4A implementation
+        run: |
+          node _phase4a_helper/scripts/apply-phase4a.mjs
+          rm -rf _phase4a_helper
+      - name: Check JavaScript syntax
+        run: |
+          node --check guitar.js
+          node --check phrase.js
+          node --check rhythm.js
+          node --check sw.js
+          find core rhythm -type f -name '*.js' -exec node --check {} \;
+      - name: Run unit and data validation
+        run: npm test
+      - name: Check patch whitespace
+        run: git diff --check
+      - name: Install browser test runtime
+        run: npm install --no-package-lock
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run browser regression tests
+        run: npm run test:e2e
+      - name: Commit validated Phase 4A implementation
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add core/practice.js phrase.js phrase.html phrase.css tests/unit/practice-focus.test.mjs tests/focus.spec.mjs
+          git commit -m "Add diagnostic practice focus model"
+          git push origin HEAD:feat/diagnostic-practice-focus
