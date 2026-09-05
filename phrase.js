@@ -1,4 +1,6 @@
 import { createSamplePlayer } from "./core/sample-player.js";
+import { ASSIST_LABELS, buildPracticeTimeline, practiceAdvice, practiceRange, parsePracticeBackup, validateAttempt } from "./core/practice.js";
+import { createPracticeStore } from "./core/practice-store.js";
 import {
   buildPhraseModel,
   midiToFrequency,
@@ -17,23 +19,25 @@ import {
 
   const $ = (id) => document.getElementById(id);
   const SOUND_MODE_KEY="fingerstyle-sound-mode";
+  const PRACTICE_KEY="fingerstyle-phrase-preferences";
   const state = {
-    data:null, phrase:null, model:null, index:0, noteIndex:0,
+    data:null, ready:null, phrase:null, model:null, index:0, noteIndex:0,
     audio:null, noiseBuffer:null, mix:null, samplePlayer:null,
     running:false, starting:false, loop:false, follow:true,
     soundMode:readSoundMode(),
     backing:{ chords:true, bass:true, drums:true },
     scheduler:null, raf:null, previewTimer:null,
-    nextTick:0, nextTickTime:0, finished:false,
+    eventIndex:0, cycleTime:0, finished:false, generation:0,
+    sources:new Set(), events:[], repeatIndex:0, timeline:null,
+    range:{start:1,end:1}, assist:"full", melody:true, countIn:0,
+    run:null, pending:null, attempts:[], store:null, saving:false, preferences:{},
     followedMeasure:-1,
     chordStroke:0,
-    visualQueue:[], noteStarts:new Map(), measures:[]
+    visualQueue:[], measures:[]
   };
 
   const MASTER_LEVEL=.78;
   const PHRASE_SAMPLES=["nylonGuitar","electricBass","kick","snare","closedHat","openHat"];
-  const TICKS_PER_BEAT=12;
-  const EIGHTH_TICKS=TICKS_PER_BEAT/2;
 
   const stringLabels = ["e","B","G","D","A","E"];
   const grooveLabels = { straight8:"Straight 8", rock8:"Rock 8" };
@@ -155,39 +159,6 @@ import {
     state.measures=state.model.measures;
   }
 
-  function buildNoteStarts(){
-    state.noteStarts=new Map();
-    const ties=state.model.notations.filter(notation=>notation.type==="tie");
-    const tieFrom=new Map(ties.map(tie=>[tie.from,tie.to]));
-    const tieTargets=new Set(ties.map(tie=>tie.to));
-    const tiedDuration=(note)=>{
-      let beats=Number(note.beats);
-      let nextId=tieFrom.get(note.id);
-      const visited=new Set();
-      while(nextId&&!visited.has(nextId)){
-        visited.add(nextId);
-        const next=state.model.noteById.get(nextId);
-        if(!next) break;
-        beats+=Number(next.beats);
-        nextId=tieFrom.get(next.id);
-      }
-      return beats;
-    };
-
-    let tick=0;
-    state.model.notes.forEach((note,index)=>{
-      if(!state.noteStarts.has(tick)) state.noteStarts.set(tick,[]);
-      state.noteStarts.get(tick).push({
-        note,index,attack:!tieTargets.has(note.id),durationBeats:tiedDuration(note)
-      });
-      const durationTicks=Number(note.beats)*TICKS_PER_BEAT;
-      if(Math.abs(durationTicks-Math.round(durationTicks))>1e-9){
-        throw new Error("この音価は再生解像度に対応していません: "+note.beats);
-      }
-      tick+=Math.round(durationTicks);
-    });
-  }
-
   function buildMeta(){
     $("key-label").textContent=state.phrase.keyLabel;
     $("time-label").textContent=state.phrase.timeSignature;
@@ -229,6 +200,7 @@ import {
     const host=$("staff");
     renderScore(host,state.model,{
       engraver:window.VexFlow,
+      assist:state.assist,
       onSelectNote(index){
         state.noteIndex=index;
         renderCurrentNote();
@@ -239,7 +211,7 @@ import {
   }
 
   function renderPhrase(){
-    stop();
+    if(state.phrase) stop();
     state.phrase=state.data.phrases[state.index];
     state.noteIndex=0;
     state.followedMeasure=-1;
@@ -251,13 +223,15 @@ import {
     $("tempo-label").textContent=state.phrase.bpm;
     $("right-hand").textContent=state.phrase.rightHand;
     splitMeasures();
-    buildNoteStarts();
+    restorePracticePreferences();
     buildMeta();
     buildStaff();
     buildTab();
     renderCurrentNote();
     highlightNote(0);
     highlightMeasure(0);
+    renderPracticeControls();
+    renderRecords();
     updateProgress(0);
   }
 
@@ -296,7 +270,7 @@ import {
   // force=true is used when the player steps notes by hand: the score should
   // follow the selection even though the transport is stopped.
   function followScore(index,force=false){
-    if(!state.follow) return;
+    if(!state.follow||state.assist==="memory") return;
     if(!force && !state.running) return;
     if(state.followedMeasure===index) return;
 
@@ -362,6 +336,7 @@ import {
     if(playButton) playButton.disabled=pending||state.running;
     if(noteButton) noteButton.disabled=pending;
     if(backingButton) backingButton.disabled=pending;
+    $("stop").disabled=!(pending||state.running||state.sources.size);
   }
 
   async function ensureAudio(requiredSamples=PHRASE_SAMPLES){
@@ -420,6 +395,7 @@ import {
       pan:(3.5-Number(note.string||3.5))*.055
     });
     if(sampled){
+      trackSource(sampled.source);
       scheduleBend(sampled.source.playbackRate,sampled.rate,bend,time,sampleDuration);
       return;
     }
@@ -442,7 +418,9 @@ import {
     osc.connect(gain);
     harmonic.connect(hg);
     hg.connect(gain);
+    trackSource(osc);
     osc.start(time);
+    trackSource(harmonic);
     harmonic.start(time);
     osc.stop(time+Math.max(.22,durationSec+.25));
     harmonic.stop(time+.2);
@@ -486,7 +464,7 @@ import {
         release:.11,
         pan
       });
-      if(sampled) return;
+      if(sampled){trackSource(sampled.source);return;}
 
       const osc=state.audio.createOscillator();
       const gain=state.audio.createGain();
@@ -500,6 +478,7 @@ import {
 
       osc.connect(gain);
       gain.connect(state.mix.chords);
+      trackSource(osc);
       osc.start(attack);
       osc.stop(attack+durationSec+.06);
     });
@@ -516,7 +495,7 @@ import {
       attack:.002,
       release:.11
     });
-    if(sampled) return;
+    if(sampled){trackSource(sampled.source);return;}
 
     const fundamental=state.audio.createOscillator();
     const harmonic=state.audio.createOscillator();
@@ -533,7 +512,9 @@ import {
     fundamental.connect(gain);
     harmonic.connect(harmonicGain);
     harmonicGain.connect(gain);
+    trackSource(fundamental);
     fundamental.start(time);
+    trackSource(harmonic);
     harmonic.start(time);
     fundamental.stop(time+.38);
     harmonic.stop(time+.28);
@@ -547,7 +528,7 @@ import {
       duration:.22,
       release:.06
     });
-    if(sampled) return;
+    if(sampled){trackSource(sampled.source);return;}
 
     const osc=state.audio.createOscillator();
     const gain=state.audio.createGain();
@@ -560,6 +541,7 @@ import {
 
     osc.connect(gain);
     gain.connect(state.mix.drums);
+    trackSource(osc);
     osc.start(time);
     osc.stop(time+.15);
   }
@@ -573,7 +555,7 @@ import {
       release:.04,
       pan:sampleName === "snare" ? .14 : -.22
     });
-    if(sampled) return;
+    if(sampled){trackSource(sampled.source);return;}
 
     const source=state.audio.createBufferSource();
     source.buffer=state.noiseBuffer;
@@ -589,6 +571,7 @@ import {
     source.connect(filter);
     filter.connect(gain);
     gain.connect(state.mix.drums);
+    trackSource(source);
     source.start(time);
     source.stop(time+decay+.02);
   }
@@ -626,40 +609,63 @@ import {
     }
   }
 
-  function totalPhraseTicks(){
-    return Math.round(state.phrase.measures*state.model.beatsPerBar*TICKS_PER_BEAT);
+  function trackSource(source){
+    state.sources.add(source);
+    source.addEventListener("ended",()=>{
+      state.sources.delete(source);
+      source.disconnect();
+      if(!state.running&&!state.starting&&!state.sources.size) $("stop").disabled=true;
+    },{once:true});
   }
 
-  function scheduleTick(tick,time){
-    const spb=secondsPerBeat();
-    const ticksPerBar=state.model.beatsPerBar*TICKS_PER_BEAT;
-    const measure=Math.floor(tick/ticksPerBar);
-    const inBarTick=tick%ticksPerBar;
-    const chord=state.phrase.chords[measure];
+  function scheduleCountIn(time,beat){
+    const osc=state.audio.createOscillator();
+    const gain=envelopeGain(time,.12,.07,state.mix.drums);
+    osc.frequency.setValueAtTime(beat===1?1000:750,time);
+    osc.connect(gain);
+    trackSource(osc);
+    osc.start(time);
+    osc.stop(time+.08);
+  }
 
-    const starts=state.noteStarts.get(tick)||[];
-    starts.forEach(({note,index,attack,durationBeats})=>{
-      if(attack) scheduleMelody(note,time,durationBeats*spb);
-      state.visualQueue.push({time,index,measure,tick});
+  function scheduleEvent(event,time){
+    if(event.countIn){
+      scheduleCountIn(time,event.countIn);
+      state.visualQueue.push({time,countIn:event.countIn});
+      return;
+    }
+    if(event.complete){
+      state.visualQueue.push({time,complete:true});
+      return;
+    }
+    const spb=state.run.spb;
+    event.notes.forEach(({note,index,attack,durationBeats})=>{
+      if(attack&&state.run.conditions.melody) scheduleMelody(note,time,durationBeats*spb);
+      state.visualQueue.push({time,index,measure:note.measureIndex,beat:event.beat});
     });
-
-    if(inBarTick%EIGHTH_TICKS===0){
-      scheduleBackingGrid(inBarTick/EIGHTH_TICKS,time,chord);
+    if(event.backing){
+      const {eighth,measure}=event.backing;
+      scheduleBackingGrid(eighth,time,state.phrase.chords[measure]);
     }
   }
 
   function schedulerTick(){
     if(!state.running||!state.audio) return;
-    const ahead=state.audio.currentTime+.16;
-
-    while(!state.finished && state.nextTickTime<ahead){
-      scheduleTick(state.nextTick,state.nextTickTime);
-      state.nextTickTime+=secondsPerBeat()/TICKS_PER_BEAT;
-      state.nextTick+=1;
-
-      if(state.nextTick>=totalPhraseTicks()){
+    const now=state.audio.currentTime;
+    const nextTime=()=>state.cycleTime+state.events[state.eventIndex].beat*state.run.spb;
+    if(!state.finished&&nextTime()<now-.25){
+      stop();
+      $("practice-status").textContent="再生処理が遅れたため停止しました。もう一度再生してください。";
+      return;
+    }
+    while(!state.finished&&nextTime()<now+.16){
+      const event=state.events[state.eventIndex];
+      scheduleEvent(event,nextTime());
+      state.eventIndex+=1;
+      if(state.eventIndex===state.events.length){
         if(state.loop){
-          state.nextTick=0;
+          state.cycleTime+=state.timeline.lengthBeats*state.run.spb;
+          state.eventIndex=state.repeatIndex;
         }else{
           state.finished=true;
         }
@@ -667,21 +673,31 @@ import {
     }
   }
 
-  function visualLoop(){
-    if(!state.running||!state.audio) return;
+  function consumeVisualEvents(render=true){
     const now=state.audio.currentTime;
-
     while(state.visualQueue.length&&state.visualQueue[0].time<=now){
       const event=state.visualQueue.shift();
-      state.noteIndex=event.index;
-      renderCurrentNote();
-      highlightNote(event.index);
-      highlightMeasure(event.measure);
-      followScore(event.measure);
-      updateProgress((event.tick/totalPhraseTicks())*100);
+      if(event.complete){
+        if(state.run) state.run.completedLoops+=1;
+        if(render) $("practice-status").textContent=rangeLabel()+" / "+state.run.completedLoops+"回再生完了";
+      }else if(event.countIn){
+        if(render) $("practice-status").textContent="予備拍 "+event.countIn+" / "+state.model.beatsPerBar;
+      }else if(render){
+        state.noteIndex=event.index;
+        renderCurrentNote();
+        highlightNote(event.index);
+        highlightMeasure(event.measure);
+        followScore(event.measure);
+        updateProgress(event.beat/state.timeline.lengthBeats*100);
+        $("practice-status").textContent=rangeLabel()+" / "+(state.run.completedLoops+1)+"回目・M"+(event.measure+1);
+      }
     }
+  }
 
-    if(state.finished&&state.visualQueue.length===0&&now>state.nextTickTime){
+  function visualLoop(){
+    if(!state.running||!state.audio) return;
+    consumeVisualEvents();
+    if(state.finished&&state.visualQueue.length===0){
       updateProgress(100);
       stop(false);
       return;
@@ -691,36 +707,46 @@ import {
 
   async function play(){
     if(state.running||state.starting) return;
+    stop();
+    const generation=state.generation;
     state.starting=true;
     setAudioEntriesPending(true);
     try{
-      await ensureAudio(["nylonGuitar",...backingSampleNames()]);
+      await state.ready;
+      if(generation!==state.generation) return;
+      await ensureAudio([...(state.melody?["nylonGuitar"]:[]),...backingSampleNames()]);
+      if(generation!==state.generation) return;
       restoreMaster();
-
+      state.pending=null;
+      state.timeline=buildPracticeTimeline(state.model,state.range);
+      const countBeats=state.countIn*state.model.beatsPerBar;
+      const spb=secondsPerBeat();
+      state.cycleTime=state.audio.currentTime+.08+countBeats*spb;
+      state.run={
+        phraseId:state.phrase.id,date:new Date().toISOString(),conditions:practiceConditions(),
+        startedAt:state.cycleTime,spb,completedLoops:0
+      };
+      const intro=Array.from({length:countBeats},(_,i)=>({beat:i-countBeats,countIn:i%state.model.beatsPerBar+1}));
+      state.events=[...intro,...state.timeline.events,{beat:state.timeline.lengthBeats,complete:true}];
+      state.repeatIndex=intro.length;
+      state.eventIndex=0;
       state.running=true;
-      state.nextTick=0;
-      state.nextTickTime=state.audio.currentTime+.08;
       state.visualQueue.length=0;
       state.finished=false;
       state.followedMeasure=-1;
       state.chordStroke=0;
-
-      $("stop").disabled=false;
-
+      renderRecords();
       schedulerTick();
       state.scheduler=setInterval(schedulerTick,25);
       state.raf=requestAnimationFrame(visualLoop);
     }finally{
-      state.starting=false;
-      setAudioEntriesPending(false);
+      if(generation===state.generation){
+        state.starting=false;
+        setAudioEntriesPending(false);
+      }
     }
   }
 
-  // stop() ducks the master bus for ~120ms to swallow the tail of notes already
-  // handed to the audio clock. Anything started inside that window would be
-  // swallowed with them, so every entry point that schedules audio clears the
-  // duck first. Measured before this existed: a note started 60-103ms after a
-  // stop played through a master gain of 0.0001, i.e. was silent.
   function restoreMaster(){
     if(!state.mix||!state.audio) return;
     const gain=state.mix.master.gain;
@@ -729,80 +755,104 @@ import {
     gain.setValueAtTime(MASTER_LEVEL,now);
   }
 
-  // Notes are handed to the audio clock up to a lookahead ahead of time and
-  // cannot be un-scheduled, so duck the master bus briefly instead of letting
-  // them ring on after the stop button.
+  // Cancel sources themselves: restoring a ducked master used to revive long
+  // notes and even future strums after Stop. New playback can now start at once.
   function silenceTail(){
     if(!state.mix||!state.audio) return;
     const gain=state.mix.master.gain;
     const now=state.audio.currentTime;
     gain.cancelScheduledValues(now);
-    gain.setValueAtTime(gain.value,now);
-    gain.linearRampToValueAtTime(.0001,now+.06);
-    gain.setValueAtTime(MASTER_LEVEL,now+.12);
+    gain.setValueAtTime(.0001,now);
+    for(const source of state.sources){
+      try{source.stop(now);}catch{}
+      source.disconnect();
+    }
+    state.sources.clear();
   }
 
   function stop(resetProgress=true){
-    if(state.running) silenceTail();
+    state.generation+=1;
+    state.starting=false;
+    if(state.run){
+      consumeVisualEvents(false);
+      const run=state.run;
+      const elapsedSec=Math.max(0,state.audio.currentTime-run.startedAt);
+      state.pending=elapsedSec>0?{
+        id:crypto.randomUUID(),phraseId:run.phraseId,date:run.date,conditions:run.conditions,
+        observed:{transportCompleted:run.completedLoops>0,completedLoops:run.completedLoops,elapsedSec:Math.round(elapsedSec*100)/100}
+      }:null;
+      $("practice-status").textContent=rangeLabel()+" / "+run.completedLoops+"回再生完了";
+      state.run=null;
+    }
+    silenceTail();
     state.running=false;
     if(state.scheduler) clearInterval(state.scheduler);
     if(state.raf) cancelAnimationFrame(state.raf);
+    if(state.previewTimer) clearTimeout(state.previewTimer);
     state.scheduler=null;
     state.raf=null;
+    state.previewTimer=null;
+    $("preview-backing").textContent="▶ 伴奏だけ1小節";
     state.visualQueue.length=0;
     state.finished=false;
     state.followedMeasure=-1;
-
     setAudioEntriesPending(false);
     $("stop").disabled=true;
     if(resetProgress) updateProgress(0);
+    if(state.phrase) renderRecords();
   }
 
   async function playOne(){
     if(state.starting) return;
+    stop();
+    const generation=state.generation;
     state.starting=true;
     setAudioEntriesPending(true);
     try{
+      await state.ready;
+      if(generation!==state.generation) return;
       await ensureAudio(["nylonGuitar"]);
+      if(generation!==state.generation) return;
       restoreMaster();
       const note=state.model.notes[state.noteIndex];
       scheduleMelody(note,state.audio.currentTime+.02,Number(note.beats)*secondsPerBeat());
       highlightNote(state.noteIndex);
     }finally{
-      state.starting=false;
-      setAudioEntriesPending(false);
+      if(generation===state.generation){
+        state.starting=false;
+        setAudioEntriesPending(false);
+      }
     }
   }
 
   async function previewBacking(){
     if(state.starting) return;
+    stop();
+    const generation=state.generation;
     state.starting=true;
     setAudioEntriesPending(true);
     try{
+      await state.ready;
+      if(generation!==state.generation) return;
       await ensureAudio(backingSampleNames());
+      if(generation!==state.generation) return;
       restoreMaster();
       const measure=measureForNote(state.noteIndex);
       const chord=state.phrase.chords[measure];
       const start=state.audio.currentTime+.05;
       const step=secondsPerBeat()/2;
       state.chordStroke=0;
-
-      for(let inBar=0;inBar<8;inBar++){
-        scheduleBackingGrid(inBar,start+inBar*step,chord);
-      }
-
-      const button=$("preview-backing");
-      if(button){
-        button.textContent="♪ M"+(measure+1)+" "+chord+" 再生中";
-        if(state.previewTimer) window.clearTimeout(state.previewTimer);
-        state.previewTimer=window.setTimeout(()=>{
-          button.textContent="▶ 伴奏だけ1小節";
-          state.previewTimer=null;
-        },Math.ceil(step*8*1000)+150);
-      }
+      for(let inBar=0;inBar<8;inBar++) scheduleBackingGrid(inBar,start+inBar*step,chord);
+      $("preview-backing").textContent="♪ M"+(measure+1)+" "+chord+" 再生中";
+      state.previewTimer=setTimeout(()=>{
+        $("preview-backing").textContent="▶ 伴奏だけ1小節";
+        state.previewTimer=null;
+      },Math.ceil(step*8*1000)+150);
     }finally{
-      state.starting=false;
-      setAudioEntriesPending(false);
+      if(generation===state.generation){
+        state.starting=false;
+        setAudioEntriesPending(false);
+      }
     }
   }
 
@@ -819,6 +869,7 @@ import {
   }
 
   function toggleBacking(type){
+    stop();
     state.backing[type]=!state.backing[type];
     const id=type==="chords"?"backing-chords":type==="bass"?"backing-bass":"backing-drums";
     const labels={chords:"♬ コード",bass:"● ベース",drums:"◉ ドラム"};
@@ -827,29 +878,268 @@ import {
     button.classList.toggle("active",state.backing[type]);
     button.setAttribute("aria-pressed",String(state.backing[type]));
     button.textContent=labels[type]+" "+(state.backing[type]?"ON":"OFF");
+    savePracticePreferences();
+    renderRecords();
+  }
+
+  function rangeLabel(conditions=state.range){
+    return "M"+conditions.start+(conditions.end===conditions.start?"":"–M"+conditions.end);
+  }
+
+  function practiceConditions(){
+    return {
+      ...state.range,tempo:Number($("tempo").value),assist:state.assist,
+      melody:state.melody,countIn:state.countIn,
+      backing:Object.keys(state.backing).filter(part=>state.backing[part])
+    };
+  }
+
+  function restorePracticePreferences(){
+    const saved=state.preferences.phrases?.[state.phrase.id]??{};
+    state.range=practiceRange(state.phrase.measures,saved.start??1,saved.end??state.phrase.measures);
+    state.assist=Object.hasOwn(ASSIST_LABELS,saved.assist)?saved.assist:"full";
+    state.countIn=[0,1,2].includes(saved.countIn)?saved.countIn:0;
+    state.melody=typeof saved.melody==="boolean"?saved.melody:true;
+    if(Array.isArray(saved.backing)){
+      for(const part of Object.keys(state.backing)) state.backing[part]=saved.backing.includes(part);
+    }else{
+      state.backing={chords:true,bass:true,drums:true};
+    }
+    const labels={chords:"♬ コード",bass:"● ベース",drums:"◉ ドラム"};
+    for(const part of Object.keys(state.backing)){
+      const button=$("backing-"+part);
+      button.classList.toggle("active",state.backing[part]);
+      button.setAttribute("aria-pressed",String(state.backing[part]));
+      button.textContent=labels[part]+" "+(state.backing[part]?"ON":"OFF");
+    }
+    if(Number.isInteger(saved.tempo)&&saved.tempo>=40&&saved.tempo<=160){
+      $("tempo").value=String(saved.tempo);
+      $("tempo-label").textContent=String(saved.tempo);
+    }
+    const options=Array.from({length:state.phrase.measures},(_,i)=>'<option value="'+(i+1)+'">M'+(i+1)+'</option>').join("");
+    $("range-start").innerHTML=options;
+    $("range-end").innerHTML=options;
+    state.noteIndex=state.measures[state.range.start-1][0].globalIndex;
+  }
+
+  function savePracticePreferences(){
+    try{
+      const phrases=state.preferences.phrases&&typeof state.preferences.phrases==="object"?state.preferences.phrases:{};
+      state.preferences={selected:state.phrase.id,phrases:{...phrases,[state.phrase.id]:practiceConditions()}};
+      localStorage.setItem(PRACTICE_KEY,JSON.stringify(state.preferences));
+    }catch{
+      $("record-status").textContent="練習設定を保存できませんでした。練習は続けられます。";
+    }
+  }
+
+  function renderPracticeControls(){
+    $("range-start").value=String(state.range.start);
+    $("range-end").value=String(state.range.end);
+    $("range-previous").disabled=state.range.start===1;
+    $("range-next").disabled=state.range.end===state.phrase.measures;
+    $("count-in").value=String(state.countIn);
+    $("assist-mode").value=state.assist;
+    $("melody-toggle").textContent="♪ お手本メロディ "+(state.melody?"ON":"OFF");
+    $("melody-toggle").setAttribute("aria-pressed",String(state.melody));
+    $("melody-toggle").classList.toggle("active",state.melody);
+    document.body.dataset.assist=state.assist;
+    const memory=state.assist==="memory";
+    $("staff").hidden=memory;
+    $("memory-cover").hidden=!memory;
+    $("tab-panel").hidden=memory||state.assist==="staff";
+    document.querySelector(".note-trainer").hidden=memory||state.assist==="staff";
+    $("chord-progression").hidden=memory;
+    $("staff").querySelectorAll(".staff-system").forEach(svg=>{
+      const measure=Number(svg.dataset.measure)+1;
+      const inside=measure>=state.range.start&&measure<=state.range.end;
+      svg.parentElement.classList.toggle("in-range",inside);
+      svg.parentElement.classList.toggle("outside-range",!inside);
+    });
+    highlightNote(state.noteIndex);
+    highlightMeasure(measureForNote(state.noteIndex));
+    $("practice-status").textContent=rangeLabel()+"を練習 / "+ASSIST_LABELS[state.assist];
+  }
+
+  function changeRange(start,end){
+    stop();
+    state.range=practiceRange(state.phrase.measures,start,end);
+    state.noteIndex=state.measures[state.range.start-1][0].globalIndex;
+    renderCurrentNote();
+    renderPracticeControls();
+    savePracticePreferences();
+    renderRecords();
+  }
+
+  function shiftRange(direction){
+    const width=state.range.end-state.range.start+1;
+    const start=Math.max(1,Math.min(state.phrase.measures-width+1,state.range.start+direction*width));
+    changeRange(start,start+width-1);
+  }
+
+  function changeAssist(assist){
+    stop();
+    state.assist=assist;
+    if(assist==="memory") state.melody=false;
+    buildStaff();
+    renderPracticeControls();
+    savePracticePreferences();
+    renderRecords();
+  }
+
+  function conditionsLabel(c){
+    return rangeLabel(c)+"・"+c.tempo+" BPM・"+ASSIST_LABELS[c.assist]+"・お手本"+(c.melody?"あり":"なし");
+  }
+
+  function renderRecords(){
+    if(!state.phrase) return;
+    const pending=state.pending?.phraseId===state.phrase.id?state.pending:null;
+    $("attempt-summary").textContent=state.running?"練習中です。停止後に結果を記録できます。":pending
+      ?conditionsLabel(pending.conditions)+" / "+pending.observed.completedLoops+"回再生完了"
+      :"再生して練習すると、条件と結果を記録できます。";
+    $("record-clean").disabled=state.saving||state.running||!pending?.observed.transportCompleted;
+    $("record-repeat").disabled=state.saving||state.running||!pending;
+    const attempts=state.attempts.filter(item=>item.phraseId===state.phrase.id);
+    $("practice-advice").textContent=practiceAdvice(attempts,practiceConditions());
+    const recent=[...attempts].sort((a,b)=>Date.parse(b.date)-Date.parse(a.date)).slice(0,10);
+    $("attempt-list").replaceChildren();
+    if(!recent.length){
+      const item=document.createElement("li");
+      item.textContent="このフレーズの記録はまだありません。";
+      $("attempt-list").append(item);
+    }
+    for(const attempt of recent){
+      const item=document.createElement("li");
+      item.textContent=new Date(attempt.date).toLocaleString("ja-JP")+" — "+(attempt.reported.clean?"弾けた（自己評価）":"要復習（自己評価）");
+      const detail=document.createElement("small");
+      detail.textContent=conditionsLabel(attempt.conditions)+" / "+attempt.observed.completedLoops+"回再生完了";
+      item.append(detail);
+      $("attempt-list").append(item);
+    }
+  }
+
+  async function saveRecord(clean){
+    const pending=state.pending;
+    if(state.saving||state.running||!pending||pending.phraseId!==state.phrase.id) return;
+    state.saving=true;
+    renderRecords();
+    try{
+      const record=validateAttempt({...pending,reported:{clean}});
+      await state.store.addMany([record]);
+      state.attempts=await state.store.all();
+      if(state.pending?.id===pending.id) state.pending=null;
+      $("record-status").textContent="練習記録を保存しました（自己評価）。";
+    }catch{
+      $("record-status").textContent="記録を保存できませんでした。今回の結果は残してありますので、もう一度お試しください。";
+    }finally{
+      state.saving=false;
+      renderRecords();
+    }
+  }
+
+  async function exportPractice(){
+    try{
+      const attempts=await state.store.all();
+      const blob=new Blob([JSON.stringify({format:"guitar-phrase-practice",version:1,attempts},null,2)],{type:"application/json"});
+      const url=URL.createObjectURL(blob);
+      const link=document.createElement("a");
+      link.href=url;
+      link.download="guitar-practice-"+new Date().toISOString().slice(0,10)+".json";
+      link.click();
+      setTimeout(()=>URL.revokeObjectURL(url),1000);
+      $("record-status").textContent=attempts.length+"件の記録を書き出しました。";
+    }catch{
+      $("record-status").textContent="記録を書き出せませんでした。もう一度お試しください。";
+    }
+  }
+
+  async function importPractice(file){
+    if(!file) return;
+    try{
+      if(file.size>5_000_000) throw new Error("バックアップは5MB以下にしてください。");
+      const attempts=parsePracticeBackup(await file.text());
+      await state.store.addMany(attempts);
+      state.attempts=await state.store.all();
+      renderRecords();
+      $("record-status").textContent="記録を読み込みました。重複を除き全"+state.attempts.length+"件です。";
+    }catch(error){
+      $("record-status").textContent="読み込めませんでした。既存の記録は保持しています。"+(error instanceof SyntaxError?"JSON形式を確認してください。":error.message);
+    }finally{
+      $("practice-file").value="";
+    }
+  }
+
+  function bindPracticeEvents(){
+    $("range-start").addEventListener("change",event=>changeRange(event.target.value,state.range.end));
+    $("range-end").addEventListener("change",event=>changeRange(Math.min(state.range.start,Number(event.target.value)),event.target.value));
+    $("range-one").addEventListener("click",()=>changeRange(state.range.start,state.range.start));
+    $("range-two").addEventListener("click",()=>changeRange(state.range.start,state.range.start+1));
+    $("range-all").addEventListener("click",()=>changeRange(1,state.phrase.measures));
+    $("range-previous").addEventListener("click",()=>shiftRange(-1));
+    $("range-next").addEventListener("click",()=>shiftRange(1));
+    $("assist-mode").addEventListener("change",event=>changeAssist(event.target.value));
+    $("reveal-score").addEventListener("click",()=>changeAssist("full"));
+    $("count-in").addEventListener("change",event=>{
+      stop();state.countIn=Number(event.target.value);savePracticePreferences();renderRecords();
+    });
+    $("melody-toggle").addEventListener("click",()=>{
+      stop();state.melody=!state.melody;renderPracticeControls();savePracticePreferences();renderRecords();
+    });
+    $("record-clean").addEventListener("click",()=>void saveRecord(true));
+    $("record-repeat").addEventListener("click",()=>void saveRecord(false));
+    $("export-practice").addEventListener("click",()=>void exportPractice());
+    $("import-practice").addEventListener("click",()=>$("practice-file").click());
+    $("practice-file").addEventListener("change",event=>void importPractice(event.target.files[0]));
+    document.addEventListener("visibilitychange",()=>{
+      if(document.hidden) stop();
+    });
+    window.addEventListener("pagehide",()=>stop());
   }
 
   async function bootstrap(){
     try{
       renderSoundMode();
-      await loadData();
+      // A load event does not guarantee that the asynchronous lesson fetch has
+      // finished. Accept audio actions now and let them await the same data.
+      state.ready=loadData();
+      $("play").addEventListener("click",()=>play().catch(alert));
+      $("stop").addEventListener("click",()=>stop());
+      $("play-note").addEventListener("click",()=>playOne().catch(alert));
+      $("preview-backing").addEventListener("click",()=>previewBacking().catch(alert));
+      await state.ready;
       buildSelect();
+      try{
+        const saved=JSON.parse(localStorage.getItem(PRACTICE_KEY)||"{}");
+        if(saved&&typeof saved==="object") state.preferences=saved;
+      }catch{}
+      state.index=Math.max(0,state.data.phrases.findIndex(phrase=>phrase.id===state.preferences.selected));
       renderPhrase();
+      bindPracticeEvents();
+      try{
+        state.store=createPracticeStore(window.indexedDB);
+        void state.store.all().then(attempts=>{
+          state.attempts=attempts;renderRecords();
+        }).catch(()=>{
+          $("record-status").textContent="練習記録を読み込めませんでした。再生は利用できます。";
+        });
+      }catch{
+        $("record-status").textContent="練習記録を読み込めませんでした。再生は利用できます。";
+      }
 
       $("phrase-select").addEventListener("change",(e)=>{
         state.index=Number(e.target.value);
         renderPhrase();
+        savePracticePreferences();
       });
-      $("tempo").addEventListener("input",(e)=>$("tempo-label").textContent=e.target.value);
+      $("tempo").addEventListener("input",(e)=>{
+        stop();$("tempo-label").textContent=e.target.value;savePracticePreferences();renderRecords();
+      });
       $("sound-mode-toggle").addEventListener("click",toggleSoundMode);
-      $("play").addEventListener("click",()=>play().catch(alert));
-      $("stop").addEventListener("click",()=>stop());
       $("loop").addEventListener("click",()=>{
+        stop();
         state.loop=!state.loop;
         $("loop").setAttribute("aria-pressed",String(state.loop));
         $("loop").textContent=state.loop?"↻ ループON":"↻ ループOFF";
       });
-      $("play-note").addEventListener("click",()=>playOne().catch(alert));
       $("previous-note").addEventListener("click",()=>moveNote(-1));
       $("next-note").addEventListener("click",()=>moveNote(1));
       $("follow-toggle").addEventListener("click",()=>{
@@ -861,7 +1151,6 @@ import {
       $("backing-chords").addEventListener("click",()=>toggleBacking("chords"));
       $("backing-bass").addEventListener("click",()=>toggleBacking("bass"));
       $("backing-drums").addEventListener("click",()=>toggleBacking("drums"));
-      $("preview-backing")?.addEventListener("click",()=>previewBacking().catch(alert));
     }catch(error){
       document.body.insertAdjacentHTML("beforeend",'<p style="padding:16px;color:#9e3f2f">'+escapeHtml(error.message)+"</p>");
     }
