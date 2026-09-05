@@ -19,7 +19,9 @@ jobs:
         with:
           node-version: 22
       - name: Apply fixes
-        run: node scripts/apply-phase3-recorder-fix.mjs
+        run: |
+          node scripts/apply-phase3-recorder-fix.mjs
+          node -e "const fs=require('fs'); const p='tests/unit/recorder.test.mjs'; fs.writeFileSync(p,fs.readFileSync(p,'utf8').trimEnd()+'\\n');"
       - name: Validate syntax and unit tests
         run: |
           node --check guitar.js
