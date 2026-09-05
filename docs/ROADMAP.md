@@ -5,25 +5,28 @@
 
 ---
 
-## CURRENT PHASE — Phase 2: 共通時間基盤
+## CURRENT PHASE: Phase 3 — 録音・自己モニタリング
 
-**状態: IN REVIEW / MERGE GATE**
+**状態: CURRENT / IMPLEMENTATION**
 
-現在は **Phase 2 — 共通時間基盤** です。
-PR #12 `先読みスケジューラを共通クロックへ統合` が、このPhaseの完了PRです。
+現在は **Phase 3 — 録音・自己モニタリング** です。
+Phase 2 — 共通時間基盤は PR #12 の `main` マージにより完了しました。
 
-完了ゲート:
+Phase 3 の完了ゲート:
 
-- `core/clock.js` が `guitar.js` / `phrase.js` の共通時間基盤になっている
-- 発音基準が `AudioContext.currentTime` のまま維持されている
-- PR #11 の区間再生・予備拍・Attempt・STOP時予約取消に回帰がない
-- `npm test` / `npm run test:e2e` / GitHub Actions が成功する
-- PR #12 が `main` へマージされる
+- 明示操作からのみマイク権限を要求する
+- 録音 → 聴き返し → 自己レビュー → Attempt保存が成立する
+- 録音とAttemptが同一IDで関連付く
+- IndexedDB v1→v2 migrationで既存Attemptを保持する
+- 録音失敗・権限拒否でも通常練習が使える
+- 録音Blobを練習記録JSONへ含めない
+- 全検証とGitHub Actionsが成功する
+- Phase 3 PRが `main` へマージされる
 
-**NEXT PHASE: Phase 3 — 録音・自己モニタリング**
+**NEXT PHASE: Phase 4 — 測定・処方基盤**
 
-PR #12 マージ後に始める最初の実装は `docs/TASK-NEXT-RECORDING.md` です。
-Phase 3 の作業ブランチでは、コード変更より先にこの `CURRENT PHASE` を Phase 3 へ更新してください。
+Phase 3 の実装仕様は `docs/TASK-NEXT-RECORDING.md` を正とします。
+Phase 3 PRが `main` へマージされるまで、CURRENT PHASEをPhase 4へ進めません。
 
 ---
 
@@ -54,9 +57,9 @@ Phase 3 の作業ブランチでは、コード変更より先にこの `CURRENT
 |---|---|---|---|
 | 0 | 配信・再生・譜面基盤 | DONE | 静的配信、オフライン、テスト、音源、譜面の土台 |
 | 1 | 集中練習ループ | DONE | 区間反復、Assist Fade、予備拍、条件付きAttempt |
-| 2 | 共通時間基盤 | **CURRENT** | 発音・将来の測定が共有する AudioContext clock |
-| 3 | 録音・自己モニタリング | NEXT | 演奏を録音し、聴き返して自己評価する |
-| 4 | 測定・処方基盤 | PLANNED | measured / observed / reported、校正、弱点処方 |
+| 2 | 共通時間基盤 | DONE | 発音・将来の測定が共有する AudioContext clock |
+| 3 | 録音・自己モニタリング | **CURRENT** | 演奏を録音し、聴き返して自己評価する |
+| 4 | 測定・処方基盤 | NEXT | measured / observed / reported、校正、弱点処方 |
 | 5 | Safari / WebKit 信頼性 | PLANNED | iPhoneを含むブラウザ境界の最小回帰 |
 | 6 | 教材・記譜・音源の拡張 | PLANNED | 能力ID教材、休符・複声部・任意拍子、遅延decode |
 | 7 | 音源取込・分離・自動採譜 | FUTURE | Import / Analysis pipeline |
@@ -104,7 +107,7 @@ Phase 3 の作業ブランチでは、コード変更より先にこの `CURRENT
 
 ## 4. Phase 2 — 共通時間基盤
 
-**状態: CURRENT — PR #12 review / merge gate**
+**状態: DONE — PR #12**
 
 目的:
 
@@ -126,7 +129,7 @@ Phase 2 完了後、この時計を再設計するのではなく、Phase 3以�
 
 ## 5. Phase 3 — 録音・自己モニタリング
 
-**状態: NEXT**
+**状態: CURRENT**
 
 目的:
 
@@ -164,7 +167,7 @@ Attemptとして保存
 
 ## 6. Phase 4 — 測定・処方基盤
 
-**状態: PLANNED**
+**状態: NEXT**
 
 目的:
 
