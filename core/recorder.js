@@ -150,6 +150,10 @@ export function createRecorder({
       resolveFinish=resolve;
       rejectFinish=reject;
     });
+    // Runtime failures can happen before the UI calls stop(). Attach a handler
+    // immediately so they never surface as an unhandled rejection; callers that
+    // later await stop() still receive the original rejection.
+    void finishPromise.catch(()=>{});
 
     bind(mediaRecorder,"dataavailable",event=>{
       if(event?.data?.size>0) chunks.push(event.data);
