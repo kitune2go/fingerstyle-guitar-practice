@@ -54,6 +54,7 @@ export function createRecorder({
   let finishPromise=null;
   let resolveFinish=null;
   let rejectFinish=null;
+  let finishSettled=false;
   let limitTimer=null;
   let discard=false;
   let limitReached=false;
@@ -71,6 +72,18 @@ export function createRecorder({
     limitTimer=null;
   };
 
+  const settleFinish=(kind,value)=>{
+    if(finishSettled) return false;
+    finishSettled=true;
+    const resolve=resolveFinish;
+    const reject=rejectFinish;
+    resolveFinish=null;
+    rejectFinish=null;
+    if(kind==="reject") reject?.(value);
+    else resolve?.(value);
+    return true;
+  };
+
   const resetRecorder=()=>{
     mediaRecorder=null;
     chunks=[];
@@ -78,6 +91,7 @@ export function createRecorder({
     finishPromise=null;
     resolveFinish=null;
     rejectFinish=null;
+    finishSettled=false;
     discard=false;
     limitReached=false;
   };
@@ -146,6 +160,7 @@ export function createRecorder({
     chunks=[];
     discard=false;
     limitReached=false;
+    finishSettled=false;
     finishPromise=new Promise((resolve,reject)=>{
       resolveFinish=resolve;
       rejectFinish=reject;
@@ -159,41 +174,44 @@ export function createRecorder({
       if(event?.data?.size>0) chunks.push(event.data);
     });
     bind(mediaRecorder,"error",event=>{
+      if(finishSettled) return;
       clearLimit();
       const error=recorderError("runtime-error","録音中にエラーが発生しました。",event?.error);
       status="failed";
+      lastResult=null;
       releaseStream();
-      rejectFinish?.(error);
-      resolveFinish=null;
-      rejectFinish=null;
+      settleFinish("reject",error);
       onError?.(error);
     });
     bind(mediaRecorder,"stop",()=>{
       clearLimit();
+      // Some implementations dispatch stop after error. The runtime failure is
+      // terminal for this recording; never overwrite it with a false success.
+      if(finishSettled) return;
       const settings=trackSettings(activeStream);
       releaseStream();
       if(discard){
         lastResult=null;
         status="idle";
-        resolveFinish?.(null);
+        settleFinish("resolve",null);
       }else{
         const mimeType=mediaRecorder?.mimeType||selectedMime||chunks.find(chunk=>chunk?.type)?.type||"";
         const blob=new BlobClass(chunks,mimeType?{type:mimeType}:undefined);
         lastResult={blob,mimeType:blob.type||mimeType,size:blob.size,settings,limitReached};
         status="complete";
-        resolveFinish?.(lastResult);
+        settleFinish("resolve",lastResult);
       }
-      resolveFinish=null;
-      rejectFinish=null;
     });
 
     try{
       mediaRecorder.start();
     }catch(error){
       releaseStream();
+      const failure=recorderError("start-failed","録音を開始できませんでした。",error);
+      settleFinish("reject",failure);
       resetRecorder();
       status="failed";
-      throw recorderError("start-failed","録音を開始できませんでした。",error);
+      throw failure;
     }
     status="recording";
     if(Number.isFinite(maxDurationMs)&&maxDurationMs>0){
@@ -209,7 +227,13 @@ export function createRecorder({
   function stop(){
     requestToken+=1;
     clearLimit();
+    if(status==="requesting"){
+      status="idle";
+      releaseStream();
+      return Promise.resolve(null);
+    }
     if(status==="stopping") return finishPromise??Promise.resolve(lastResult);
+    if(status==="failed"&&finishPromise) return finishPromise;
     if(status!=="recording"){
       releaseStream();
       return Promise.resolve(lastResult);
@@ -220,8 +244,9 @@ export function createRecorder({
     }catch(error){
       releaseStream();
       status="failed";
+      lastResult=null;
       const failure=recorderError("stop-failed","録音を終了できませんでした。",error);
-      rejectFinish?.(failure);
+      settleFinish("reject",failure);
       onError?.(failure);
     }
     return finishPromise??Promise.resolve(null);
@@ -237,13 +262,14 @@ export function createRecorder({
       try{mediaRecorder.stop();}catch{
         releaseStream();
         status="idle";
-        resolveFinish?.(null);
+        settleFinish("resolve",null);
       }
       return finishPromise??Promise.resolve(null);
     }
     if(status==="stopping") return finishPromise??Promise.resolve(null);
     releaseStream();
     status="idle";
+    resetRecorder();
     return Promise.resolve(null);
   }
 

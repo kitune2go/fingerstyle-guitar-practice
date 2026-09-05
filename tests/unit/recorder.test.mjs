@@ -170,3 +170,64 @@ test("duration limit is driven by injected timers rather than real sleep",async(
   assert.equal(env.track.stopped,1);
   assert.ok(cleared>=1);
 });
+
+test("runtime error remains terminal even if a later stop event arrives",async()=>{
+  const env=fakeEnvironment();
+  const errors=[];
+  const recorder=createRecorder({mediaDevices:env.mediaDevices,MediaRecorderClass:env.FakeMediaRecorder,onError:error=>errors.push(error)});
+  await recorder.start();
+  const instance=env.FakeMediaRecorder.instances[0];
+  instance.fail();
+  await assert.rejects(recorder.stop(),error=>error.code==="runtime-error");
+  instance.emit("stop");
+  await new Promise(resolve=>queueMicrotask(resolve));
+  assert.equal(recorder.state,"failed");
+  assert.equal(recorder.result,null);
+  assert.equal(env.track.stopped,1);
+  assert.equal(errors.length,1);
+});
+
+test("stop during microphone request cancels acquisition and returns to idle",async()=>{
+  const env=fakeEnvironment();
+  let resolveAcquire;
+  const mediaDevices={getUserMedia(){return new Promise(resolve=>{resolveAcquire=resolve;});}};
+  const recorder=createRecorder({mediaDevices,MediaRecorderClass:env.FakeMediaRecorder});
+  const starting=recorder.start();
+  assert.equal(recorder.state,"requesting");
+  assert.equal(await recorder.stop(),null);
+  assert.equal(recorder.state,"idle");
+  resolveAcquire(env.stream);
+  await assert.rejects(starting,error=>error.code==="cancelled");
+  assert.equal(recorder.state,"idle");
+  assert.equal(env.track.stopped,1);
+});
+
+test("repeated cancel during microphone request stays idle and releases the acquired track once",async()=>{
+  const env=fakeEnvironment();
+  let resolveAcquire;
+  const mediaDevices={getUserMedia(){return new Promise(resolve=>{resolveAcquire=resolve;});}};
+  const recorder=createRecorder({mediaDevices,MediaRecorderClass:env.FakeMediaRecorder});
+  const starting=recorder.start();
+  await recorder.cancel();
+  await recorder.cancel();
+  assert.equal(recorder.state,"idle");
+  resolveAcquire(env.stream);
+  await assert.rejects(starting,error=>error.code==="cancelled");
+  assert.equal(recorder.state,"idle");
+  assert.equal(env.track.stopped,1);
+});
+
+test("synchronous recorder stop failure settles the finish promise exactly once",async()=>{
+  const env=fakeEnvironment();
+  const errors=[];
+  const recorder=createRecorder({mediaDevices:env.mediaDevices,MediaRecorderClass:env.FakeMediaRecorder,onError:error=>errors.push(error)});
+  await recorder.start();
+  const instance=env.FakeMediaRecorder.instances[0];
+  instance.stop=()=>{throw new Error("stop failed");};
+  await assert.rejects(recorder.stop(),error=>error.code==="stop-failed");
+  await assert.rejects(recorder.stop(),error=>error.code==="stop-failed");
+  assert.equal(recorder.state,"failed");
+  assert.equal(recorder.result,null);
+  assert.equal(env.track.stopped,1);
+  assert.equal(errors.length,1);
+});

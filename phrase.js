@@ -1268,7 +1268,7 @@ import {
     }catch(error){
       const quota=error?.name==="QuotaExceededError"||error?.cause?.name==="QuotaExceededError";
       $("record-status").textContent=quota
-        ?"端末の保存容量が不足しています。記録と録音は保存していません。今回の結果は残してありますので、不要な録音を削除して再試行してください。"
+        ?"端末の保存容量が不足しているため保存できませんでした。記録と録音は保存していません。今回の結果は残してありますので、不要な録音を削除して再試行してください。"
         :"記録を保存できませんでした。記録と録音は保存していません。今回の結果は残してありますので、もう一度お試しください。";
     }finally{
       state.saving=false;
