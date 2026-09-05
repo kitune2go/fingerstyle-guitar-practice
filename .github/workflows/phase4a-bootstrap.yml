@@ -27,17 +27,19 @@ jobs:
           text=path.read_text()
           start=text.index('## CURRENT PHASE:')
           end=text.index('\n---\n',start)
-          block='''## CURRENT PHASE: Phase 4 — 診断・測定・処方基盤
-
-**状態: CURRENT**
-
-**CURRENT SUBPHASE: Phase 4A — 診断focusモデル**
-
-**NEXT SUBPHASE: Phase 4B — 測定・処方**
-
-Phase 3 — 録音・自己モニタリングは PR #13 の `main` マージにより完了しました。
-現在は `docs/TASK-NEXT-DIAGNOSTIC-FOCUS.md` を正として Phase 4A を実装します。
-'''
+          block='\n'.join([
+              '## CURRENT PHASE: Phase 4 — 診断・測定・処方基盤',
+              '',
+              '**状態: CURRENT**',
+              '',
+              '**CURRENT SUBPHASE: Phase 4A — 診断focusモデル**',
+              '',
+              '**NEXT SUBPHASE: Phase 4B — 測定・処方**',
+              '',
+              'Phase 3 — 録音・自己モニタリングは PR #13 の `main` マージにより完了しました。',
+              '現在は `docs/TASK-NEXT-DIAGNOSTIC-FOCUS.md` を正として Phase 4A を実装します。',
+              ''
+          ])
           text=text[:start]+block+text[end:]
           text=text.replace('| 3 | 録音・自己モニタリング | **CURRENT** | 演奏を録音し、聴き返して自己評価する |','| 3 | 録音・自己モニタリング | DONE | 演奏を録音し、聴き返して自己評価する |')
           text=text.replace('| 4 | 診断・測定・処方基盤 | NEXT | focusMode、measured/observed/reported、校正、弱点処方 |','| 4 | 診断・測定・処方基盤 | **CURRENT** | focusMode、measured/observed/reported、校正、弱点処方 |')
