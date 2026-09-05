@@ -5,6 +5,8 @@ export const ASSIST_LABELS=Object.freeze({
   memory:"暗譜（譜面なし）"
 });
 
+export const SELF_REVIEW_KEYS=Object.freeze(["noise","evenness","tone","flow"]);
+
 export function practiceRange(total,start=1,end=total){
   const bounded=value=>Math.max(1,Math.min(total,Math.round(Number(value)||1)));
   const first=bounded(start);
@@ -59,6 +61,18 @@ function requireValue(condition,message){
   if(!condition) throw new Error(message);
 }
 
+function validateSelfReview(review){
+  if(review===undefined) return undefined;
+  requireValue(review&&typeof review==="object"&&!Array.isArray(review),"自己レビューの形式が不正です。");
+  const result={};
+  for(const key of SELF_REVIEW_KEYS){
+    requireValue(Number.isInteger(review[key])&&review[key]>=1&&review[key]<=3,"自己レビューは1〜3で記録してください。");
+    result[key]=review[key];
+  }
+  requireValue(Object.keys(review).every(key=>SELF_REVIEW_KEYS.includes(key)),"自己レビューに未対応の項目があります。");
+  return result;
+}
+
 export function validateAttempt(value){
   requireValue(value&&typeof value==="object","練習記録の形式が不正です。");
   const {id,phraseId,date,conditions:c,observed:o,reported:r}=value;
@@ -76,12 +90,15 @@ export function validateAttempt(value){
   requireValue(Number.isFinite(o.elapsedSec)&&o.elapsedSec>=0&&o.elapsedSec<=604800,"練習時間が不正です。");
   requireValue(typeof r.clean==="boolean","自己評価が不正です。");
   requireValue(!r.clean||o.transportCompleted,"区間の再生完了前には達成を記録できません。");
+  const review=validateSelfReview(r.review);
+  const reported={clean:r.clean};
+  if(review) reported.review=review;
   // Rebuild records instead of trusting imported assessment or measured fields.
   return {
     id,phraseId,date,
     conditions:{tempo:c.tempo,start:c.start,end:c.end,assist:c.assist,melody:c.melody,countIn:c.countIn,backing:[...c.backing]},
     observed:{transportCompleted:o.transportCompleted,completedLoops:o.completedLoops,elapsedSec:o.elapsedSec},
-    reported:{clean:r.clean},
+    reported,
     assessment:{status:r.clean?"provisional":"fail",basis:"reported"}
   };
 }
