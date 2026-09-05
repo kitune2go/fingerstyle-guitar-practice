@@ -99,17 +99,19 @@ GitHub Pages 上のアプリは3モードで構成します。
 
 - 教材データ: `data/phrases.json`
 - 画面: `phrase.html`
-- 再生・譜面同期: `phrase.js`
+- 再生・譜面同期: `phrase.js` / `core/music.js` / `core/notation.js`
 - 検証: `scripts/validate-phrases.mjs`
 
-初期教材には、開放弦 i–m、3→2→1→2 弦またぎ、Cメジャー往復、1弦 5–8–10 を収録しています。
-フレーズはJSONへ追加でき、音名・弦・フレット・音価・右手指を検証してから公開できます。
+初期教材には、開放弦 i–m、3→2→1→2 弦またぎ、Cメジャー往復、1弦 5–8–10、A7ブルースを収録しています。
+フレーズはJSONへ追加でき、音名・弦・フレット・記譜音価・実時間の長さ・連符・特殊奏法・右手指を検証してから公開できます。
 
 ### フレーズ追加時の制約
 
-- `key` は `phrase.js` の `keyFifths` に載っている調のみ（`validate-phrases.mjs` が拒否します）
+- `key` は `core/music.js` の `SUPPORTED_KEYS` に載っている調のみ（`validate-phrases.mjs` が拒否します）
 - 調号に含まれる音には臨時記号を書かない。譜面側が自動で判断します
-- 音価は 0.5 / 1 / 2 / 4 拍のみ。TABの桁幅は音価から自動計算されます
+- 普通の音価は全音符から32分音符まで。付点は `notated.dots`、連符は `timeModification` と表示用 `tuplets` を分けて記述します
+- タイ、スラー、H/P、スライド、ベンド、ハーモニクス、ビブラート、パームミュートは `phrase.notations` に関係として記述します
+- 五線譜と標準TABは同梱の VexFlow / Bravura で描画し、初回キャッシュ完了後はオフラインでも表示します
 
 ## オフライン動作
 

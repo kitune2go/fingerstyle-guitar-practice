@@ -315,6 +315,29 @@ test("G major score shows key signature marker", async ({ page }) => {
   await expect(page.locator(".staff-system").first().locator("[data-staff-line]")).toHaveCount(5);
 });
 
+test("A7 score engraves tuplets and guitar techniques", async ({ page }) => {
+  const errors=[];
+  page.on("pageerror",error=>errors.push(error.message));
+
+  await page.goto(base+"/phrase.html");
+  await page.locator("#phrase-select").selectOption("4");
+  await expect(page.locator("#phrase-title")).toHaveText("A7ブルース・ロック 8小節");
+  await expect(page.locator(".staff-system")).toHaveCount(8);
+  await expect(page.locator('[data-notation-type="tuplet"]')).toHaveCount(2);
+  await expect(page.locator('[data-notation-type="bend"]')).toHaveCount(2);
+  await expect(page.locator('[data-notation-type="hammer-on"]')).toHaveCount(5);
+  await expect(page.locator('[data-notation-type="pull-off"]')).toHaveCount(1);
+  await expect(page.locator('[data-notation-type="slide"]')).toHaveCount(1);
+  await expect(page.locator('[data-note-index="50"]')).toHaveAttribute("aria-label",/8分音符 3連符/);
+
+  await page.locator('[data-note-index="11"]').click();
+  await expect(page.locator("#note-name")).toHaveText("F#4");
+  await expect(page.locator("#note-finger")).toContainText("ベンド Full");
+  await expect(page.locator(".staff-system").nth(6)).toContainText("3");
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=document.documentElement.clientWidth)).toBeTruthy();
+  expect(errors).toEqual([]);
+});
+
 test("rhythm practice is integrated and interactive", async ({ page }) => {
   const errors=[];
   page.on("pageerror",error=>errors.push(error.message));

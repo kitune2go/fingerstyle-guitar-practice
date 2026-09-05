@@ -1,6 +1,6 @@
 {
-  "schemaVersion": 2,
-  "updatedAt": "2026-09-01T22:35:00+09:00",
+  "schemaVersion": 3,
+  "updatedAt": "2026-09-05T08:20:00+09:00",
   "phrases": [
     {
       "id": "c-major-eight-bars",
@@ -1026,7 +1026,7 @@
       "id": "a7-blues-rock-eight-bars",
       "title": "A7ブルース・ロック 8小節",
       "subtitle": "譜割りを追いながら、コード感と単音を一続きにする",
-      "objective": "Char系のブルース・ロック語法を手がかりにしたオリジナル8小節です。フレーズ練習の譜面表示と再生で、8分音符と伸ばす音の位置を確認してください。特にC→C#、1音チョーキング、スライド、5h7p5に相当する動きを意識します。",
+      "objective": "Char系のブルース・ロック語法を手がかりにしたオリジナル8小節です。標準的な五線譜とTAB譜で、8分音符の3連符、全音ベンド、スライド、ハンマリング／プリングの関係を確認します。",
       "key": "A",
       "keyLabel": "A Blues / A7",
       "bpm": 84,
@@ -1087,6 +1087,7 @@
           "finger": "U"
         },
         {
+          "id": "a7-m2-c",
           "name": "C4",
           "string": 3,
           "fret": 5,
@@ -1108,12 +1109,12 @@
           "finger": "D"
         },
         {
+          "id": "a7-m2-c-sharp",
           "name": "C#4",
           "string": 3,
           "fret": 6,
           "beats": 0.5,
-          "finger": "U",
-          "technique": "hammer"
+          "finger": "U"
         },
         {
           "name": "E4",
@@ -1123,12 +1124,12 @@
           "finger": "D"
         },
         {
-          "name": "G#4",
+          "id": "a7-m2-bend",
+          "name": "F#4",
           "string": 2,
           "fret": 7,
           "beats": 1,
-          "finger": "U",
-          "technique": "full-step-bend"
+          "finger": "U"
         },
         {
           "name": "F#4",
@@ -1215,6 +1216,7 @@
           "finger": "D"
         },
         {
+          "id": "a7-m4-f-sharp",
           "name": "F#4",
           "string": 2,
           "fret": 7,
@@ -1222,20 +1224,20 @@
           "finger": "U"
         },
         {
+          "id": "a7-m4-slide-a",
           "name": "A4",
           "string": 2,
           "fret": 10,
           "beats": 0.5,
-          "finger": "D",
-          "technique": "slide"
+          "finger": "D"
         },
         {
-          "name": "B4",
+          "id": "a7-m4-bend",
+          "name": "A4",
           "string": 2,
           "fret": 10,
           "beats": 1,
-          "finger": "U",
-          "technique": "full-step-bend"
+          "finger": "U"
         },
         {
           "name": "A4",
@@ -1266,6 +1268,7 @@
           "finger": "D"
         },
         {
+          "id": "a7-m5-c",
           "name": "C4",
           "string": 3,
           "fret": 5,
@@ -1273,12 +1276,12 @@
           "finger": "U"
         },
         {
+          "id": "a7-m5-c-sharp",
           "name": "C#4",
           "string": 3,
           "fret": 6,
           "beats": 0.5,
-          "finger": "D",
-          "technique": "hammer"
+          "finger": "D"
         },
         {
           "name": "E4",
@@ -1316,6 +1319,7 @@
           "finger": "U"
         },
         {
+          "id": "a7-m6-c",
           "name": "C4",
           "string": 3,
           "fret": 5,
@@ -1323,14 +1327,15 @@
           "finger": "D"
         },
         {
+          "id": "a7-m6-c-sharp",
           "name": "C#4",
           "string": 3,
           "fret": 6,
           "beats": 0.5,
-          "finger": "U",
-          "technique": "hammer"
+          "finger": "U"
         },
         {
+          "id": "a7-m6-e-up",
           "name": "E4",
           "string": 2,
           "fret": 5,
@@ -1338,20 +1343,20 @@
           "finger": "D"
         },
         {
+          "id": "a7-m6-f-sharp",
           "name": "F#4",
           "string": 2,
           "fret": 7,
           "beats": 0.5,
-          "finger": "U",
-          "technique": "hammer"
+          "finger": "U"
         },
         {
+          "id": "a7-m6-e-down",
           "name": "E4",
           "string": 2,
           "fret": 5,
           "beats": 0.5,
-          "finger": "D",
-          "technique": "pull"
+          "finger": "D"
         },
         {
           "name": "C#4",
@@ -1403,32 +1408,100 @@
           "finger": "U"
         },
         {
+          "id": "a7-m7-triplet-1",
           "name": "C#4",
           "string": 2,
           "fret": 2,
-          "beats": 0.5,
-          "finger": "D"
+          "beats": 0.3333333333333333,
+          "finger": "D",
+          "notated": {
+            "type": "eighth"
+          },
+          "timeModification": {
+            "actualNotes": 3,
+            "normalNotes": 2,
+            "normalType": "eighth"
+          }
         },
         {
+          "id": "a7-m7-triplet-2",
+          "name": "B3",
+          "string": 2,
+          "fret": 0,
+          "beats": 0.3333333333333333,
+          "finger": "U",
+          "notated": {
+            "type": "eighth"
+          },
+          "timeModification": {
+            "actualNotes": 3,
+            "normalNotes": 2,
+            "normalType": "eighth"
+          }
+        },
+        {
+          "id": "a7-m7-triplet-3",
           "name": "A3",
           "string": 3,
           "fret": 2,
-          "beats": 0.5,
-          "finger": "U"
+          "beats": 0.3333333333333333,
+          "finger": "D",
+          "notated": {
+            "type": "eighth"
+          },
+          "timeModification": {
+            "actualNotes": 3,
+            "normalNotes": 2,
+            "normalType": "eighth"
+          }
         },
         {
+          "id": "a7-m7-triplet-4",
           "name": "F#3",
           "string": 4,
           "fret": 4,
-          "beats": 0.5,
-          "finger": "D"
+          "beats": 0.3333333333333333,
+          "finger": "U",
+          "notated": {
+            "type": "eighth"
+          },
+          "timeModification": {
+            "actualNotes": 3,
+            "normalNotes": 2,
+            "normalType": "eighth"
+          }
         },
         {
+          "id": "a7-m7-triplet-5",
+          "name": "E3",
+          "string": 4,
+          "fret": 2,
+          "beats": 0.3333333333333333,
+          "finger": "D",
+          "notated": {
+            "type": "eighth"
+          },
+          "timeModification": {
+            "actualNotes": 3,
+            "normalNotes": 2,
+            "normalType": "eighth"
+          }
+        },
+        {
+          "id": "a7-m7-triplet-6",
           "name": "D3",
           "string": 5,
           "fret": 5,
-          "beats": 0.5,
-          "finger": "U"
+          "beats": 0.3333333333333333,
+          "finger": "U",
+          "notated": {
+            "type": "eighth"
+          },
+          "timeModification": {
+            "actualNotes": 3,
+            "normalNotes": 2,
+            "normalType": "eighth"
+          }
         },
         {
           "name": "A2",
@@ -1438,6 +1511,7 @@
           "finger": "D"
         },
         {
+          "id": "a7-m8-c",
           "name": "C4",
           "string": 3,
           "fret": 5,
@@ -1445,12 +1519,12 @@
           "finger": "U"
         },
         {
+          "id": "a7-m8-c-sharp",
           "name": "C#4",
           "string": 3,
           "fret": 6,
           "beats": 0.5,
-          "finger": "D",
-          "technique": "hammer"
+          "finger": "D"
         },
         {
           "name": "E4",
@@ -1488,8 +1562,129 @@
           "finger": "U"
         }
       ],
+      "tuplets": [
+        {
+          "id": "a7-triplet-beat-3",
+          "from": "a7-m7-triplet-1",
+          "to": "a7-m7-triplet-3",
+          "actualNotes": 3,
+          "normalNotes": 2,
+          "bracket": false,
+          "showNumber": "actual",
+          "placement": "below"
+        },
+        {
+          "id": "a7-triplet-beat-4",
+          "from": "a7-m7-triplet-4",
+          "to": "a7-m7-triplet-6",
+          "actualNotes": 3,
+          "normalNotes": 2,
+          "bracket": false,
+          "showNumber": "actual",
+          "placement": "above"
+        }
+      ],
+      "notations": [
+        {
+          "type": "slur",
+          "from": "a7-m2-c",
+          "to": "a7-m2-c-sharp",
+          "number": 1,
+          "placement": "above"
+        },
+        {
+          "type": "hammer-on",
+          "from": "a7-m2-c",
+          "to": "a7-m2-c-sharp",
+          "number": 1,
+          "label": "H"
+        },
+        {
+          "type": "bend",
+          "note": "a7-m2-bend",
+          "bendAlter": 2,
+          "label": "Full",
+          "targetName": "G#4"
+        },
+        {
+          "type": "slide",
+          "from": "a7-m4-f-sharp",
+          "to": "a7-m4-slide-a",
+          "number": 1
+        },
+        {
+          "type": "bend",
+          "note": "a7-m4-bend",
+          "bendAlter": 2,
+          "label": "Full",
+          "targetName": "B4"
+        },
+        {
+          "type": "slur",
+          "from": "a7-m5-c",
+          "to": "a7-m5-c-sharp",
+          "number": 1,
+          "placement": "above"
+        },
+        {
+          "type": "hammer-on",
+          "from": "a7-m5-c",
+          "to": "a7-m5-c-sharp",
+          "number": 1,
+          "label": "H"
+        },
+        {
+          "type": "slur",
+          "from": "a7-m6-c",
+          "to": "a7-m6-c-sharp",
+          "number": 1,
+          "placement": "above"
+        },
+        {
+          "type": "hammer-on",
+          "from": "a7-m6-c",
+          "to": "a7-m6-c-sharp",
+          "number": 1,
+          "label": "H"
+        },
+        {
+          "type": "slur",
+          "from": "a7-m6-e-up",
+          "to": "a7-m6-e-down",
+          "number": 2,
+          "placement": "above"
+        },
+        {
+          "type": "hammer-on",
+          "from": "a7-m6-e-up",
+          "to": "a7-m6-f-sharp",
+          "number": 2,
+          "label": "H"
+        },
+        {
+          "type": "pull-off",
+          "from": "a7-m6-f-sharp",
+          "to": "a7-m6-e-down",
+          "number": 2,
+          "label": "P"
+        },
+        {
+          "type": "slur",
+          "from": "a7-m8-c",
+          "to": "a7-m8-c-sharp",
+          "number": 1,
+          "placement": "above"
+        },
+        {
+          "type": "hammer-on",
+          "from": "a7-m8-c",
+          "to": "a7-m8-c-sharp",
+          "number": 1,
+          "label": "H"
+        }
+      ],
       "rightHand": "D U D U を基本に、ハンマリング／プル／スライド／チョーキングでは右手を省略してもよい。まず84 BPMで譜割りを確認する。",
-      "rightHandSequence": "D U D U D U D U D U D U D U D D U D U D U D U D U D U D U D D U D U D U D U D U D U D U D U D U D U D U D U D U D U D U D U"
+      "rightHandSequence": "D U D U D U D U D U D U D U D D U D U D U D U D U D U D U D D U D U D U D U D U D U D U D U D U D U D U D U D U D U D U D U D U"
     }
   ]
 }

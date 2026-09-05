@@ -1,4 +1,16 @@
 import { createSamplePlayer } from "./core/sample-player.js";
+import {
+  buildPhraseModel,
+  midiToFrequency,
+  noteToFrequency,
+  noteToMidi,
+} from "./core/music.js";
+import {
+  notationLabelsForNote,
+  renderScore,
+  setActiveNote,
+  systemElement,
+} from "./core/notation.js";
 
 (() => {
   "use strict";
@@ -6,26 +18,23 @@ import { createSamplePlayer } from "./core/sample-player.js";
   const $ = (id) => document.getElementById(id);
   const SOUND_MODE_KEY="fingerstyle-sound-mode";
   const state = {
-    data:null, phrase:null, index:0, noteIndex:0,
+    data:null, phrase:null, model:null, index:0, noteIndex:0,
     audio:null, noiseBuffer:null, mix:null, samplePlayer:null,
     running:false, starting:false, loop:false, follow:true,
     soundMode:readSoundMode(),
     backing:{ chords:true, bass:true, drums:true },
     scheduler:null, raf:null, previewTimer:null,
-    nextGrid:0, nextGridTime:0, finished:false,
+    nextTick:0, nextTickTime:0, finished:false,
     followedMeasure:-1,
     chordStroke:0,
-    visualQueue:[], noteStarts:new Map(), measures:[],
-    layout:null
+    visualQueue:[], noteStarts:new Map(), measures:[]
   };
 
   const MASTER_LEVEL=.78;
   const PHRASE_SAMPLES=["nylonGuitar","electricBass","kick","snare","closedHat","openHat"];
-  const MIDDLE_LINE_Y=90;
-  const STEM_LENGTH=35;
+  const TICKS_PER_BEAT=12;
+  const EIGHTH_TICKS=TICKS_PER_BEAT/2;
 
-  const pitchClass = { C:0,D:2,E:4,F:5,G:7,A:9,B:11 };
-  const diatonicLetter = { C:0,D:1,E:2,F:3,G:4,A:5,B:6 };
   const stringLabels = ["e","B","G","D","A","E"];
   const grooveLabels = { straight8:"Straight 8", rock8:"Rock 8" };
   const rootBaseMidi = {
@@ -125,118 +134,10 @@ import { createSamplePlayer } from "./core/sample-player.js";
     }
   }
 
-  // Order in which sharps and flats appear in a key signature, with the treble
-  // staff Y each glyph sits on (same coordinate space as staffY()).
-  const sharpOrder=[["F",66],["C",84],["G",60],["D",78],["A",96],["E",72],["B",90]];
-  const flatOrder=[["B",90],["E",72],["A",96],["D",78],["G",102],["C",84],["F",108]];
-
-  // Accidental count per key: positive = sharps, negative = flats.
-  const keyFifths={
-    C:0,Am:0,
-    G:1,Em:1, D:2,Bm:2, A:3,"F#m":3, E:4,"C#m":4, B:5,"G#m":5,
-    F:-1,Dm:-1, Bb:-2,Gm:-2, Eb:-3,Cm:-3, Ab:-4,Fm:-4, Db:-5,Bbm:-5
-  };
-
-  function noteParts(name){
-    const match=/^([A-G])([#b]?)(-?\d+)$/.exec(name);
-    if(!match) throw new Error("Invalid note: "+name);
-    return {letter:match[1], accidental:match[2], octave:Number(match[3])};
-  }
-
-  function noteToMidi(name){
-    const p=noteParts(name);
-    const accidental=p.accidental==="#"?1:p.accidental==="b"?-1:0;
-    return (p.octave+1)*12+pitchClass[p.letter]+accidental;
-  }
-
-  function midiToFrequency(midi){
-    return 440*Math.pow(2,(midi-69)/12);
-  }
-
-  function noteToFrequency(name){
-    return midiToFrequency(noteToMidi(name));
-  }
-
-  function staffY(name){
-    const p=noteParts(name);
-    // Guitar notation sounds one octave below written pitch.
-    const writtenOctave=p.octave+1;
-    const index=writtenOctave*7+diatonicLetter[p.letter];
-    const bottomE4=4*7+diatonicLetter.E;
-    return 114-(index-bottomE4)*6;
-  }
-
   const escapeHtml = (value) =>
     String(value ?? "")
       .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
       .replaceAll('"',"&quot;").replaceAll("'","&#039;");
-
-  // Returns the glyphs a key signature prints, plus the alteration each letter
-  // carries by default, so notes covered by the signature stop printing a
-  // redundant accidental of their own.
-  function keySignature(key){
-    const fifths=keyFifths[key];
-    if(fifths===undefined){
-      console.warn("[phrase] unknown key, drawing no key signature:",key);
-      return {glyphs:[], alterByLetter:{}};
-    }
-    const glyph=fifths>0?"\u266f":"\u266d";
-    const alter=fifths>0?1:-1;
-    const source=fifths>0?sharpOrder:flatOrder;
-    const used=source.slice(0,Math.abs(fifths));
-    const alterByLetter={};
-    used.forEach(([letter])=>{ alterByLetter[letter]=alter; });
-    return {glyphs:used.map(([letter,y])=>({letter,y,glyph})), alterByLetter};
-  }
-
-  function alterationOf(name){
-    const accidental=noteParts(name).accidental;
-    return accidental==="#"?1:accidental==="b"?-1:0;
-  }
-
-  // Standard practice: print an accidental only when the pitch differs from what
-  // the key signature (or an earlier accidental in the same bar) already implies.
-  function annotateAccidentals(){
-    const signature=keySignature(state.phrase.key);
-    state.signature=signature;
-    for(const measure of state.measures){
-      const activeInBar=new Map();
-      for(const note of measure){
-        const parts=noteParts(note.name);
-        const slot=parts.letter+parts.octave;
-        const expected=activeInBar.has(slot)
-          ? activeInBar.get(slot)
-          : (signature.alterByLetter[parts.letter] ?? 0);
-        const actual=alterationOf(note.name);
-        if(actual===expected){
-          note.accidentalGlyph=null;
-        }else{
-          note.accidentalGlyph=actual===1?"\u266f":actual===-1?"\u266d":"\u266e";
-          activeInBar.set(slot,actual);
-        }
-      }
-    }
-  }
-
-  // Note heads for low bass strings sit below the staff, where the pitch-name and
-  // fingering rows used to be fixed. Size every system from the actual range so
-  // the two never collide.
-  function computeLayout(){
-    let highest=66;
-    let lowest=114;
-    for(const note of state.phrase.notes){
-      const y=staffY(note.name);
-      highest=Math.min(highest,y);
-      lowest=Math.max(lowest,y);
-    }
-    // Leave room for a stem and flag above the highest note, and for the ledger
-    // lines and text rows below the lowest one.
-    const top=Math.min(0,highest-STEM_LENGTH-14);
-    const nameY=lowest+26;
-    const fingerY=nameY+14;
-    const bottom=fingerY+11;
-    state.layout={top, height:bottom-top, nameY, fingerY};
-  }
 
   async function loadData(){
     const response=await fetch("./data/phrases.json",{cache:"no-store"});
@@ -250,29 +151,40 @@ import { createSamplePlayer } from "./core/sample-player.js";
   }
 
   function splitMeasures(){
-    const result=[];
-    let current=[], beats=0, globalIndex=0;
-    for(const note of state.phrase.notes){
-      current.push({...note, globalIndex, startBeat:beats});
-      beats+=Number(note.beats);
-      globalIndex+=1;
-      if(Math.abs(beats-4)<1e-9){
-        result.push(current);
-        current=[];
-        beats=0;
-      }
-    }
-    if(current.length) result.push(current);
-    state.measures=result;
+    state.model=buildPhraseModel(state.phrase);
+    state.measures=state.model.measures;
   }
 
   function buildNoteStarts(){
     state.noteStarts=new Map();
-    let grid=0;
-    state.phrase.notes.forEach((note,index)=>{
-      if(!state.noteStarts.has(grid)) state.noteStarts.set(grid,[]);
-      state.noteStarts.get(grid).push({note,index});
-      grid+=Math.round(Number(note.beats)*2);
+    const ties=state.model.notations.filter(notation=>notation.type==="tie");
+    const tieFrom=new Map(ties.map(tie=>[tie.from,tie.to]));
+    const tieTargets=new Set(ties.map(tie=>tie.to));
+    const tiedDuration=(note)=>{
+      let beats=Number(note.beats);
+      let nextId=tieFrom.get(note.id);
+      const visited=new Set();
+      while(nextId&&!visited.has(nextId)){
+        visited.add(nextId);
+        const next=state.model.noteById.get(nextId);
+        if(!next) break;
+        beats+=Number(next.beats);
+        nextId=tieFrom.get(next.id);
+      }
+      return beats;
+    };
+
+    let tick=0;
+    state.model.notes.forEach((note,index)=>{
+      if(!state.noteStarts.has(tick)) state.noteStarts.set(tick,[]);
+      state.noteStarts.get(tick).push({
+        note,index,attack:!tieTargets.has(note.id),durationBeats:tiedDuration(note)
+      });
+      const durationTicks=Number(note.beats)*TICKS_PER_BEAT;
+      if(Math.abs(durationTicks-Math.round(durationTicks))>1e-9){
+        throw new Error("この音価は再生解像度に対応していません: "+note.beats);
+      }
+      tick+=Math.round(durationTicks);
     });
   }
 
@@ -313,135 +225,16 @@ import { createSamplePlayer } from "./core/sample-player.js";
     $("tab").textContent=blocks.join("\n\n");
   }
 
-  function svgEl(name,attrs={},text){
-    const el=document.createElementNS("http://www.w3.org/2000/svg",name);
-    for(const [key,value] of Object.entries(attrs)) el.setAttribute(key,String(value));
-    if(text!==undefined) el.textContent=text;
-    return el;
-  }
-
-  function addLedgerLines(svg,x,y){
-    if(y<66){
-      for(let ly=54;ly>=y-1;ly-=12){
-        svg.appendChild(svgEl("line",{x1:x-12,y1:ly,x2:x+12,y2:ly,class:"ledger"}));
-      }
-    }
-    if(y>114){
-      for(let ly=126;ly<=y+1;ly+=12){
-        svg.appendChild(svgEl("line",{x1:x-12,y1:ly,x2:x+12,y2:ly,class:"ledger"}));
-      }
-    }
-  }
-
-  function addNoteSymbol(svg,note,x,index){
-    const y=staffY(note.name);
-    addLedgerLines(svg,x,y);
-
-    const measure=measureForNote(index);
-    const group=svgEl("g",{
-      class:"note-symbol",
-      "data-note-index":index,
-      "data-note-name":note.name,
-      role:"button",
-      tabindex:"0",
-      "aria-label":"M"+(measure+1)+" "+(index+1)+"音目 "+note.name
-        +" "+note.string+"弦"+note.fret+"フレット 右手"+(note.finger||"—")
-    });
-
-    const head=svgEl("ellipse",{
-      cx:x,cy:y,rx:8.5,ry:6,
-      class:"note-head"+(note.beats>=2?" open":""),
-      transform:"rotate(-18 "+x+" "+y+")"
-    });
-    group.appendChild(head);
-
-    if(note.beats<4){
-      // Stems flip at the middle line, as engraved music does; without this the
-      // high notes grew stems that ran off the top of the system.
-      const stemUp=y>MIDDLE_LINE_Y;
-      const stemX=stemUp?x+7.5:x-7.5;
-      const stemEnd=stemUp?y-STEM_LENGTH:y+STEM_LENGTH;
-      group.appendChild(svgEl("line",{x1:stemX,y1:y,x2:stemX,y2:stemEnd,class:"note-stem"}));
-      if(note.beats<=0.5){
-        group.appendChild(svgEl("path",{
-          d:"M "+stemX+" "+stemEnd+(stemUp?" q 18 8 6 23":" q 18 -8 6 -23"),
-          class:"note-flag"
-        }));
-      }
-    }
-
-    if(note.accidentalGlyph){
-      group.appendChild(svgEl("text",{x:x-22,y:y+7,class:"accidental"},note.accidentalGlyph));
-    }
-    group.appendChild(svgEl("text",{x:x,y:state.layout.nameY,class:"note-name-text","text-anchor":"middle"},note.name));
-    group.appendChild(svgEl("text",{x:x,y:state.layout.fingerY,class:"finger-text","text-anchor":"middle"},note.finger||""));
-
-    const select=()=>{
-      state.noteIndex=index;
-      renderCurrentNote();
-      highlightNote(index);
-      highlightMeasure(measureForNote(index));
-    };
-    group.addEventListener("click",select);
-    group.addEventListener("keydown",(event)=>{
-      if(event.key!=="Enter"&&event.key!==" ") return;
-      event.preventDefault();
-      select();
-    });
-    svg.appendChild(group);
-  }
-
   function buildStaff(){
     const host=$("staff");
-    host.innerHTML="";
-
-    // Reserve the clef / key / time header on every system so the beat grid
-    // lines up vertically across all measures.
-    const keySigX=54;
-    const timeSigX=keySigX+state.signature.glyphs.length*9+4;
-    const noteStartX=timeSigX+30;
-    const noteSpan=336-noteStartX;
-    const {top,height}=state.layout;
-
-    state.measures.forEach((measure,mIndex)=>{
-      const svg=svgEl("svg",{
-        viewBox:"0 "+top+" 360 "+height,
-        class:"staff-system",
-        "data-measure":mIndex,
-        "aria-label":"第"+(mIndex+1)+"小節 "+state.phrase.chords[mIndex],
-        role:"group",
-        preserveAspectRatio:"xMidYMid meet"
-      });
-      svg.style.aspectRatio="360 / "+height;
-
-      [66,78,90,102,114].forEach((y,lineIndex)=>{
-        svg.appendChild(svgEl("line",{
-          x1:48,y1:y,x2:346,y2:y,
-          class:"staff-line",
-          "data-staff-line":lineIndex
-        }));
-      });
-      svg.appendChild(svgEl("line",{x1:48,y1:66,x2:48,y2:114,class:"bar-line"}));
-      svg.appendChild(svgEl("line",{x1:346,y1:66,x2:346,y2:114,class:"bar-line"}));
-      svg.appendChild(svgEl("text",{x:8,y:111,class:"clef"},"𝄞"));
-      svg.appendChild(svgEl("text",{x:306,y:20,class:"measure-no"},"M"+(mIndex+1)));
-      svg.appendChild(svgEl("text",{x:noteStartX-16,y:25,class:"chord-symbol"},state.phrase.chords[mIndex]));
-
-      // Every measure is its own system here, so the key signature repeats on
-      // each one exactly as printed music does.
-      state.signature.glyphs.forEach((entry,i)=>{
-        svg.appendChild(svgEl("text",{x:keySigX+i*9,y:entry.y+6,class:"key-signature"},entry.glyph));
-      });
-      if(mIndex===0){
-        svg.appendChild(svgEl("text",{x:timeSigX,y:84,class:"time-sig"},"4"));
-        svg.appendChild(svgEl("text",{x:timeSigX,y:105,class:"time-sig"},"4"));
+    renderScore(host,state.model,{
+      engraver:window.VexFlow,
+      onSelectNote(index){
+        state.noteIndex=index;
+        renderCurrentNote();
+        highlightNote(index);
+        highlightMeasure(measureForNote(index));
       }
-
-      measure.forEach((note)=>{
-        const x=noteStartX+(note.startBeat/4)*noteSpan;
-        addNoteSymbol(svg,note,x,note.globalIndex);
-      });
-      host.appendChild(svg);
     });
   }
 
@@ -458,8 +251,6 @@ import { createSamplePlayer } from "./core/sample-player.js";
     $("tempo-label").textContent=state.phrase.bpm;
     $("right-hand").textContent=state.phrase.rightHand;
     splitMeasures();
-    annotateAccidentals();
-    computeLayout();
     buildNoteStarts();
     buildMeta();
     buildStaff();
@@ -481,19 +272,19 @@ import { createSamplePlayer } from "./core/sample-player.js";
   }
 
   function renderCurrentNote(){
-    const note=state.phrase.notes[state.noteIndex];
+    const note=state.model.notes[state.noteIndex];
     const measure=measureForNote(state.noteIndex);
+    const notation=notationLabelsForNote(state.model,note);
     $("note-name").textContent=note.name;
     $("note-position").textContent=note.string+"弦 "+note.fret+"フレット";
-    $("note-finger").textContent="右手 "+(note.finger||"—");
+    $("note-finger").textContent="右手 "+(note.finger||"—")
+      +(notation.length?" / "+notation.join("・"):"");
     $("note-measure").textContent="M"+(measure+1)+" / "+state.phrase.chords[measure];
-    $("position-label").textContent="M"+(measure+1)+" / "+(state.noteIndex+1)+" of "+state.phrase.notes.length;
+    $("position-label").textContent="M"+(measure+1)+" / "+(state.noteIndex+1)+" of "+state.model.notes.length;
   }
 
   function highlightNote(index){
-    document.querySelectorAll(".note-symbol").forEach(el=>{
-      el.classList.toggle("active",Number(el.dataset.noteIndex)===index);
-    });
+    setActiveNote($("staff"),index);
   }
 
   function highlightMeasure(index){
@@ -509,7 +300,7 @@ import { createSamplePlayer } from "./core/sample-player.js";
     if(!force && !state.running) return;
     if(state.followedMeasure===index) return;
 
-    const system=document.querySelector('.staff-system[data-measure="'+index+'"]');
+    const system=systemElement($("staff"),index);
     if(!system) return;
 
     state.followedMeasure=index;
@@ -600,7 +391,23 @@ import { createSamplePlayer } from "./core/sample-player.js";
     return gain;
   }
 
+  function bendFor(note){
+    return state.model.notations.find(notation=>
+      notation.type==="bend"&&notation.note===note.id
+    )??null;
+  }
+
+  function scheduleBend(parameter,baseValue,bend,time,durationSec){
+    if(!bend) return;
+    const target=baseValue*Math.pow(2,Number(bend.bendAlter)/12);
+    const bendStart=time+Math.min(.12,durationSec*.28);
+    const bendEnd=time+Math.min(.46,durationSec*.72);
+    parameter.setValueAtTime(baseValue,bendStart);
+    parameter.linearRampToValueAtTime(target,bendEnd);
+  }
+
   function scheduleMelody(note,time,durationSec){
+    const bend=bendFor(note);
     const sampleDuration=Math.max(.16,Math.min(1.8,durationSec*.92+.08));
     const sampled=state.soundMode==="samples"&&state.samplePlayer?.schedule("nylonGuitar",{
       time,
@@ -612,7 +419,10 @@ import { createSamplePlayer } from "./core/sample-player.js";
       release:.09,
       pan:(3.5-Number(note.string||3.5))*.055
     });
-    if(sampled) return;
+    if(sampled){
+      scheduleBend(sampled.source.playbackRate,sampled.rate,bend,time,sampleDuration);
+      return;
+    }
 
     const freq=noteToFrequency(note.name);
     const gain=envelopeGain(time,.19,Math.max(.18,Math.min(1.6,durationSec*.92+.12)),state.mix.melody);
@@ -624,6 +434,8 @@ import { createSamplePlayer } from "./core/sample-player.js";
     harmonic.type="sine";
     osc.frequency.setValueAtTime(freq,time);
     harmonic.frequency.setValueAtTime(freq*2,time);
+    scheduleBend(osc.frequency,freq,bend,time,durationSec);
+    scheduleBend(harmonic.frequency,freq*2,bend,time,durationSec);
     hg.gain.setValueAtTime(.07,time);
     hg.gain.exponentialRampToValueAtTime(.0001,time+.16);
 
@@ -814,33 +626,40 @@ import { createSamplePlayer } from "./core/sample-player.js";
     }
   }
 
-  function scheduleGrid(grid,time){
+  function totalPhraseTicks(){
+    return Math.round(state.phrase.measures*state.model.beatsPerBar*TICKS_PER_BEAT);
+  }
+
+  function scheduleTick(tick,time){
     const spb=secondsPerBeat();
-    const measure=Math.floor(grid/8);
-    const inBar=grid%8;
+    const ticksPerBar=state.model.beatsPerBar*TICKS_PER_BEAT;
+    const measure=Math.floor(tick/ticksPerBar);
+    const inBarTick=tick%ticksPerBar;
     const chord=state.phrase.chords[measure];
 
-    const starts=state.noteStarts.get(grid)||[];
-    starts.forEach(({note,index})=>{
-      scheduleMelody(note,time,Number(note.beats)*spb);
-      state.visualQueue.push({time,index,measure,grid});
+    const starts=state.noteStarts.get(tick)||[];
+    starts.forEach(({note,index,attack,durationBeats})=>{
+      if(attack) scheduleMelody(note,time,durationBeats*spb);
+      state.visualQueue.push({time,index,measure,tick});
     });
 
-    scheduleBackingGrid(inBar,time,chord);
+    if(inBarTick%EIGHTH_TICKS===0){
+      scheduleBackingGrid(inBarTick/EIGHTH_TICKS,time,chord);
+    }
   }
 
   function schedulerTick(){
     if(!state.running||!state.audio) return;
     const ahead=state.audio.currentTime+.16;
 
-    while(!state.finished && state.nextGridTime<ahead){
-      scheduleGrid(state.nextGrid,state.nextGridTime);
-      state.nextGridTime+=secondsPerBeat()/2;
-      state.nextGrid+=1;
+    while(!state.finished && state.nextTickTime<ahead){
+      scheduleTick(state.nextTick,state.nextTickTime);
+      state.nextTickTime+=secondsPerBeat()/TICKS_PER_BEAT;
+      state.nextTick+=1;
 
-      if(state.nextGrid>=state.phrase.measures*8){
+      if(state.nextTick>=totalPhraseTicks()){
         if(state.loop){
-          state.nextGrid=0;
+          state.nextTick=0;
         }else{
           state.finished=true;
         }
@@ -859,10 +678,10 @@ import { createSamplePlayer } from "./core/sample-player.js";
       highlightNote(event.index);
       highlightMeasure(event.measure);
       followScore(event.measure);
-      updateProgress((event.grid/(state.phrase.measures*8))*100);
+      updateProgress((event.tick/totalPhraseTicks())*100);
     }
 
-    if(state.finished&&state.visualQueue.length===0&&now>state.nextGridTime){
+    if(state.finished&&state.visualQueue.length===0&&now>state.nextTickTime){
       updateProgress(100);
       stop(false);
       return;
@@ -879,8 +698,8 @@ import { createSamplePlayer } from "./core/sample-player.js";
       restoreMaster();
 
       state.running=true;
-      state.nextGrid=0;
-      state.nextGridTime=state.audio.currentTime+.08;
+      state.nextTick=0;
+      state.nextTickTime=state.audio.currentTime+.08;
       state.visualQueue.length=0;
       state.finished=false;
       state.followedMeasure=-1;
@@ -946,7 +765,7 @@ import { createSamplePlayer } from "./core/sample-player.js";
     try{
       await ensureAudio(["nylonGuitar"]);
       restoreMaster();
-      const note=state.phrase.notes[state.noteIndex];
+      const note=state.model.notes[state.noteIndex];
       scheduleMelody(note,state.audio.currentTime+.02,Number(note.beats)*secondsPerBeat());
       highlightNote(state.noteIndex);
     }finally{
@@ -988,7 +807,7 @@ import { createSamplePlayer } from "./core/sample-player.js";
   }
 
   function moveNote(amount){
-    const length=state.phrase.notes.length;
+    const length=state.model.notes.length;
     state.noteIndex=(state.noteIndex+amount+length)%length;
     renderCurrentNote();
     highlightNote(state.noteIndex);
