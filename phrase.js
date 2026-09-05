@@ -1,3 +1,4 @@
+import { createScheduler } from "./core/clock.js";
 import { createSamplePlayer } from "./core/sample-player.js";
 import { ASSIST_LABELS, buildPracticeTimeline, practiceAdvice, practiceRange, parsePracticeBackup, validateAttempt } from "./core/practice.js";
 import { createPracticeStore } from "./core/practice-store.js";
@@ -27,7 +28,7 @@ import {
     soundMode:readSoundMode(),
     backing:{ chords:true, bass:true, drums:true },
     scheduler:null, raf:null, previewTimer:null,
-    eventIndex:0, cycleTime:0, finished:false, generation:0,
+    eventIndex:0, finished:false, generation:0,
     sources:new Set(), events:[], repeatIndex:0, timeline:null,
     range:{start:1,end:1}, assist:"full", melody:true, countIn:0,
     run:null, pending:null, attempts:[], store:null, saving:false, preferences:{},
@@ -649,28 +650,39 @@ import {
     }
   }
 
-  function schedulerTick(){
-    if(!state.running||!state.audio) return;
-    const now=state.audio.currentTime;
-    const nextTime=()=>state.cycleTime+state.events[state.eventIndex].beat*state.run.spb;
-    if(!state.finished&&nextTime()<now-.25){
+  function schedulePhraseSlot(time){
+    if(!state.running||!state.audio||!state.run) return null;
+    if(time<state.audio.currentTime-.25){
       stop();
       $("practice-status").textContent="再生処理が遅れたため停止しました。もう一度再生してください。";
-      return;
+      return null;
     }
-    while(!state.finished&&nextTime()<now+.16){
+
+    const spb=secondsPerBeat();
+    state.run.spb=spb;
+    while(!state.finished){
       const event=state.events[state.eventIndex];
-      scheduleEvent(event,nextTime());
+      const beat=event.beat;
+      scheduleEvent(event,time);
       state.eventIndex+=1;
+
       if(state.eventIndex===state.events.length){
-        if(state.loop){
-          state.cycleTime+=state.timeline.lengthBeats*state.run.spb;
-          state.eventIndex=state.repeatIndex;
-        }else{
+        if(!state.loop){
           state.finished=true;
+          return null;
         }
+        state.eventIndex=state.repeatIndex;
+        const deltaBeats=state.timeline.lengthBeats+state.events[state.eventIndex].beat-beat;
+        if(deltaBeats>0) return deltaBeats*spb;
+        if(deltaBeats<0) throw new RangeError("フレーズイベントの時刻順が不正です。");
+        continue;
       }
+
+      const deltaBeats=state.events[state.eventIndex].beat-beat;
+      if(deltaBeats>0) return deltaBeats*spb;
+      if(deltaBeats<0) throw new RangeError("フレーズイベントの時刻順が不正です。");
     }
+    return null;
   }
 
   function consumeVisualEvents(render=true){
@@ -721,10 +733,10 @@ import {
       state.timeline=buildPracticeTimeline(state.model,state.range);
       const countBeats=state.countIn*state.model.beatsPerBar;
       const spb=secondsPerBeat();
-      state.cycleTime=state.audio.currentTime+.08+countBeats*spb;
+      const firstTime=state.audio.currentTime+.08;
       state.run={
         phraseId:state.phrase.id,date:new Date().toISOString(),conditions:practiceConditions(),
-        startedAt:state.cycleTime,spb,completedLoops:0
+        startedAt:firstTime+countBeats*spb,spb,completedLoops:0
       };
       const intro=Array.from({length:countBeats},(_,i)=>({beat:i-countBeats,countIn:i%state.model.beatsPerBar+1}));
       state.events=[...intro,...state.timeline.events,{beat:state.timeline.lengthBeats,complete:true}];
@@ -736,8 +748,8 @@ import {
       state.followedMeasure=-1;
       state.chordStroke=0;
       renderRecords();
-      schedulerTick();
-      state.scheduler=setInterval(schedulerTick,25);
+      state.scheduler=createScheduler({context:state.audio});
+      state.scheduler.start(firstTime,schedulePhraseSlot);
       state.raf=requestAnimationFrame(visualLoop);
     }finally{
       if(generation===state.generation){
@@ -786,7 +798,7 @@ import {
     }
     silenceTail();
     state.running=false;
-    if(state.scheduler) clearInterval(state.scheduler);
+    state.scheduler?.stop();
     if(state.raf) cancelAnimationFrame(state.raf);
     if(state.previewTimer) clearTimeout(state.previewTimer);
     state.scheduler=null;
