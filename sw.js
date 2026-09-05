@@ -1,4 +1,4 @@
-const CACHE_NAME = "fingerstyle-practice-v14";
+const CACHE_NAME = "fingerstyle-practice-v15";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -24,6 +24,7 @@ const APP_SHELL = [
   "./vendor/vexflow/NOTICE.md",
   "./core/music.js",
   "./core/clock.js",
+  "./core/recorder.js",
   "./core/notation.js",
   "./core/sample-player.js",
   "./core/practice.js",
