@@ -1,0 +1,55 @@
+name: Bootstrap Phase 4A roadmap
+
+on:
+  push:
+    branches:
+      - automation/phase4a-bootstrap
+
+permissions:
+  contents: write
+
+jobs:
+  roadmap:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/diagnostic-practice-focus
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Update roadmap phase status
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path=Path('docs/ROADMAP.md')
+          text=path.read_text()
+          start=text.index('## CURRENT PHASE:')
+          end=text.index('\n---\n',start)
+          block='''## CURRENT PHASE: Phase 4 — 診断・測定・処方基盤
+
+**状態: CURRENT**
+
+**CURRENT SUBPHASE: Phase 4A — 診断focusモデル**
+
+**NEXT SUBPHASE: Phase 4B — 測定・処方**
+
+Phase 3 — 録音・自己モニタリングは PR #13 の `main` マージにより完了しました。
+現在は `docs/TASK-NEXT-DIAGNOSTIC-FOCUS.md` を正として Phase 4A を実装します。
+'''
+          text=text[:start]+block+text[end:]
+          text=text.replace('| 3 | 録音・自己モニタリング | **CURRENT** | 演奏を録音し、聴き返して自己評価する |','| 3 | 録音・自己モニタリング | DONE | 演奏を録音し、聴き返して自己評価する |')
+          text=text.replace('| 4 | 診断・測定・処方基盤 | NEXT | focusMode、measured/observed/reported、校正、弱点処方 |','| 4 | 診断・測定・処方基盤 | **CURRENT** | focusMode、measured/observed/reported、校正、弱点処方 |')
+          text=text.replace('**状態: CURRENT — PR #13 review / fix gate**','**状態: DONE — PR #13**')
+          text=text.replace('## 6. Phase 4 — 診断・測定・処方基盤\n\n**状態: NEXT**','## 6. Phase 4 — 診断・測定・処方基盤\n\n**状態: CURRENT — Phase 4A**')
+          path.write_text(text)
+          PY
+          git diff --check
+      - name: Commit roadmap as first Phase 4A commit
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add docs/ROADMAP.md
+          git commit -m "Start Phase 4A diagnostic focus model"
+          git push origin HEAD:feat/diagnostic-practice-focus
