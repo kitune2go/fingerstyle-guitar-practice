@@ -89,7 +89,7 @@ function durationLabel(note){
   return dotted+type+tuplet;
 }
 
-function addNoteMetadata(documentRef,svg,model,note,staffNote,onSelectNote){
+function addNoteMetadata(documentRef,svg,model,note,staffNote,onSelectNote,assist="full"){
   const x=staffNote.getAbsoluteX();
   const y=staffNote.getYs()[0];
   const measure=note.measureIndex;
@@ -97,10 +97,9 @@ function addNoteMetadata(documentRef,svg,model,note,staffNote,onSelectNote){
   const aria=[
     "M"+(measure+1),
     (note.globalIndex+1)+"音目",
-    note.name,
+    ...(assist==="full"?[note.name]:[]),
     durationLabel(note),
-    note.string+"弦"+note.fret+"フレット",
-    "右手"+(note.finger||"—"),
+    ...(assist!=="staff"?[note.string+"弦"+note.fret+"フレット","右手"+(note.finger||"—")]:[]),
     ...labels
   ].join(" ");
   const group=svgEl(documentRef,"g",{
@@ -215,7 +214,7 @@ function drawAcrossSystems(V,notation,fromRef,toRef,create){
   last?.setContext(toRef.context).draw();
 }
 
-function drawSpanners(V,model,refsById){
+function drawSpanners(V,model,refsById,showTab=true){
   for(const notation of model.notations){
     if(!notation.from||!notation.to) continue;
     const fromRef=refsById.get(notation.from);
@@ -227,7 +226,7 @@ function drawSpanners(V,model,refsById){
         firstNote:from?.staffNote??null,lastNote:to?.staffNote??null,
         firstIndexes:[0],lastIndexes:[0]
       }));
-      drawAcrossSystems(V,notation,fromRef,toRef,(from,to)=>new V.TabTie({
+      if(showTab) drawAcrossSystems(V,notation,fromRef,toRef,(from,to)=>new V.TabTie({
         firstNote:from?.tabNote??null,lastNote:to?.tabNote??null,
         firstIndexes:[0],lastIndexes:[0]
       }));
@@ -240,7 +239,7 @@ function drawSpanners(V,model,refsById){
           cps:[{x:0,y:notation.placement==="below"?14:-14},{x:0,y:notation.placement==="below"?14:-14}]
         }
       ));
-    }else if(notation.type==="hammer-on"||notation.type==="pull-off"){
+    }else if(showTab&&(notation.type==="hammer-on"||notation.type==="pull-off")){
       drawAcrossSystems(V,notation,fromRef,toRef,(from,to)=>{
         const notes={
           firstNote:from?.tabNote??null,lastNote:to?.tabNote??null,
@@ -250,7 +249,7 @@ function drawSpanners(V,model,refsById){
           ? V.TabTie.createHammeron(notes)
           : V.TabTie.createPulloff(notes);
       });
-    }else if(notation.type==="slide"){
+    }else if(showTab&&notation.type==="slide"){
       drawAcrossSystems(V,notation,fromRef,toRef,(from,to)=>new V.TabSlide({
         firstNote:from?.tabNote??null,lastNote:to?.tabNote??null,
         firstIndexes:[0],lastIndexes:[0]
@@ -275,11 +274,12 @@ function addNotationMarker(documentRef,ref,notation){
   ref.svg.appendChild(marker);
 }
 
-export function renderScore(host,model,{engraver,onSelectNote}={}){
+export function renderScore(host,model,{engraver,onSelectNote,assist="full"}={}){
   if(!host) throw new TypeError("host is required");
   if(!engraver) throw new TypeError("engraver is required");
   const documentRef=host.ownerDocument;
   const V=engraver;
+  const showTab=assist!=="staff";
   const refsById=new Map();
   const refsByIndex=new Map();
   host.replaceChildren();
@@ -299,11 +299,13 @@ export function renderScore(host,model,{engraver,onSelectNote}={}){
     if(measureIndex===0) stave.addTimeSignature(model.phrase.timeSignature);
     const tabStave=new V.TabStave(STAVE_X,TAB_Y,STAVE_WIDTH).addTabGlyph();
     stave.setContext(context).draw();
-    tabStave.setContext(context).draw();
-    new V.StaveConnector(stave,tabStave)
-      .setType(V.StaveConnector.type.SINGLE_LEFT).setContext(context).draw();
-    new V.StaveConnector(stave,tabStave)
-      .setType(V.StaveConnector.type.SINGLE_RIGHT).setContext(context).draw();
+    if(showTab){
+      tabStave.setContext(context).draw();
+      new V.StaveConnector(stave,tabStave)
+        .setType(V.StaveConnector.type.SINGLE_LEFT).setContext(context).draw();
+      new V.StaveConnector(stave,tabStave)
+        .setType(V.StaveConnector.type.SINGLE_RIGHT).setContext(context).draw();
+    }
 
     const staffNotes=measure.map(note=>{
       const harmonic=harmonicForNote(model,note);
@@ -378,14 +380,14 @@ export function renderScore(host,model,{engraver,onSelectNote}={}){
     new V.Formatter().joinVoices([staffVoice]).joinVoices([tabVoice])
       .format([staffVoice,tabVoice],STAVE_WIDTH-118);
     staffVoice.draw(context,stave);
-    tabVoice.draw(context,tabStave);
+    if(showTab) tabVoice.draw(context,tabStave);
     beams.forEach(beam=>beam.setContext(context).draw());
     drawnTuplets.forEach(({element})=>element.setContext(context).draw());
 
     const svg=mount.querySelector("svg");
     [...svg.children].forEach(child=>child.setAttribute("aria-hidden","true"));
     svg.classList.add("staff-system");
-    svg.setAttribute("viewBox","0 0 "+SCORE_WIDTH+" "+SCORE_HEIGHT);
+    svg.setAttribute("viewBox","0 0 "+SCORE_WIDTH+" "+(showTab?SCORE_HEIGHT:170));
     svg.style.width="100%";
     svg.style.height="auto";
     svg.dataset.measure=String(measureIndex);
@@ -400,7 +402,7 @@ export function renderScore(host,model,{engraver,onSelectNote}={}){
       };
       refsByIndex.set(note.globalIndex,ref);
       if(note.id) refsById.set(note.id,ref);
-      addNoteMetadata(documentRef,svg,model,note,staffNotes[index],onSelectNote);
+      addNoteMetadata(documentRef,svg,model,note,staffNotes[index],onSelectNote,assist);
     });
     model.tuplets.forEach(tuplet=>{
       const ref=refsById.get(tuplet.from);
@@ -410,7 +412,7 @@ export function renderScore(host,model,{engraver,onSelectNote}={}){
     });
   });
 
-  drawSpanners(V,model,refsById);
+  drawSpanners(V,model,refsById,showTab);
   model.notations.forEach(notation=>{
     const ref=refsById.get(notation.note||notation.from);
     if(ref) addNotationMarker(documentRef,ref,notation);
