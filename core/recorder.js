@@ -43,7 +43,8 @@ export function createRecorder({
   setTimer=setTimeout,
   clearTimer=clearTimeout,
   maxDurationMs=600_000,
-  onLimit=null
+  onLimit=null,
+  onError=null
 }={}){
   let status="idle";
   let stream=null;
@@ -161,6 +162,7 @@ export function createRecorder({
       rejectFinish?.(error);
       resolveFinish=null;
       rejectFinish=null;
+      onError?.(error);
     });
     bind(mediaRecorder,"stop",()=>{
       clearLimit();
@@ -194,7 +196,7 @@ export function createRecorder({
       limitTimer=setTimer(()=>{
         if(status!=="recording") return;
         limitReached=true;
-        void stop().then(result=>onLimit?.(result)).catch(()=>{});
+        void stop().then(result=>onLimit?.(result)).catch(error=>onError?.(error));
       },maxDurationMs);
     }
     return {mimeType:selectedMime??mediaRecorder.mimeType??"",settings:trackSettings(activeStream)};
@@ -214,7 +216,9 @@ export function createRecorder({
     }catch(error){
       releaseStream();
       status="failed";
-      rejectFinish?.(recorderError("stop-failed","録音を終了できませんでした。",error));
+      const failure=recorderError("stop-failed","録音を終了できませんでした。",error);
+      rejectFinish?.(failure);
+      onError?.(failure);
     }
     return finishPromise??Promise.resolve(null);
   }
