@@ -1,3 +1,4 @@
+import { createScheduler } from "./core/clock.js";
 import { createSamplePlayer } from "./core/sample-player.js";
 
 (() => {
@@ -21,9 +22,8 @@ import { createSamplePlayer } from "./core/sample-player.js";
     lesson: null,
     completed: new Set(),
     tempo: 60,
-    metronomeTimer: null,
+    metronomeScheduler: null,
     metronomeRunning: false,
-    nextBeatTime: 0,
     beatInBar: 0,
     audioContext: null,
     samplePlayer: null,
@@ -37,11 +37,6 @@ import { createSamplePlayer } from "./core/sample-player.js";
     lessonPlaybackSources: new Set(),
   };
 
-  // setInterval drifts, and drifts worst on phones, which is the one thing a
-  // metronome must not do. Schedule the clicks on the audio clock instead and
-  // only use the timer to top the queue up.
-  const CLICK_LOOKAHEAD = 0.15;
-  const CLICK_TICK_MS = 25;
   const METRONOME_SAMPLES = ["closedHat", "tom"];
   const OPEN_STRING_MIDI = Object.freeze({ 1: 64, 2: 59, 3: 55, 4: 50, 5: 45, 6: 40 });
 
@@ -518,18 +513,6 @@ import { createSamplePlayer } from "./core/sample-player.js";
     }, Math.max(0, (time - context.currentTime) * 1000));
   }
 
-  function metronomeTick() {
-    if (!state.metronomeRunning || !state.audioContext) return;
-    const ahead = state.audioContext.currentTime + CLICK_LOOKAHEAD;
-    while (state.nextBeatTime < ahead) {
-      scheduleClick(state.nextBeatTime, state.beatInBar === 0);
-      // Read the tempo every beat so the +/- buttons take effect on the next
-      // click without restarting (and re-phasing) the whole metronome.
-      state.nextBeatTime += 60 / state.tempo;
-      state.beatInBar = (state.beatInBar + 1) % 4;
-    }
-  }
-
   async function startMetronome() {
     const button = byId("metronome-toggle");
     if (state.metronomeRunning || state.metronomeStarting) return;
@@ -544,9 +527,13 @@ import { createSamplePlayer } from "./core/sample-player.js";
 
       state.metronomeRunning = true;
       state.beatInBar = 0;
-      state.nextBeatTime = context.currentTime + 0.06;
-      metronomeTick();
-      state.metronomeTimer = window.setInterval(metronomeTick, CLICK_TICK_MS);
+      state.metronomeScheduler = createScheduler({ context });
+      state.metronomeScheduler.start(context.currentTime + 0.06, (time) => {
+        scheduleClick(time, state.beatInBar === 0);
+        state.beatInBar = (state.beatInBar + 1) % 4;
+        // Read tempo at each slot so changes affect the next unscheduled beat.
+        return 60 / state.tempo;
+      });
       if (button) button.textContent = "STOP";
     } finally {
       state.metronomeStarting = false;
@@ -556,8 +543,8 @@ import { createSamplePlayer } from "./core/sample-player.js";
 
   function stopMetronome() {
     state.metronomeRunning = false;
-    if (state.metronomeTimer) window.clearInterval(state.metronomeTimer);
-    state.metronomeTimer = null;
+    state.metronomeScheduler?.stop();
+    state.metronomeScheduler = null;
     for (const source of state.metronomeSources) {
       try {
         source.stop();

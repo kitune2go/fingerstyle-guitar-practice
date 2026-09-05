@@ -1,5 +1,14 @@
 # 次タスク — `core/clock.js` 共通化
 
+## PHASE STATUS
+
+- **CURRENT PHASE: Phase 2 — 共通時間基盤**
+- **STATUS: CURRENT / PR #12 review and merge gate**
+- **NEXT PHASE: Phase 3 — 録音・自己モニタリング**
+
+このタスクの完了条件は、実装と検証の成功に加えて PR #12 が `main` へマージされることです。
+完了後は `docs/TASK-NEXT-RECORDING.md` に従い Phase 3 を開始します。
+
 ## 0. 前提
 
 - 対象: `kitune2go/fingerstyle-guitar-practice`
@@ -209,6 +218,7 @@ CIのJavaScript構文検査は `find core ...` で拾えるはずですが、実
 完了条件:
 
 ```text
+[ ] CURRENT PHASE が Phase 2 と明示されている
 [ ] core/clock.js が追加されている
 [ ] guitar.js の独自先読みループが除去されている
 [ ] phrase.js の独自先読みループが除去されている
@@ -221,18 +231,23 @@ CIのJavaScript構文検査は `find core ...` で拾えるはずですが、実
 [ ] npm run test:e2e 成功
 [ ] git diff --check 成功
 [ ] GitHub Actions 成功
+[ ] PR #12 が main へマージされている
 ```
 
 ## 10. 完了報告
 
 次をそのまま提示してください。
 
-1. ブランチ名
-2. コミットSHA一覧
-3. 変更ファイル一覧
-4. `npm test` の末尾出力
-5. `npm run test:e2e` の結果
-6. `git diff --check` の結果
-7. GitHub Actions URL / conclusion
-8. start二重呼び出し等、仕様に判断余地があった点と採用した挙動
-9. 音・表示・操作の意図的変更が「なし」であること
+1. 開始時 CURRENT PHASE: Phase 2
+2. 終了時 CURRENT PHASE: Phase 2
+3. Phase判定: 完了 / 継続
+4. NEXT PHASE: Phase 3 — 録音・自己モニタリング
+5. ブランチ名
+6. コミットSHA一覧
+7. 変更ファイル一覧
+8. `npm test` の末尾出力
+9. `npm run test:e2e` の結果
+10. `git diff --check` の結果
+11. GitHub Actions URL / conclusion
+12. start二重呼び出し等、仕様に判断余地があった点と採用した挙動
+13. 音・表示・操作の意図的変更が「なし」であること
