@@ -33,6 +33,7 @@ jobs:
       - name: Apply Phase 4B implementation
         run: |
           bash _phase4b_helper/scripts/apply-phase4b.sh
+          bash _phase4b_helper/scripts/patch-phase4b-stability.sh
           rm -rf _phase4b_helper
       - name: Check JavaScript syntax
         run: |
