@@ -1,0 +1,62 @@
+name: Validate Phase 4B measurement foundation
+
+on:
+  push:
+    branches:
+      - automation/phase4b-implementation
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout target branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/measurement-semantics-calibration
+          fetch-depth: 0
+      - name: Verify expected target head
+        run: |
+          test "$(git rev-parse HEAD)" = "7f2c39e327b056f4236e3470fc2b7aa6d3dc1f9a"
+          git fetch origin main
+          git merge-base --is-ancestor origin/main HEAD
+      - name: Checkout implementation helper
+        uses: actions/checkout@v4
+        with:
+          ref: automation/phase4b-implementation
+          path: _phase4b_helper
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply Phase 4B implementation
+        run: |
+          bash _phase4b_helper/scripts/apply-phase4b.sh
+          rm -rf _phase4b_helper
+      - name: Check JavaScript syntax
+        run: |
+          node --check guitar.js
+          node --check phrase.js
+          node --check rhythm.js
+          node --check sw.js
+          find core rhythm -type f -name '*.js' -exec node --check {} \;
+          node --check calibration-ui.js
+      - name: Run unit and data validation
+        run: npm test
+      - name: Check patch whitespace
+        run: git diff --check
+      - name: Install browser test runtime
+        run: npm install --no-package-lock
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run browser regression tests
+        run: npm run test:e2e
+      - name: Commit validated Phase 4B implementation
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add core/calibration.js core/measurement.js core/practice-store.js calibration-ui.js phrase.html phrase.css sw.js docs/TASK-NEXT-MEASUREMENT-CALIBRATION.md tests/unit/calibration.test.mjs tests/unit/measurement.test.mjs tests/unit/practice-store.test.mjs tests/calibration.spec.mjs
+          git diff --cached --check
+          git commit -m "Establish calibrated measurement boundaries"
+          git push origin HEAD:feat/measurement-semantics-calibration
