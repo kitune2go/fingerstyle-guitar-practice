@@ -2,7 +2,7 @@ import { readFile, writeFile } from "node:fs/promises";
 
 const path="phrase.js";
 const source=await readFile(path,"utf8");
-const before='    $("practice-status").textContent=rangeLabel()+"を練習 / "+ASSIST_LABELS[state.assist];\n  }';
-const after='    $("practice-status").textContent=rangeLabel()+"を練習 / "+ASSIST_LABELS[state.assist];\n    // stop() runs before a focus change and therefore reflects the previous\n    // focus. Recompute audio entry availability after the new focus is drawn.\n    setAudioEntriesPending(state.starting);\n  }';
-if(!source.includes(before)) throw new Error("renderPracticeControls anchor not found");
+const before='    buildStaff();\n    renderPracticeControls();\n    savePracticePreferences();\n    renderRecords();\n  }';
+const after='    buildStaff();\n    renderPracticeControls();\n    // stop() ran while the previous focus was active. Recompute the audio\n    // entry buttons after state.focusMode has changed so reading cannot expose\n    // the normal phrase transport as a primary action.\n    setAudioEntriesPending(false);\n    savePracticePreferences();\n    renderRecords();\n  }';
+if(!source.includes(before)) throw new Error("changeFocus anchor not found");
 await writeFile(path,source.replace(before,after).trimEnd()+"\n");
