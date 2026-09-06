@@ -1,4 +1,4 @@
-name: Validate Phase 4A focus semantics fix
+name: Bootstrap Phase 4B roadmap
 
 on:
   push:
@@ -9,54 +9,48 @@ permissions:
   contents: write
 
 jobs:
-  apply:
+  bootstrap:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout target branch
+      - name: Checkout Phase 4B branch
         uses: actions/checkout@v4
         with:
-          ref: feat/diagnostic-practice-focus
+          ref: feat/measurement-semantics-calibration
           fetch-depth: 0
-      - name: Verify expected target head
+      - name: Verify branch starts from merged Phase 4A main
         run: |
-          test "$(git rev-parse HEAD)" = "19b0228afa5223b88a785e97dc2fc5629348fa7d"
+          test "$(git rev-parse HEAD)" = "10874ffe9f66c5f0dccef76d29ee64f02b5a1871"
           git fetch origin main
-          git merge-base --is-ancestor origin/main HEAD
-      - name: Checkout helper
-        uses: actions/checkout@v4
-        with:
-          ref: automation/phase4a-bootstrap
-          path: _phase4a_helper
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - name: Apply focus semantics fix
+          test "$(git rev-parse origin/main)" = "10874ffe9f66c5f0dccef76d29ee64f02b5a1871"
+      - name: Update ROADMAP only
+        shell: python
         run: |
-          node _phase4a_helper/scripts/repair-phase4a-patch-helper.mjs
-          node _phase4a_helper/scripts/patch-phase4a-focus-semantics.mjs
-          rm -rf _phase4a_helper
-      - name: Check JavaScript syntax
+          from pathlib import Path
+          path = Path("docs/ROADMAP.md")
+          text = path.read_text()
+          replacements = {
+              "**CURRENT SUBPHASE: Phase 4A — 診断focusモデル**": "**CURRENT SUBPHASE: Phase 4B — 測定意味論とレイテンシ校正**",
+              "**NEXT SUBPHASE: Phase 4B — 測定意味論とレイテンシ校正**": "**NEXT SUBPHASE: Phase 4C — 処方**",
+              "現在は `docs/TASK-NEXT-DIAGNOSTIC-FOCUS.md` を正として Phase 4A を実装します。": "Phase 4A — 診断focusモデルは PR #14 の `main` マージにより完了しました。\n現在は Phase 4B — 測定意味論とレイテンシ校正です。",
+              "**状態: CURRENT — Phase 4A**": "**状態: CURRENT — Phase 4B**",
+              "**Phase 4B — 測定意味論と校正**": "**Phase 4B — 測定意味論とレイテンシ校正**",
+          }
+          for old, new in replacements.items():
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"expected one ROADMAP match for {old!r}, found {count}")
+              text = text.replace(old, new)
+          path.write_text(text)
+      - name: Verify first Phase 4B commit changes ROADMAP only
         run: |
-          node --check guitar.js
-          node --check phrase.js
-          node --check rhythm.js
-          node --check sw.js
-          find core rhythm -type f -name '*.js' -exec node --check {} \;
-      - name: Run unit and data validation
-        run: npm test
-      - name: Check patch whitespace
-        run: git diff --check
-      - name: Install browser test runtime
-        run: npm install --no-package-lock
-      - name: Install Chromium
-        run: npx playwright install --with-deps chromium
-      - name: Run browser regression tests
-        run: npm run test:e2e
-      - name: Commit validated focus semantics fix
+          git diff --check
+          test "$(git diff --name-only | wc -l)" -eq 1
+          test "$(git diff --name-only)" = "docs/ROADMAP.md"
+      - name: Commit Phase 4B roadmap
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add core/practice.js phrase.js phrase.html sw.js docs/TASK-NEXT-DIAGNOSTIC-FOCUS.md tests/unit/practice-focus.test.mjs tests/focus.spec.mjs
+          git add docs/ROADMAP.md
           git diff --cached --check
-          git commit -m "Fix focus-specific self-evaluation semantics"
-          git push origin HEAD:feat/diagnostic-practice-focus
+          git commit -m "Start Phase 4B measurement semantics and calibration"
+          git push origin HEAD:feat/measurement-semantics-calibration
