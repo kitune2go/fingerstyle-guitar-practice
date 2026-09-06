@@ -32,6 +32,7 @@ jobs:
           node-version: 22
       - name: Apply focus semantics fix
         run: |
+          node _phase4a_helper/scripts/repair-phase4a-patch-helper.mjs
           node _phase4a_helper/scripts/patch-phase4a-focus-semantics.mjs
           rm -rf _phase4a_helper
       - name: Check JavaScript syntax
