@@ -1,4 +1,4 @@
-name: Validate final Phase 4A target
+name: Validate final Phase 4A roadmap
 
 on:
   push:
@@ -17,7 +17,7 @@ jobs:
         with:
           ref: feat/diagnostic-practice-focus
           fetch-depth: 0
-      - name: Checkout implementation helper
+      - name: Checkout helper
         uses: actions/checkout@v4
         with:
           ref: automation/phase4a-bootstrap
@@ -25,9 +25,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Apply final Phase 4A target fixes
+      - name: Apply roadmap wording fix
         run: |
-          node _phase4a_helper/scripts/fix-phase4a-final-target.mjs
+          node _phase4a_helper/scripts/fix-phase4a-roadmap.mjs
           rm -rf _phase4a_helper
       - name: Check JavaScript syntax
         run: |
@@ -46,11 +46,11 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Run browser regression tests
         run: npm run test:e2e
-      - name: Commit validated Phase 4A target fixes
+      - name: Commit validated roadmap wording
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add phrase.js tests/focus.spec.mjs
+          git add docs/ROADMAP.md
           git diff --cached --check
-          git commit -m "Fix focus state and legacy export normalization"
+          git commit -m "Align Phase 4B roadmap wording"
           git push origin HEAD:feat/diagnostic-practice-focus
