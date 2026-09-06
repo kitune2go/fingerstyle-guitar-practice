@@ -245,6 +245,9 @@ phrase modelの**音高ではなくonset / duration構造**を再利用します
 
 最低限、同じphrase/rangeについてfocus別の直近状況を区別して表示できればよいです。
 
+**Phase 4Aでは同一 phrase / range / exact tempo の4focusを比較します。**
+`assist` / `backing` / `melody` はAttempt条件として保持しますが、このSubphaseの診断比較キーへは追加しません。
+
 例:
 
 ```text

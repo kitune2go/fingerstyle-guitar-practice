@@ -63,6 +63,25 @@
 
     <section class="panel practice-panel" aria-labelledby="practice-heading">
       <div class="section-title compact"><div><span>PRACTICE</span><h2 id="practice-heading">小さく分けて覚える</h2></div></div>
+      <div class="focus-control">
+        <label for="focus-mode">練習focus</label>
+        <select id="focus-mode">
+          <option value="reading">譜読み</option>
+          <option value="rhythm">リズム</option>
+          <option value="execution">演奏動作</option>
+          <option value="integrated">統合演奏</option>
+        </select>
+        <p id="focus-description" class="hint"></p>
+      </div>
+      <div id="reading-focus" class="reading-focus" hidden>
+        <strong>譜読みチェック</strong>
+        <p id="reading-prompt">譜面を見て、音名・度数・指板位置を先に考えます。</p>
+        <p id="reading-answer" class="reading-answer" hidden></p>
+        <div class="practice-presets">
+          <button id="reading-reveal" type="button">答えを見る</button>
+          <button id="reading-next" type="button" disabled>次の音 →</button>
+        </div>
+      </div>
       <div class="practice-grid">
         <label>開始小節<select id="range-start"></select></label>
         <label>終了小節<select id="range-end"></select></label>
@@ -139,12 +158,17 @@
         </fieldset>
       </div>
       <div class="practice-presets">
-        <button id="record-clean" class="primary" type="button" disabled>弾けた</button>
+        <button id="record-clean" class="primary" type="button" disabled>統合して弾けた</button>
         <button id="record-repeat" type="button" disabled>要復習として記録</button>
       </div>
-      <p class="hint">自己評価の記録です。演奏音の自動採点は行いません。「弾けた」は選択区間を最後まで再生した後に記録できます。</p>
+      <p id="record-hint" class="hint">自己評価の記録です。演奏音の自動採点は行いません。「統合して弾けた」は選択区間を最後まで再生した後に記録できます。</p>
       <p class="recording-policy">録音はこの端末内に保存され、練習記録JSONには含まれません。</p>
       <p id="practice-advice" class="practice-status"></p>
+      <div id="focus-diagnosis" class="focus-diagnosis">
+        <strong>同じ区間・テンポのfocus別結果</strong>
+        <ul id="focus-status-list" class="focus-status-list"></ul>
+        <p id="focus-diagnosis-text" class="hint"></p>
+      </div>
       <details><summary>このフレーズの履歴・バックアップ</summary>
         <ol id="attempt-list" class="attempt-list"></ol>
         <p class="hint">バックアップは全フレーズの記録を含みます。読み込み時は既存の記録を残して追加します。録音音声は含みません。</p>

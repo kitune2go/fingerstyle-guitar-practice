@@ -65,6 +65,9 @@ footer{text-align:center;padding:10px 6px 24px}
 .practice-presets{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
 .practice-presets button{flex:1 1 80px;padding:8px;font-size:14px}
 .practice-panel>.backing-toggle{width:100%;font-size:14px}
+.focus-control{display:grid;grid-template-columns:minmax(110px,.45fr) minmax(0,1fr);gap:8px 12px;align-items:center;margin-bottom:14px;padding:12px;border:1px solid var(--line);background:#faf7ef}.focus-control>label{font-size:14px;font-weight:800}.focus-control .hint{grid-column:1/-1;margin:0}.reading-focus{margin:0 0 14px;padding:14px;border:1px solid var(--green);background:var(--green-light)}.reading-focus>p{margin:8px 0;line-height:1.6}.reading-answer{padding:10px;background:#fff;border:1px solid var(--line);font-weight:800}.focus-diagnosis{margin:14px 0;padding:12px;border:1px solid var(--line);background:#faf7ef}.focus-status-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin:10px 0;padding:0;list-style:none}.focus-status-list li{padding:8px;border:1px solid var(--line);background:#fff;font-size:12px}.focus-diagnosis .hint{margin:8px 0 0}
+body[data-focus="execution"] .note-name-text,body[data-focus="execution"] #note-name{visibility:hidden}
+body[data-focus="rhythm"] .note-name-text,body[data-focus="rhythm"] .finger-text{display:none}
 .practice-panel .hint,.practice-record .hint{font-size:14px}
 .practice-status{margin:0;padding:10px 12px;background:var(--green-light);font-size:14px;line-height:1.6;overflow-wrap:anywhere}
 .practice-record p,.attempt-list{font-size:14px;line-height:1.7}
@@ -89,5 +92,6 @@ button:focus-visible,select:focus-visible,input:focus-visible,summary:focus-visi
 @media(max-width:420px){
   .transport,.step-buttons{grid-template-columns:1fr 1fr}.step-buttons button:nth-child(2){grid-column:span 2}
   .self-review{grid-template-columns:1fr}
+  .focus-control{grid-template-columns:1fr}.focus-control .hint{grid-column:1}.focus-status-list{grid-template-columns:1fr}
   .panel{padding:14px}.chord-progression{grid-template-columns:repeat(4,minmax(0,1fr))}.chord-chip{padding:7px 3px}.chord-chip strong{font-size:13px}.sound-row{grid-template-columns:1fr}.sound-row span{text-align:center}
 }

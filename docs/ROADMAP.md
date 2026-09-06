@@ -5,29 +5,16 @@
 
 ---
 
-## CURRENT PHASE: Phase 3 — 録音・自己モニタリング
+## CURRENT PHASE: Phase 4 — 診断・測定・処方基盤
 
-**状態: CURRENT / REVIEW・FIX**
+**状態: CURRENT**
 
-現在は **Phase 3 — 録音・自己モニタリング** です。
-Phase 2 — 共通時間基盤は PR #12 の `main` マージにより完了しました。
-Phase 3 の完了PRは PR #13 `録音・自己モニタリングを追加` です。
+**CURRENT SUBPHASE: Phase 4A — 診断focusモデル**
 
-Phase 3 の完了ゲート:
+**NEXT SUBPHASE: Phase 4B — 測定意味論とレイテンシ校正**
 
-- 明示操作からのみマイク権限を要求する
-- 録音 → 聴き返し → 自己レビュー → Attempt保存が成立する
-- 録音とAttemptが同一IDで関連付く
-- IndexedDB v1→v2 migrationで既存Attemptを保持する
-- 録音失敗・権限拒否でも通常練習が使える
-- 録音Blobを練習記録JSONへ含めない
-- 全検証とGitHub Actionsが成功する
-- Phase 3 PRが `main` へマージされる
-
-**NEXT PHASE: Phase 4 — 診断・測定・処方基盤**
-
-Phase 3 PRが `main` へマージされるまで、CURRENT PHASEをPhase 4へ進めません。
-Phase 4 の最初のタスクは `docs/TASK-NEXT-DIAGNOSTIC-FOCUS.md` です。
+Phase 3 — 録音・自己モニタリングは PR #13 の `main` マージにより完了しました。
+現在は `docs/TASK-NEXT-DIAGNOSTIC-FOCUS.md` を正として Phase 4A を実装します。
 
 ---
 
@@ -53,8 +40,8 @@ Phase 4 の最初のタスクは `docs/TASK-NEXT-DIAGNOSTIC-FOCUS.md` です。
 | 0 | 配信・再生・譜面基盤 | DONE | 静的配信、オフライン、テスト、音源、譜面の土台 |
 | 1 | 集中練習ループ | DONE | 区間反復、Assist Fade、予備拍、条件付きAttempt |
 | 2 | 共通時間基盤 | DONE | 発音・将来の測定が共有する AudioContext clock |
-| 3 | 録音・自己モニタリング | **CURRENT** | 演奏を録音し、聴き返して自己評価する |
-| 4 | 診断・測定・処方基盤 | NEXT | focusMode、measured/observed/reported、校正、弱点処方 |
+| 3 | 録音・自己モニタリング | DONE | 演奏を録音し、聴き返して自己評価する |
+| 4 | 診断・測定・処方基盤 | **CURRENT** | focusMode、measured/observed/reported、校正、弱点処方 |
 | 5 | Safari / WebKit 信頼性 | PLANNED | iPhoneを含むブラウザ境界の最小回帰 |
 | 6 | 教材・練習モード・記譜・音源の拡張 | PLANNED | 同一素材の分解練習UI、能力ID教材、複声部等 |
 | 7 | 音源取込・分離・自動採譜 | FUTURE | Import / Analysis pipeline |
@@ -120,7 +107,7 @@ Phase 4 の最初のタスクは `docs/TASK-NEXT-DIAGNOSTIC-FOCUS.md` です。
 
 ## 5. Phase 3 — 録音・自己モニタリング
 
-**状態: CURRENT — PR #13 review / fix gate**
+**状態: DONE — PR #13**
 
 目的:
 
@@ -159,7 +146,7 @@ Attempt保存
 
 ## 6. Phase 4 — 診断・測定・処方基盤
 
-**状態: NEXT**
+**状態: CURRENT — Phase 4A**
 
 目的:
 
