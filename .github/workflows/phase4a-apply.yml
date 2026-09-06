@@ -19,7 +19,7 @@ jobs:
           fetch-depth: 0
       - name: Verify expected target head
         run: |
-          test "$(git rev-parse HEAD)" = "a4bd0087b95a4ecf3882b6b3ec84427f9dc03c15"
+          test "$(git rev-parse HEAD)" = "df2bb36b646e28ad54040b8cce81e65e998d32d7"
           git fetch origin main
           git merge-base --is-ancestor origin/main HEAD
       - name: Checkout helper
@@ -33,6 +33,7 @@ jobs:
       - name: Apply focus semantics fix
         run: |
           node _phase4a_helper/scripts/patch-phase4a-focus-semantics.mjs
+          node _phase4a_helper/scripts/fix-phase4a-next-subphase.mjs
           rm -rf _phase4a_helper
       - name: Check JavaScript syntax
         run: |
@@ -55,7 +56,7 @@ jobs:
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add core/practice.js phrase.js phrase.html sw.js docs/TASK-NEXT-DIAGNOSTIC-FOCUS.md tests/unit/practice-focus.test.mjs tests/focus.spec.mjs
+          git add core/practice.js phrase.js phrase.html sw.js docs/ROADMAP.md docs/TASK-NEXT-DIAGNOSTIC-FOCUS.md tests/unit/practice-focus.test.mjs tests/focus.spec.mjs
           git diff --cached --check
           git commit -m "Fix focus-specific self-evaluation semantics"
           git push origin HEAD:feat/diagnostic-practice-focus
