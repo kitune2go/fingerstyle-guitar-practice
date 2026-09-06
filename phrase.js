@@ -1296,8 +1296,9 @@ import {
     highlightMeasure(measureForNote(state.noteIndex));
     $("practice-status").textContent=rangeLabel()+"を練習 / "+FOCUS_MODES[state.focusMode]+" / "+ASSIST_LABELS[state.assist];
     renderReadingFocus();
-    const recordButton=$("record-play");
-    if(recordButton) recordButton.disabled=state.starting||state.running||state.focusMode==="reading";
+    // Keep one source of truth for focus-specific audio entry availability.
+    // This prevents range/assist redraws from re-enabling recording in rhythm.
+    setAudioEntriesPending(state.starting);
   }
 
   function changeRange(start,end){
@@ -1443,7 +1444,7 @@ import {
 
   async function exportPractice(){
     try{
-      const attempts=await state.store.all();
+      const attempts=(await state.store.all()).map(validateAttempt);
       const blob=new Blob([JSON.stringify({format:"guitar-phrase-practice",version:1,attempts},null,2)],{type:"application/json"});
       const url=URL.createObjectURL(blob);
       const link=document.createElement("a");

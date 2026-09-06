@@ -80,6 +80,11 @@ test("rhythm focus schedules neutral guide tones instead of phrase pitches",asyn
   await page.locator("#sound-mode-toggle").click();
   await page.locator("#range-one").click();
   await page.locator("#focus-mode").selectOption("rhythm");
+  await expect(page.locator("#record-play")).toBeDisabled();
+  await page.locator("#assist-mode").selectOption("no-names");
+  await expect(page.locator("#record-play")).toBeDisabled();
+  await page.locator("#range-one").click();
+  await expect(page.locator("#record-play")).toBeDisabled();
   await page.locator("#loop").click();
   await expect(page.locator("#focus-description")).toContainText("中立音");
   await page.locator("#play").click();
@@ -148,6 +153,13 @@ test("legacy version 1 backup imports as integrated",async({page})=>{
   await expect(page.locator("#record-status")).toContainText("記録を読み込みました");
   const stored=await attempts(page);
   expect(stored.find(item=>item.id==="legacy-focus").conditions.focusMode).toBe("integrated");
+  await page.locator("summary").click();
+  const downloadPromise=page.waitForEvent("download");
+  await page.locator("#export-practice").click();
+  const download=await downloadPromise;
+  const backup=JSON.parse((await readFile(await download.path())).toString());
+  expect(backup.version).toBe(1);
+  expect(backup.attempts.find(item=>item.id==="legacy-focus").conditions.focusMode).toBe("integrated");
 });
 
 test("changing focus stops active recording and releases the track once",async({page})=>{
