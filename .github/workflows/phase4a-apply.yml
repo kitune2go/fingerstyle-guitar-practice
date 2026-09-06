@@ -28,6 +28,7 @@ jobs:
       - name: Apply Phase 4A implementation
         run: |
           node _phase4a_helper/scripts/apply-phase4a.mjs
+          node _phase4a_helper/scripts/patch-phase4a-after-e2e.mjs
           rm -rf _phase4a_helper
       - name: Check JavaScript syntax
         run: |
@@ -50,6 +51,6 @@ jobs:
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add core/practice.js phrase.js phrase.html phrase.css tests/unit/practice-focus.test.mjs tests/focus.spec.mjs
+          git add core/practice.js phrase.js phrase.html phrase.css sw.js tests/unit/practice-focus.test.mjs tests/focus.spec.mjs
           git commit -m "Add diagnostic practice focus model"
           git push origin HEAD:feat/diagnostic-practice-focus
