@@ -9,12 +9,13 @@
 
 **状態: CURRENT**
 
-**CURRENT SUBPHASE: Phase 4A — 診断focusモデル**
+**CURRENT SUBPHASE: Phase 4B — 測定意味論とレイテンシ校正**
 
-**NEXT SUBPHASE: Phase 4B — 測定意味論とレイテンシ校正**
+**NEXT SUBPHASE: Phase 4C — 処方**
 
 Phase 3 — 録音・自己モニタリングは PR #13 の `main` マージにより完了しました。
-現在は `docs/TASK-NEXT-DIAGNOSTIC-FOCUS.md` を正として Phase 4A を実装します。
+Phase 4A — 診断focusモデルは PR #14 の `main` マージにより完了しました。
+現在は Phase 4B — 測定意味論とレイテンシ校正です。
 
 ---
 
@@ -146,7 +147,7 @@ Attempt保存
 
 ## 6. Phase 4 — 診断・測定・処方基盤
 
-**状態: CURRENT — Phase 4A**
+**状態: CURRENT — Phase 4B**
 
 目的:
 
@@ -219,7 +220,7 @@ focusMode: rhythm
 
 詳細: `TASK-NEXT-DIAGNOSTIC-FOCUS.md`
 
-**Phase 4B — 測定意味論と校正**
+**Phase 4B — 測定意味論とレイテンシ校正**
 
 - Tier A / `measured`: タイミング、単音ピッチ、RMS、完遂率等
 - Tier B / `observed`: 録音・外部観察で得る事実
