@@ -1,0 +1,35 @@
+name: Diagnose Phase 4B calibration E2E
+
+on:
+  push:
+    branches:
+      - automation/phase4b-implementation
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout target branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/measurement-semantics-calibration
+      - name: Verify expected target head
+        run: test "$(git rev-parse HEAD)" = "7f2c39e327b056f4236e3470fc2b7aa6d3dc1f9a"
+      - name: Checkout implementation helper
+        uses: actions/checkout@v4
+        with:
+          ref: automation/phase4b-implementation
+          path: _phase4b_helper
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply Phase 4B implementation
+        run: |
+          bash _phase4b_helper/scripts/apply-phase4b.sh
+          rm -rf _phase4b_helper
+      - name: Install browser test runtime
+        run: npm install --no-package-lock
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run focused high-spread calibration test
+        run: npx playwright test tests/calibration.spec.mjs --grep "high spread" --reporter=line --workers=1
