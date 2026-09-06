@@ -11,7 +11,7 @@
 
 **CURRENT SUBPHASE: Phase 4A — 診断focusモデル**
 
-**NEXT SUBPHASE: Phase 4B — 測定意味論とレイテンシ校正**
+**NEXT SUBPHASE: Phase 4B — 測定・処方**
 
 Phase 3 — 録音・自己モニタリングは PR #13 の `main` マージにより完了しました。
 現在は `docs/TASK-NEXT-DIAGNOSTIC-FOCUS.md` を正として Phase 4A を実装します。
