@@ -1,0 +1,41 @@
+name: Validate Phase 4B pure core layer
+
+on:
+  push:
+    branches:
+      - automation/phase4b-core-only
+
+permissions:
+  contents: write
+
+jobs:
+  core:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout target branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/measurement-semantics-calibration
+          fetch-depth: 0
+
+      - name: Verify expected target head
+        run: test "$(git rev-parse HEAD)" = "7f2c39e327b056f4236e3470fc2b7aa6d3dc1f9a"
+
+      - name: Checkout implementation helper
+        uses: actions/checkout@v4
+        with:
+          ref: automation/phase4b-core-only
+          path: _phase4b_core_helper
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Configure commit identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Apply, validate, and publish pure core layer
+        run: bash _phase4b_core_helper/scripts/apply-phase4b-core-only.sh
