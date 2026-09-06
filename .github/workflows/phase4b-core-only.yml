@@ -38,4 +38,4 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
       - name: Apply, validate, and publish pure core layer
-        run: bash _phase4b_core_helper/scripts/apply-phase4b-core-only.sh
+        run: bash _phase4b_core_helper/scripts/apply-phase4b-core-only-v2.sh
