@@ -1,7 +1,7 @@
 import { createScheduler } from "./core/clock.js";
 import { createRecorder } from "./core/recorder.js";
 import { createSamplePlayer } from "./core/sample-player.js";
-import { ASSIST_LABELS, FOCUS_MODES, SELF_REVIEW_KEYS, buildPracticeTimeline, practiceAdvice, practiceFocusDiagnosis, practiceRange, parsePracticeBackup, validateAttempt } from "./core/practice.js";
+import { ASSIST_LABELS, FOCUS_MODES, FOCUS_SUCCESS_LABELS, SELF_REVIEW_KEYS, buildPracticeTimeline, focusMelodyLabel, focusResultLabel, practiceAdvice, practiceFocusDiagnosis, practiceHistoryCompletionLabel, practiceRange, parsePracticeBackup, validateAttempt } from "./core/practice.js";
 import { createPracticeStore } from "./core/practice-store.js";
 import {
   buildPhraseModel,
@@ -1266,6 +1266,14 @@ import {
     $("range-start").value=String(state.range.start);
     $("focus-mode").value=state.focusMode;
     $("focus-description").textContent=FOCUS_DESCRIPTIONS[state.focusMode];
+    $("record-clean").textContent=FOCUS_SUCCESS_LABELS[state.focusMode];
+    const resultHints={
+      reading:"自己評価の記録です。譜読み確認を終えると達成を記録できます。演奏音の自動採点は行いません。",
+      rhythm:"自己評価の記録です。中立音に拍・細分を合わせた結果を記録します。正しい音高は成功条件にしません。",
+      execution:"自己評価の記録です。動作・発音の再現を記録します。録音時は聴き返しレビューを行えます。",
+      integrated:"自己評価の記録です。演奏音の自動採点は行いません。「統合して弾けた」は選択区間を最後まで再生した後に記録できます。"
+    };
+    $("record-hint").textContent=resultHints[state.focusMode];
     document.body.dataset.focus=state.focusMode;
     const rhythmFocus=state.focusMode==="rhythm";
     $("backing-chords").disabled=rhythmFocus;
@@ -1329,7 +1337,8 @@ import {
   }
 
   function conditionsLabel(c){
-    return FOCUS_MODES[c.focusMode??"integrated"]+"・"+rangeLabel(c)+"・"+c.tempo+" BPM・"+ASSIST_LABELS[c.assist]+"・お手本"+(c.melody?"あり":"なし");
+    const focusMode=c.focusMode??"integrated";
+    return FOCUS_MODES[focusMode]+"・"+rangeLabel(c)+"・"+c.tempo+" BPM・"+ASSIST_LABELS[c.assist]+"・"+focusMelodyLabel(focusMode,c.melody);
   }
 
   function renderRecords(){
@@ -1356,9 +1365,9 @@ import {
     }
     for(const attempt of recent){
       const item=document.createElement("li");
-      item.textContent=new Date(attempt.date).toLocaleString("ja-JP")+" — "+(attempt.reported.clean?"弾けた（自己評価）":"要復習（自己評価）");
+      item.textContent=new Date(attempt.date).toLocaleString("ja-JP")+" — "+focusResultLabel(attempt.conditions.focusMode,attempt.reported.clean);
       const detail=document.createElement("small");
-      detail.textContent=conditionsLabel(attempt.conditions)+" / "+attempt.observed.completedLoops+"回再生完了";
+      detail.textContent=conditionsLabel(attempt.conditions)+" / "+practiceHistoryCompletionLabel(attempt);
       item.append(detail);
       const recording=state.recordings.get(attempt.id);
       if(recording){

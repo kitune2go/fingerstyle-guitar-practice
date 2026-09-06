@@ -33,6 +33,10 @@ test("focus selector exposes four modes and reading saves reported success witho
   expect(await page.locator("#focus-mode option").evaluateAll(options=>options.map(option=>option.value))).toEqual(["reading","rhythm","execution","integrated"]);
   await page.locator("#range-one").click();
   await page.locator("#focus-mode").selectOption("reading");
+  await expect(page.locator("#record-clean")).toHaveText("譜読みできた");
+  await expect(page.locator("#record-hint")).not.toContainText("弾けた");
+  await expect(page.locator("#practice-advice")).toContainText("音名・度数・指板位置");
+  await expect(page.locator("#practice-advice")).not.toContainText("音を揃える");
   await expect(page.locator("#reading-focus")).toBeVisible();
   await expect(page.locator("#tab-panel")).toBeHidden();
   await expect(page.locator(".note-trainer")).toBeHidden();
@@ -53,6 +57,9 @@ test("focus selector exposes four modes and reading saves reported success witho
   expect(saved.reported.clean).toBe(true);
   await expect(page.locator("#reading-answer")).toBeHidden();
   await page.locator("summary").click();
+  await expect(page.locator("#attempt-list")).toContainText("譜読みできた（自己評価）");
+  await expect(page.locator("#attempt-list")).toContainText("譜読み確認完了");
+  await expect(page.locator("#attempt-list")).not.toContainText("0回再生完了");
   const downloadPromise=page.waitForEvent("download");
   await page.locator("#export-practice").click();
   const download=await downloadPromise;
@@ -80,6 +87,8 @@ test("rhythm focus schedules neutral guide tones instead of phrase pitches",asyn
   await page.locator("#sound-mode-toggle").click();
   await page.locator("#range-one").click();
   await page.locator("#focus-mode").selectOption("rhythm");
+  await expect(page.locator("#record-clean")).toHaveText("リズムを合わせられた");
+  await expect(page.locator("#practice-advice")).toContainText("音高を気にせず拍・細分・アクセント");
   await expect(page.locator("#record-play")).toBeDisabled();
   await page.locator("#assist-mode").selectOption("no-names");
   await expect(page.locator("#record-play")).toBeDisabled();
@@ -95,6 +104,20 @@ test("rhythm focus schedules neutral guide tones instead of phrase pitches",asyn
   const guides=tones.filter(tone=>tone.type==="square");
   expect(guides.every(tone=>tone.frequency===880)).toBe(true);
   expect(tones.some(tone=>tone.type==="triangle")).toBe(false);
+  await expect(page.locator("#record-repeat")).toBeEnabled();
+  await page.locator("#record-repeat").click();
+  await expect(page.locator("#record-status")).toContainText("保存しました");
+  await page.locator("#play").click();
+  await expect(page.locator("#practice-status")).toContainText("2回目",{timeout:7000});
+  await page.locator("#stop").click();
+  await expect(page.locator("#record-clean")).toBeEnabled();
+  await page.locator("#record-clean").click();
+  await expect(page.locator("#record-status")).toContainText("保存しました");
+  await expect(page.locator("#practice-advice")).toContainText("拍と細分");
+  await page.locator("summary").click();
+  await expect(page.locator("#attempt-list")).toContainText("リズムガイドあり");
+  await expect(page.locator("#attempt-list")).toContainText("リズムを合わせられた（自己評価）");
+  await expect(page.locator("#attempt-list")).toContainText("要復習（自己評価）");
 });
 
 test("execution focus lowers note-name load and saves a distinct Attempt condition",async({page})=>{
@@ -210,6 +233,8 @@ test("execution focus records, self-reviews, and persists recording with the sam
   await open(page);
   await page.locator("#range-one").click();
   await page.locator("#focus-mode").selectOption("execution");
+  await expect(page.locator("#record-clean")).toHaveText("動作・発音を揃えられた");
+  await expect(page.locator("#practice-advice")).toContainText("運指・弦移動・左右同期・発音品質");
   await page.locator("#record-play").click();
   await expect(page.locator("#recording-monitor")).toBeVisible({timeout:7000});
   for(const id of ["review-noise","review-evenness","review-tone","review-flow"]){
@@ -228,6 +253,9 @@ test("execution focus records, self-reviews, and persists recording with the sam
   expect(stored.attempts[0].conditions.focusMode).toBe("execution");
   expect(stored.recordings[0].attemptId).toBe(stored.attempts[0].id);
   expect(stored.attempts[0].reported.review).toEqual({noise:2,evenness:2,tone:2,flow:2});
+  await page.locator("summary").click();
+  await expect(page.locator("#attempt-list")).toContainText("動作・発音を揃えられた（自己評価）");
+  await expect(page.locator("#practice-advice")).toContainText("動作と発音");
   expect(await page.evaluate(()=>window.__trackStops)).toBe(1);
 });
 
@@ -235,6 +263,8 @@ test("integrated focus preserves the ordinary phrase-practice save path",async({
   await open(page);
   await page.locator("#range-one").click();
   await page.locator("#focus-mode").selectOption("integrated");
+  await expect(page.locator("#record-clean")).toHaveText("統合して弾けた");
+  await expect(page.locator("#practice-advice")).toContainText("止まらず音を揃えて弾ける");
   await page.locator("#play").click();
   await expect(page.locator("#record-repeat")).toBeEnabled({timeout:7000});
   await page.locator("#record-repeat").click();

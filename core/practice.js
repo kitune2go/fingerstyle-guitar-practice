@@ -16,10 +16,33 @@ export const FOCUS_MODES=Object.freeze({
 
 export const FOCUS_MODE_KEYS=Object.freeze(Object.keys(FOCUS_MODES));
 
+export const FOCUS_SUCCESS_LABELS=Object.freeze({
+  reading:"譜読みできた",
+  rhythm:"リズムを合わせられた",
+  execution:"動作・発音を揃えられた",
+  integrated:"統合して弾けた"
+});
+
 export function normalizeFocusMode(value){
   const focusMode=value===undefined?"integrated":value;
   if(!Object.hasOwn(FOCUS_MODES,focusMode)) throw new Error("練習focusが不正です。");
   return focusMode;
+}
+
+export function focusResultLabel(focusMode,clean){
+  const normalized=normalizeFocusMode(focusMode);
+  return clean?FOCUS_SUCCESS_LABELS[normalized]+"（自己評価）":"要復習（自己評価）";
+}
+
+export function focusMelodyLabel(focusMode,melody){
+  const normalized=normalizeFocusMode(focusMode);
+  return (normalized==="rhythm"?"リズムガイド":"お手本")+(melody?"あり":"なし");
+}
+
+export function practiceHistoryCompletionLabel(attempt){
+  const focusMode=normalizeFocusMode(attempt?.conditions?.focusMode);
+  if(focusMode==="reading") return "譜読み確認完了";
+  return (Number.isInteger(attempt?.observed?.completedLoops)?attempt.observed.completedLoops:0)+"回再生完了";
 }
 
 export function practiceRange(total,start=1,end=total){
@@ -135,12 +158,41 @@ export function practiceAdvice(attempts,conditions){
     &&normalizeFocusMode(attempt.conditions.focusMode)===expectedFocus
     &&[...attempt.conditions.backing].sort().join() === [...conditions.backing].sort().join();
   const recent=attempts.filter(same).sort((a,b)=>Date.parse(b.date)-Date.parse(a.date));
-  if(!recent.length) return "同じ区間を2回、止まらず音を揃えて弾けるか確認しましょう。";
-  if(!recent[0].reported.clean) return "同じ区間をゆっくり再確認。難しければテンポを4下げて、補助は今のまま練習しましょう。";
-  if(recent.length<2||!recent[1].reported.clean) return "同じ条件でもう1回確認しましょう。成功は自己評価として記録しています。";
-  return "同じ条件で2回達成（自己評価）。次回も再現できたら、次の区間かテンポ＋2を試しましょう。";
+  const messages={
+    reading:{
+      empty:"同じ区間の音を順に読み、答えを見る前に音名・度数・指板位置を考えましょう。",
+      fail:"同じ区間をもう一度譜読み。難しければ1小節へ縮めて確認しましょう。",
+      once:"同じ条件でもう1回、答えを見る前に判断できるか確認しましょう。",
+      twice:"同じ条件で2回達成（自己評価）。次の区間へ進む候補です。"
+    },
+    rhythm:{
+      empty:"中立音に合わせ、音高を気にせず拍・細分・アクセントだけ確認しましょう。",
+      fail:"テンポを下げ、ミュート弦・手拍子等でリズムだけ再確認しましょう。",
+      once:"同じ条件でもう1回、拍と細分を崩さず合わせられるか確認しましょう。",
+      twice:"同じ条件で2回達成（自己評価）。統合演奏で同じリズムを再確認しましょう。"
+    },
+    execution:{
+      empty:"譜読み負荷を下げ、運指・弦移動・左右同期・発音品質へ集中しましょう。",
+      fail:"短い区間または遅いテンポで、動作と発音を再確認しましょう。",
+      once:"同じ条件でもう1回、動作と発音を再現できるか確認しましょう。",
+      twice:"同じ条件で2回達成（自己評価）。統合演奏へ戻す候補です。"
+    },
+    integrated:{
+      empty:"同じ区間を2回、止まらず音を揃えて弾けるか確認しましょう。",
+      fail:"同じ区間をゆっくり再確認。難しければテンポを4下げて、補助は今のまま練習しましょう。",
+      once:"同じ条件でもう1回確認しましょう。成功は自己評価として記録しています。",
+      twice:"同じ条件で2回達成（自己評価）。次回も再現できたら、次の区間かテンポ＋2を試しましょう。"
+    }
+  }[expectedFocus];
+  if(!recent.length) return messages.empty;
+  if(!recent[0].reported.clean) return messages.fail;
+  if(recent.length<2||!recent[1].reported.clean) return messages.once;
+  return messages.twice;
 }
 
+// Phase 4A compares the four focus dimensions only within the same
+// phrase/range/exact tempo. Assist, backing and melody remain Attempt
+// conditions but are intentionally not diagnosis comparison keys here.
 export function practiceFocusComparisonKey(value){
   const conditions=value?.conditions??value;
   const phraseId=value?.phraseId;
