@@ -1,4 +1,4 @@
-name: Apply Phase 4A focus model
+name: Validate final Phase 4A target
 
 on:
   push:
@@ -25,12 +25,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Apply Phase 4A implementation
+      - name: Apply final Phase 4A target fixes
         run: |
-          node _phase4a_helper/scripts/apply-phase4a.mjs
-          node _phase4a_helper/scripts/patch-phase4a-after-e2e.mjs
-          node _phase4a_helper/scripts/patch-phase4a-final.mjs
-          node _phase4a_helper/scripts/patch-phase4a-play-state.mjs
+          node _phase4a_helper/scripts/fix-phase4a-final-target.mjs
           rm -rf _phase4a_helper
       - name: Check JavaScript syntax
         run: |
@@ -49,11 +46,11 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Run browser regression tests
         run: npm run test:e2e
-      - name: Commit validated Phase 4A implementation
+      - name: Commit validated Phase 4A target fixes
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add docs/ROADMAP.md core/practice.js phrase.js phrase.html phrase.css tests/unit/practice-focus.test.mjs tests/focus.spec.mjs
+          git add phrase.js tests/focus.spec.mjs
           git diff --cached --check
-          git commit -m "Add diagnostic practice focus model"
+          git commit -m "Fix focus state and legacy export normalization"
           git push origin HEAD:feat/diagnostic-practice-focus
