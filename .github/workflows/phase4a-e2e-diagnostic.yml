@@ -28,6 +28,7 @@ jobs:
         run: |
           node _phase4a_helper/scripts/apply-phase4a.mjs
           node _phase4a_helper/scripts/patch-phase4a-after-e2e.mjs
+          node _phase4a_helper/scripts/patch-phase4a-final.mjs
           rm -rf _phase4a_helper
       - name: Install browser test runtime
         run: npm install --no-package-lock
