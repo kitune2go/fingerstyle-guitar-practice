@@ -1,0 +1,59 @@
+name: Diagnose Phase 4B pure core E2E
+
+on:
+  push:
+    branches:
+      - automation/phase4b-core-only
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout target branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/measurement-semantics-calibration
+          fetch-depth: 0
+
+      - name: Verify expected target head
+        run: test "$(git rev-parse HEAD)" = "7f2c39e327b056f4236e3470fc2b7aa6d3dc1f9a"
+
+      - name: Checkout helper
+        uses: actions/checkout@v4
+        with:
+          ref: automation/phase4b-core-only
+          path: _helper
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Wrap npm E2E command for concise diagnostics
+        run: |
+          mkdir -p "$RUNNER_TEMP/bin"
+          REAL_NPM="$(command -v npm)"
+          cat > "$RUNNER_TEMP/bin/npm" <<EOF
+          #!/usr/bin/env bash
+          if [[ "\$1 \${2:-}" == "run test:e2e" ]]; then
+            set +e
+            "$REAL_NPM" "\$@" > /tmp/phase4b-e2e.txt 2>&1
+            status=\$?
+            echo '===== Phase 4B E2E tail ====='
+            tail -n 220 /tmp/phase4b-e2e.txt
+            exit \$status
+          fi
+          exec "$REAL_NPM" "\$@"
+          EOF
+          chmod +x "$RUNNER_TEMP/bin/npm"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+      - name: Configure local commit identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Apply and diagnose
+        run: bash _helper/scripts/apply-phase4b-core-only-v2.sh
