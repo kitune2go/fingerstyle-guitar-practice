@@ -6,7 +6,7 @@ import path from "node:path";
 import { checkShell } from "../../scripts/validate-shell.mjs";
 
 // Builds a minimal repo whose only interesting part is the shell wiring.
-function fixture({ shell, files = [], core = [], rhythm = [], audio = [], html = "", css = "" }) {
+function fixture({ shell, files = [], core = [], rhythm = [], audio = [], html = "", css = "", appJs = "" }) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "shell-"));
   fs.writeFileSync(
     path.join(root, "sw.js"),
@@ -24,24 +24,27 @@ function fixture({ shell, files = [], core = [], rhythm = [], audio = [], html =
   fs.writeFileSync(path.join(root, "phrase.html"), page(""));
   fs.writeFileSync(path.join(root, "rhythm.html"), page(""));
   fs.writeFileSync(path.join(root, "app.css"), css);
+  fs.writeFileSync(path.join(root, "app.js"), appJs);
   fs.writeFileSync(
     path.join(root, "manifest.json"),
     JSON.stringify({ icons: [{ src: "icon.svg" }] })
   );
   if (core.length) {
     fs.mkdirSync(path.join(root, "core"), { recursive: true });
-    for (const file of core) {
+    for (const entry of core) {
+      const file = typeof entry === "string" ? entry : entry.path;
       const target = path.join(root, "core", file);
       fs.mkdirSync(path.dirname(target), { recursive: true });
-      fs.writeFileSync(target, "");
+      fs.writeFileSync(target, typeof entry === "string" ? "" : entry.content ?? "");
     }
   }
   if (rhythm.length) {
     fs.mkdirSync(path.join(root, "rhythm"), { recursive: true });
-    for (const file of rhythm) {
+    for (const entry of rhythm) {
+      const file = typeof entry === "string" ? entry : entry.path;
       const target = path.join(root, "rhythm", file);
       fs.mkdirSync(path.dirname(target), { recursive: true });
-      fs.writeFileSync(target, "");
+      fs.writeFileSync(target, typeof entry === "string" ? "" : entry.content ?? "");
     }
   }
   for (const file of audio) {
@@ -117,31 +120,44 @@ test("a shell entry pointing at a missing file is reported, data paths included"
   assert.match(errors[0], /data\/typo\.json/);
 });
 
-test("a core module missing from the shell is reported", () => {
+test("an unreferenced pure core module does not require a shell entry", () => {
   const { errors } = checkShell(fixture({
-    shell: COMPLETE, files: PRESENT, core: ["music.js", "clock.js"]
-  }));
-  assert.equal(errors.length, 2);
-  assert.match(errors.join(" "), /core\/music\.js/);
-  assert.match(errors.join(" "), /core\/clock\.js/);
-});
-
-test("core modules present in the shell pass", () => {
-  const { errors } = checkShell(fixture({
-    shell: [...COMPLETE, "./core/music.js"], files: PRESENT, core: ["music.js"]
+    shell: COMPLETE, files: PRESENT, core: ["calibration.js"]
   }));
   assert.deepEqual(errors, []);
 });
 
-test("nested rhythm modules missing from the shell are reported", () => {
+test("a runtime-imported core module missing from the shell is reported", () => {
   const { errors } = checkShell(fixture({
     shell: COMPLETE,
     files: PRESENT,
-    rhythm: ["pattern-model.js", "core/scheduler.js"]
+    core: ["music.js"],
+    appJs: 'import "./core/music.js";'
   }));
-  assert.equal(errors.length, 2);
-  assert.match(errors.join(" "), /rhythm\/pattern-model\.js/);
-  assert.match(errors.join(" "), /rhythm\/core\/scheduler\.js/);
+  assert.equal(errors.length, 1);
+  assert.match(errors[0], /core\/music\.js/);
+});
+
+test("core modules present in the shell pass", () => {
+  const { errors } = checkShell(fixture({
+    shell: [...COMPLETE, "./core/music.js"],
+    files: PRESENT,
+    core: ["music.js"],
+    appJs: 'import "./core/music.js";'
+  }));
+  assert.deepEqual(errors, []);
+});
+
+test("nested runtime imports missing from the shell are reported recursively", () => {
+  const { errors } = checkShell(fixture({
+    shell: [...COMPLETE, "./core/audio/player.js"],
+    files: PRESENT,
+    core: [{ path: "audio/player.js", content: 'import "../../rhythm/views/orbit-view.js";' }],
+    rhythm: ["views/orbit-view.js"],
+    appJs: 'import "./core/audio/player.js";'
+  }));
+  assert.equal(errors.length, 1);
+  assert.match(errors[0], /rhythm\/views\/orbit-view\.js/);
 });
 
 test("nested core and rhythm modules present in the shell pass", () => {
@@ -149,8 +165,9 @@ test("nested core and rhythm modules present in the shell pass", () => {
   const { errors } = checkShell(fixture({
     shell: [...COMPLETE, ...modules],
     files: PRESENT,
-    core: ["audio/player.js"],
-    rhythm: ["views/orbit-view.js"]
+    core: [{ path: "audio/player.js", content: 'import "../../rhythm/views/orbit-view.js";' }],
+    rhythm: ["views/orbit-view.js"],
+    appJs: 'import "./core/audio/player.js";'
   }));
   assert.deepEqual(errors, []);
 });

@@ -158,6 +158,13 @@ correctedTime = observedTime - calibrationOffset
 
 単一のoffsetを全デバイス・全入出力経路へ適用してはいけません。
 
+#### round-trip calibrationの分解禁止
+
+round-trip calibrationで直接得たoffsetを、**独立した測定根拠なしに input latency と output latency へ分解してはなりません。**
+round-tripの観測値には output path / acoustic path / input path / detector delay 等が含まれ得るため、単一のround-trip観測だけでは各成分を識別できません。
+
+したがって、`roundTrip` calibration recordを `input` targetまたは `output` targetへ代用適用してはなりません。同じ `pathKind` のtargetにだけ適用します。
+
 ---
 
 ## 5. accuracy と precision
@@ -343,10 +350,23 @@ Phase 4Bの実装PRを作る前に最低限、以下を満たします。
 - [x] `measurable` / `unmeasurable` を定義した
 - [x] 未校正値を採点へ使わない原則を明記した
 - [x] 100点満点・総合能力スコアをまだ作らないと明記した
-- [ ] calibration schemaを実装する
-- [ ] calibration acceptance testを追加する
-- [ ] ブラウザでの校正フローを実装する
+- [x] roundTrip分解禁止を明記した
+- [x] `pathKind` を実装した
+- [x] calibration schemaを実装した
+- [x] calibration validationを実装した
+- [x] offsetのsign conventionを固定した
+- [x] calibration applicabilityを実装した
+- [x] calibration quality evaluationを実装した
+- [x] measurement result schema / validationを実装した
+- [x] unit testsを追加した
+- [ ] calibration persistenceを実装する
+- [ ] IndexedDB migrationを実装する
+- [ ] calibration UIを実装する
+- [ ] browser calibration flowを実装する
+- [ ] E2E integrationを追加する
 - [ ] Phase 4B用PRを作成する
+- [ ] GitHub Actionsをgreenにする
+- [ ] `main` へマージする
 
 ---
 
