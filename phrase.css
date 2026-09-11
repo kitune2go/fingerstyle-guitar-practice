@@ -84,10 +84,20 @@ body[data-assist="no-names"] #note-name{visibility:hidden}
 body[data-assist="staff"] .note-name-text,body[data-assist="staff"] .finger-text{display:none}
 body[data-assist="staff"] .staff-system{aspect-ratio:480/170;overflow:hidden}
 button:focus-visible,select:focus-visible,input:focus-visible,summary:focus-visible,audio:focus-visible{outline:3px solid var(--red);outline-offset:3px}
+.calibration-badge{display:inline-block;padding:3px 8px;font-size:11px;font-weight:800;border:1px solid currentColor}
+.calibration-badge.uncalibrated{background:#f5f0e5;color:var(--muted);border-color:var(--line)}
+.calibration-badge.calibrated{background:var(--green-light);color:var(--green);border-color:var(--green)}
+.calibration-badge.unmeasurable{background:#fff5ed;color:var(--red);border-color:var(--red)}
+.calibration-details{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;padding:10px;background:#fff;border:1px solid var(--line);margin:10px 0}
+.calibration-stat{display:grid;gap:4px;min-width:0}
+.calibration-stat-label{font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.08em}
+.calibration-stat strong,.calibration-stat span{font-size:13px;font-weight:800;color:var(--ink);overflow-wrap:anywhere}
+.calibration-message{margin:6px 0;line-height:1.5}
 @media(max-width:520px){
   .music-meta{grid-template-columns:1fr 1fr}.music-meta>div:nth-child(2){border-right:0}.music-meta>div:nth-child(-n+2){border-bottom:1px solid var(--line)}
   .backing-buttons{grid-template-columns:1fr}.chord-progression{grid-template-columns:repeat(4,1fr)}
   .current-note{grid-template-columns:70px 1fr}.current-note span:nth-of-type(2),.current-note span:nth-of-type(3){grid-column:2}
+  .calibration-details{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 @media(max-width:420px){
   .transport,.step-buttons{grid-template-columns:1fr 1fr}.step-buttons button:nth-child(2){grid-column:span 2}
