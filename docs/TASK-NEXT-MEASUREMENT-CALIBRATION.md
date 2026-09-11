@@ -359,11 +359,11 @@ Phase 4Bの実装PRを作る前に最低限、以下を満たします。
 - [x] calibration quality evaluationを実装した
 - [x] measurement result schema / validationを実装した
 - [x] unit testsを追加した
-- [ ] calibration persistenceを実装する
-- [ ] IndexedDB migrationを実装する
-- [ ] calibration UIを実装する
-- [ ] browser calibration flowを実装する
-- [ ] E2E integrationを追加する
+- [x] calibration persistenceを実装する
+- [x] IndexedDB migrationを実装する
+- [x] calibration UIを実装する
+- [x] browser calibration flowを実装する
+- [x] E2E integrationを追加する
 - [ ] Phase 4B用PRを作成する
 - [ ] GitHub Actionsをgreenにする
 - [ ] `main` へマージする
