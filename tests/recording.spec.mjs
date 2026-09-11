@@ -174,7 +174,7 @@ test("practice changes stop recording tracks without disabling later normal play
   }
 });
 
-test("real IndexedDB v1 data migrates to v2 without losing an Attempt",async({page})=>{
+test("real IndexedDB v1 data migrates to v3 without losing an Attempt",async({page})=>{
   await page.goto("/index.html");
   await page.evaluate(async()=>{
     await new Promise((resolve,reject)=>{
@@ -216,8 +216,8 @@ test("real IndexedDB v1 data migrates to v2 without losing an Attempt",async({pa
     return {attempts,info};
   });
   expect(migrated.attempts.map(item=>item.id)).toContain("legacy");
-  expect(migrated.info.version).toBe(2);
-  expect(migrated.info.stores.sort()).toEqual(["attempts","recordings"]);
+  expect(migrated.info.version).toBe(3);
+  expect(migrated.info.stores.sort()).toEqual(["attempts","calibrations","recordings"]);
 });
 
 test("recording store failure aborts the Attempt transaction and retry saves both",async({page})=>{
