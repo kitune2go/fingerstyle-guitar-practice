@@ -1659,6 +1659,21 @@ import {
       });
 
       if(state.store){
+        if(isCalibrated){
+          try{
+            const existing=await state.store.allCalibrations();
+            const previous=existing.filter(r=>calibrationApplies(r,CALIBRATION_TARGET));
+            for(const prev of previous){
+              const superseded=invalidateCalibration(prev,{
+                at:record.createdAt,
+                reason:"新しい校正による更新"
+              });
+              await state.store.saveCalibration(superseded);
+            }
+          }catch(err){
+            console.warn("[phrase] could not supersede older calibrations:",err);
+          }
+        }
         await state.store.saveCalibration(record);
       }
 
@@ -1702,13 +1717,15 @@ import {
   }
 
   async function resetCalibration(){
-    if(state.activeCalibration){
+    if(state.store){
       try{
-        const invalidated=invalidateCalibration(state.activeCalibration,{
-          at:new Date().toISOString(),
-          reason:"ユーザー操作によるリセット"
-        });
-        if(state.store){
+        const all=await state.store.allCalibrations();
+        const applicable=all.filter(r=>calibrationApplies(r,CALIBRATION_TARGET));
+        for(const r of applicable){
+          const invalidated=invalidateCalibration(r,{
+            at:new Date().toISOString(),
+            reason:"ユーザー操作によるリセット"
+          });
           await state.store.saveCalibration(invalidated);
         }
       }catch(err){

@@ -146,16 +146,33 @@ test.describe("Minimal Calibration UI & Browser Calibration Flow", () => {
 
     await page.locator("#start-calibration").click();
     await expect(page.locator("#calibration-badge")).toHaveText("校正済み");
+    await expect(page.locator("#calibration-offset")).toContainText("40.0");
     await expect(page.locator("#reset-calibration")).toBeEnabled();
 
-    // Reset
+    // Run calibration a second time with different valid samples
+    await page.evaluate(() => {
+      window.__calibrationCollector = async () => ({
+        samples: [
+          { referenceTime: 0, observedTime: 55.0 },
+          { referenceTime: 0, observedTime: 56.0 },
+          { referenceTime: 0, observedTime: 54.0 },
+          { referenceTime: 0, observedTime: 55.0 },
+          { referenceTime: 0, observedTime: 55.5 },
+          { referenceTime: 0, observedTime: 54.5 }
+        ]
+      });
+    });
+    await page.locator("#start-calibration").click();
+    await expect(page.locator("#calibration-offset")).toContainText("55.0");
+
+    // Reset should invalidate all applicable calibrations, not just the active one
     await page.locator("#reset-calibration").click();
     await expect(page.locator("#calibration-badge")).toHaveText("未校正");
     await expect(page.locator("#calibration-state-text")).toHaveText("未校正");
     await expect(page.locator("#reset-calibration")).toBeDisabled();
     await expect(page.locator("#calibration-offset")).toHaveText("—");
 
-    // Reload page to verify invalidation persists
+    // Reload page to verify that neither the first nor second calibration reactivates
     await page.reload();
     await expect(page.locator("#phrase-title")).not.toHaveText("読み込み中");
     await expect(page.locator("#calibration-badge")).toHaveText("未校正");

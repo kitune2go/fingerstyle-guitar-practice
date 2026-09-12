@@ -14,7 +14,7 @@ function isPlainObject(value) {
 
 function requireNonEmptyString(value, name) {
   if (typeof value !== "string" || value.trim() === "") {
-    throw new TypeError(`${name} must be a non-empty string`);
+    throw new TypeError(`${name}は空でない文字列である必要があります`);
   }
   return value;
 }
@@ -27,20 +27,20 @@ function nullableNonEmptyString(value, name) {
 function finiteOrNull(value, name) {
   if (value === null) return null;
   if (typeof value !== "number" || !Number.isFinite(value)) {
-    throw new TypeError(`${name} must be finite or null`);
+    throw new TypeError(`${name}は有限の数値またはnullである必要があります`);
   }
   return value;
 }
 
 export function validateMeasurementResult(value) {
-  if (!isPlainObject(value)) throw new TypeError("measurement result must be an object");
+  if (!isPlainObject(value)) throw new TypeError("測定結果はオブジェクトである必要があります");
   for (const key of Object.keys(value)) {
-    if (!RESULT_KEYS.has(key)) throw new TypeError(`measurement.${key} is not supported`);
+    if (!RESULT_KEYS.has(key)) throw new TypeError(`measurement.${key}はサポートされていません`);
   }
   if (!MEASUREMENT_STATES.includes(value.state)) {
-    throw new TypeError("measurement state is not supported");
+    throw new TypeError("measurement stateはサポートされていません");
   }
-  if (!("value" in value)) throw new TypeError("value is required");
+  if (!("value" in value)) throw new TypeError("valueが必要です");
 
   const metric = requireNonEmptyString(value.metric, "metric");
   const unit = requireNonEmptyString(value.unit, "unit");
@@ -49,11 +49,11 @@ export function validateMeasurementResult(value) {
   let normalizedValue = finiteOrNull(value.value, "value");
 
   if (value.state === "measured") {
-    if (normalizedValue === null) throw new TypeError("measured value must not be null");
-    if (reason !== null) throw new TypeError("measured reason must be null");
+    if (normalizedValue === null) throw new TypeError("measuredの場合valueをnullにすることはできません");
+    if (reason !== null) throw new TypeError("measuredの場合reasonはnullである必要があります");
   } else if (value.state === "unmeasurable") {
-    if (normalizedValue !== null) throw new TypeError("unmeasurable value must be null");
-    if (reason === null) throw new TypeError("unmeasurable reason is required");
+    if (normalizedValue !== null) throw new TypeError("unmeasurableの場合valueはnullである必要があります");
+    if (reason === null) throw new TypeError("unmeasurableの場合reasonが必要です");
     normalizedValue = null;
   }
 

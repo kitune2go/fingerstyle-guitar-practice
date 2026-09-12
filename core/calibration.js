@@ -32,19 +32,19 @@ function isPlainObject(value) {
 }
 
 function requireObject(value, name) {
-  if (!isPlainObject(value)) throw new TypeError(`${name} must be an object`);
+  if (!isPlainObject(value)) throw new TypeError(`${name}はオブジェクトである必要があります`);
   return value;
 }
 
 function rejectUnknownKeys(value, allowed, name) {
   for (const key of Object.keys(value)) {
-    if (!allowed.has(key)) throw new TypeError(`${name}.${key} is not supported`);
+    if (!allowed.has(key)) throw new TypeError(`${name}.${key}はサポートされていません`);
   }
 }
 
 function requireNonEmptyString(value, name) {
   if (typeof value !== "string" || value.trim() === "") {
-    throw new TypeError(`${name} must be a non-empty string`);
+    throw new TypeError(`${name}は空でない文字列である必要があります`);
   }
   return value;
 }
@@ -56,24 +56,24 @@ function nullableNonEmptyString(value, name) {
 
 function requireFiniteNumber(value, name) {
   if (typeof value !== "number" || !Number.isFinite(value)) {
-    throw new TypeError(`${name} must be a finite number`);
+    throw new TypeError(`${name}は有限の数値である必要があります`);
   }
   return value;
 }
 
 function requireDateString(value, name) {
   requireNonEmptyString(value, name);
-  if (!Number.isFinite(Date.parse(value))) throw new TypeError(`${name} must be a valid date`);
+  if (!Number.isFinite(Date.parse(value))) throw new TypeError(`${name}は有効な日時文字列である必要があります`);
   return value;
 }
 
 function normalizePathKind(value) {
-  if (!CALIBRATION_PATH_KINDS.includes(value)) throw new TypeError("pathKind is not supported");
+  if (!CALIBRATION_PATH_KINDS.includes(value)) throw new TypeError("pathKindはサポートされていません");
   return value;
 }
 
 function normalizeStatus(value) {
-  if (!CALIBRATION_STATUSES.includes(value)) throw new TypeError("status is not supported");
+  if (!CALIBRATION_STATUSES.includes(value)) throw new TypeError("statusはサポートされていません");
   return value;
 }
 
@@ -99,9 +99,9 @@ function normalizePrecision(value) {
   const object = requireObject(value, "precision");
   rejectUnknownKeys(object, PRECISION_KEYS, "precision");
   const spreadMs = requireFiniteNumber(object.spreadMs, "precision.spreadMs");
-  if (spreadMs < 0) throw new RangeError("precision.spreadMs must be non-negative");
+  if (spreadMs < 0) throw new RangeError("precision.spreadMsは0以上である必要があります");
   if (!PRECISION_METHODS.includes(object.method)) {
-    throw new TypeError("precision.method is not supported");
+    throw new TypeError("precision.methodはサポートされていません");
   }
   return Object.freeze({ spreadMs, method: object.method });
 }
@@ -114,7 +114,7 @@ function normalizeValidity(value) {
     : requireDateString(object.invalidatedAt, "validity.invalidatedAt");
   const reason = nullableNonEmptyString(object.reason, "validity.reason");
   if (invalidatedAt !== null && reason === null) {
-    throw new TypeError("validity.reason is required when invalidatedAt is set");
+    throw new TypeError("invalidatedAtが設定されている場合はvalidity.reasonが必須です");
   }
   return Object.freeze({ invalidatedAt, reason });
 }
@@ -123,10 +123,10 @@ export function validateCalibrationRecord(value) {
   const object = requireObject(value, "calibration");
   rejectUnknownKeys(object, RECORD_KEYS, "calibration");
   if (!Number.isInteger(object.sampleCount) || object.sampleCount < 1) {
-    throw new RangeError("sampleCount must be an integer >= 1");
+    throw new RangeError("sampleCountは1以上の整数である必要があります");
   }
   if (object.signConvention !== SIGN_CONVENTION) {
-    throw new TypeError(`signConvention must be ${SIGN_CONVENTION}`);
+    throw new TypeError(`signConventionは${SIGN_CONVENTION}である必要があります`);
   }
   return Object.freeze({
     id: requireNonEmptyString(object.id, "id"),
