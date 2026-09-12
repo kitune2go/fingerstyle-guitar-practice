@@ -84,6 +84,10 @@ test("reference timebase mismatch is not applicable", () => assert.equal(calibra
 test("observed timebase mismatch is not applicable", () => assert.equal(calibrationApplies(record({ pathKind: "input" }), target("input", { timebase: { observed: "capture" } })), false));
 test("inputRoute mismatch is not applicable", () => assert.equal(calibrationApplies(record({ pathKind: "input" }), target("input", { environment: { inputRoute: "usb-mic" } })), false));
 test("outputRoute mismatch is not applicable", () => assert.equal(calibrationApplies(record({ pathKind: "output" }), target("output", { environment: { outputRoute: "headphones" } })), false));
+test("unknown route does not match even if both are unknown", () => {
+  assert.equal(calibrationApplies(record({ environment: { inputRoute: "unknown" } }), target("roundTrip", { environment: { inputRoute: "unknown" } })), false);
+  assert.equal(calibrationApplies(record({ environment: { outputRoute: "unknown" } }), target("roundTrip", { environment: { outputRoute: "unknown" } })), false);
+});
 test("invalidated record is not applicable", () => assert.equal(calibrationApplies(record({ validity: { invalidatedAt: "2026-09-07T00:00:00Z", reason: "route changed" } }), target("roundTrip")), false));
 test("uncalibrated record is not applicable", () => assert.equal(calibrationApplies(record({ status: "uncalibrated" }), target("roundTrip")), false));
 

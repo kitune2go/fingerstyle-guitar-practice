@@ -13,6 +13,13 @@ import {
 } from "./core/calibration.js";
 import { validateMeasurementResult } from "./core/measurement.js";
 import {
+  UNKNOWN_ROUTE,
+  resolveInputRoute,
+  resolveOutputRoute,
+  createRouteTarget
+} from "./core/audio-route.js";
+import { runAcousticCalibrationCollector } from "./core/calibration-collector.js";
+import {
   buildPhraseModel,
   midiToFrequency,
   noteToFrequency,
@@ -1493,17 +1500,30 @@ import {
     }
   }
 
-  const CALIBRATION_TARGET = Object.freeze({
-    pathKind: "roundTrip",
-    timebase: Object.freeze({
-      reference: "audio-context",
-      observed: "audio-context"
-    }),
-    environment: Object.freeze({
-      inputRoute: "built-in-mic",
-      outputRoute: "built-in-speaker"
-    })
-  });
+  const ROUTE_PREF_KEY="fingerstyle-calibration-route";
+
+  function getCurrentCalibrationTarget(inputRoute=state.currentInputRoute){
+    const resolvedInput=inputRoute||(() => {
+      try {
+        const saved=JSON.parse(localStorage.getItem(ROUTE_PREF_KEY)||"{}");
+        return saved?.inputRoute||UNKNOWN_ROUTE;
+      }catch{ return UNKNOWN_ROUTE; }
+    })();
+    const resolvedOutput=resolveOutputRoute(state.audio);
+    const effectiveOutput=resolvedOutput!==UNKNOWN_ROUTE ? resolvedOutput : (() => {
+      try {
+        const saved=JSON.parse(localStorage.getItem(ROUTE_PREF_KEY)||"{}");
+        return saved?.outputRoute||UNKNOWN_ROUTE;
+      }catch{ return UNKNOWN_ROUTE; }
+    })();
+
+    return createRouteTarget({
+      pathKind:"roundTrip",
+      inputRoute:resolvedInput,
+      outputRoute:effectiveOutput,
+      timebase:{reference:"audio-context",observed:"audio-context"}
+    });
+  }
 
   function extractSampleOffsetMs(sample){
     if(typeof sample?.offsetMs==="number"&&Number.isFinite(sample.offsetMs)){
@@ -1599,14 +1619,15 @@ import {
     renderCalibration();
 
     try{
+      await ensureAudio();
       let collectorResult;
       if(typeof window.__calibrationCollector==="function"){
         collectorResult=await window.__calibrationCollector();
       }else{
-        collectorResult={
-          unmeasurable:true,
-          reason:"音響ループバック測定環境が利用できません。マイク入力とスピーカー出力へのアクセスを確認してください。"
-        };
+        collectorResult=await runAcousticCalibrationCollector({
+          audioContext:state.audio,
+          mediaDevices:navigator.mediaDevices
+        });
       }
 
       if(collectorResult?.error){
@@ -1628,6 +1649,12 @@ import {
         return;
       }
 
+      const isTestMode=typeof window.__calibrationCollector==="function";
+      const resolvedOutput=resolveOutputRoute(state.audio);
+      const inputRoute=collectorResult.route?.inputRoute||collectorResult.inputRoute||state.currentInputRoute||(isTestMode?"test-mic":"built-in-mic");
+      const outputRoute=collectorResult.route?.outputRoute||collectorResult.outputRoute||(resolvedOutput!==UNKNOWN_ROUTE?resolvedOutput:(isTestMode?"test-speaker":UNKNOWN_ROUTE));
+      state.currentInputRoute=inputRoute;
+
       const {sampleCount,offsetMs,spreadMs}=computeCalibrationStats(collectorResult.samples);
       const isCalibrated=sampleCount>=MIN_CALIBRATION_SAMPLES&&spreadMs<=MAX_CALIBRATION_SPREAD_MS;
       const status=isCalibrated?"calibrated":"uncalibrated";
@@ -1648,8 +1675,8 @@ import {
           method:"stddev"
         },
         environment:{
-          inputRoute:"built-in-mic",
-          outputRoute:"built-in-speaker"
+          inputRoute,
+          outputRoute
         },
         status,
         validity:{
@@ -1658,11 +1685,13 @@ import {
         }
       });
 
+      const currentTarget=getCurrentCalibrationTarget(inputRoute);
+
       if(state.store){
         if(isCalibrated){
           try{
             const existing=await state.store.allCalibrations();
-            const previous=existing.filter(r=>calibrationApplies(r,CALIBRATION_TARGET));
+            const previous=existing.filter(r=>calibrationApplies(r,currentTarget));
             for(const prev of previous){
               const superseded=invalidateCalibration(prev,{
                 at:record.createdAt,
@@ -1675,6 +1704,11 @@ import {
           }
         }
         await state.store.saveCalibration(record);
+        if(isCalibrated && inputRoute !== UNKNOWN_ROUTE && outputRoute !== UNKNOWN_ROUTE){
+          try{
+            localStorage.setItem(ROUTE_PREF_KEY, JSON.stringify({inputRoute, outputRoute}));
+          }catch{}
+        }
       }
 
       if(isCalibrated){
@@ -1717,10 +1751,11 @@ import {
   }
 
   async function resetCalibration(){
+    const target=getCurrentCalibrationTarget();
     if(state.store){
       try{
         const all=await state.store.allCalibrations();
-        const applicable=all.filter(r=>calibrationApplies(r,CALIBRATION_TARGET));
+        const applicable=all.filter(r=>calibrationApplies(r,target));
         for(const r of applicable){
           const invalidated=invalidateCalibration(r,{
             at:new Date().toISOString(),
@@ -1732,6 +1767,8 @@ import {
         console.warn("[phrase] could not persist calibration invalidation:",err);
       }
     }
+    try{ localStorage.removeItem(ROUTE_PREF_KEY); }catch{}
+    state.currentInputRoute=null;
     state.activeCalibration=null;
     state.calibrationState="uncalibrated";
     state.calibrationMessage="校正をリセットしました。";
@@ -1741,8 +1778,9 @@ import {
   async function loadCalibrations(){
     if(!state.store) return;
     try{
+      const target=getCurrentCalibrationTarget();
       const all=await state.store.allCalibrations();
-      const applicable=all.filter(r=>calibrationApplies(r,CALIBRATION_TARGET));
+      const applicable=all.filter(r=>calibrationApplies(r,target));
       applicable.sort((a,b)=>Date.parse(b.createdAt)-Date.parse(a.createdAt));
       if(applicable.length>0){
         state.activeCalibration=applicable[0];
@@ -1867,6 +1905,14 @@ import {
       $("backing-chords").addEventListener("click",()=>toggleBacking("chords"));
       $("backing-bass").addEventListener("click",()=>toggleBacking("bass"));
       $("backing-drums").addEventListener("click",()=>toggleBacking("drums"));
+
+      if(navigator.mediaDevices?.addEventListener){
+        navigator.mediaDevices.addEventListener("devicechange",()=>{
+          // Invalidate active in-memory calibration if physical route identity changes
+          state.currentInputRoute=null;
+          void loadCalibrations();
+        });
+      }
     }catch(error){
       document.body.insertAdjacentHTML("beforeend",'<p style="padding:16px;color:#9e3f2f">'+escapeHtml(error.message)+"</p>");
     }

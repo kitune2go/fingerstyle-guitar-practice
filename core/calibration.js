@@ -175,6 +175,8 @@ export function calibrationApplies(record, target) {
   if (normalizedRecord.pathKind !== normalizedTarget.pathKind) return false;
   if (normalizedRecord.timebase.reference !== normalizedTarget.timebase.reference) return false;
   if (normalizedRecord.timebase.observed !== normalizedTarget.timebase.observed) return false;
+  if (normalizedRecord.environment.inputRoute === "unknown" || normalizedTarget.environment.inputRoute === "unknown") return false;
+  if (normalizedRecord.environment.outputRoute === "unknown" || normalizedTarget.environment.outputRoute === "unknown") return false;
   if (normalizedRecord.environment.inputRoute !== normalizedTarget.environment.inputRoute) return false;
   if (normalizedRecord.environment.outputRoute !== normalizedTarget.environment.outputRoute) return false;
   return true;
