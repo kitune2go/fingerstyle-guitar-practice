@@ -1603,7 +1603,9 @@ import {
       }else{
         collectorResult=await runAcousticCalibrationCollector({
           audioContext:state.audio,
-          mediaDevices:navigator.mediaDevices
+          mediaDevices:navigator.mediaDevices,
+          outputDestination:state.mix?.master||state.audio.destination,
+          AudioWorkletNodeClass:window.AudioWorkletNode
         });
       }
 

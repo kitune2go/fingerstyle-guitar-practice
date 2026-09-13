@@ -39,7 +39,8 @@ function referencesInJs(js, owner) {
   const found = new Set();
   const patterns = [
     /\b(?:import|export)\s+(?:[^"'()]*?\s+from\s+)?(["'])([^"']+)\1/g,
-    /\bimport\s*\(\s*(["'])([^"']+)\1\s*\)/g
+    /\bimport\s*\(\s*(["'])([^"']+)\1\s*\)/g,
+    /\b(?:audioWorklet\s*\.\s*addModule)\s*\(\s*(["'])([^"']+)\1\s*\)/g
   ];
   for (const pattern of patterns) {
     for (const match of js.matchAll(pattern)) {

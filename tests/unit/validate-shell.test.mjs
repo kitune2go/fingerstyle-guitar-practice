@@ -189,3 +189,30 @@ test("audio samples present in the shell pass", () => {
   }));
   assert.deepEqual(errors, []);
 });
+
+test("an audioWorklet addModule script missing from the shell is reported", () => {
+  const { errors } = checkShell(fixture({
+    shell: [...COMPLETE, "./core/collector.js"],
+    files: PRESENT,
+    core: [
+      { path: "collector.js", content: 'await audioContext.audioWorklet.addModule("./processor.js");' },
+      { path: "processor.js", content: '// worklet processor' }
+    ],
+    appJs: 'import "./core/collector.js";'
+  }));
+  assert.equal(errors.length, 1);
+  assert.match(errors[0], /core\/processor\.js/);
+});
+
+test("an audioWorklet addModule script present in the shell passes", () => {
+  const { errors } = checkShell(fixture({
+    shell: [...COMPLETE, "./core/collector.js", "./core/processor.js"],
+    files: PRESENT,
+    core: [
+      { path: "collector.js", content: 'await audioContext.audioWorklet.addModule("./processor.js");' },
+      { path: "processor.js", content: '// worklet processor' }
+    ],
+    appJs: 'import "./core/collector.js";'
+  }));
+  assert.deepEqual(errors, []);
+});

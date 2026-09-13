@@ -12,6 +12,8 @@ import {
 export async function runAcousticCalibrationCollector({
   audioContext,
   mediaDevices,
+  outputDestination = audioContext?.destination,
+  AudioWorkletNodeClass = (typeof AudioWorkletNode !== "undefined" ? AudioWorkletNode : null),
   sampleCount = 6,
   timeoutMs = 6000
 } = {}) {
@@ -66,10 +68,14 @@ export async function runAcousticCalibrationCollector({
     };
 
     // 2. Load the AudioWorklet processor module
-    await audioContext.audioWorklet.addModule("./core/calibration-processor.js");
+    await audioContext.audioWorklet.addModule("./calibration-processor.js");
+
+    if (typeof AudioWorkletNodeClass !== "function") {
+      return { unmeasurable: true, reason: "AudioWorkletNodeが利用できません。" };
+    }
 
     sourceNode = audioContext.createMediaStreamSource(stream);
-    workletNode = new AudioWorkletNode(audioContext, "calibration-processor");
+    workletNode = new AudioWorkletNodeClass(audioContext, "calibration-processor");
     sourceNode.connect(workletNode);
 
     // 3. Prepare reference audio burst buffer
@@ -95,7 +101,7 @@ export async function runAcousticCalibrationCollector({
       const t_ref = scheduledTime;
       const bufferSource = audioContext.createBufferSource();
       bufferSource.buffer = audioBuffer;
-      bufferSource.connect(audioContext.destination);
+      bufferSource.connect(outputDestination || audioContext.destination);
       bufferSource.start(t_ref);
 
       // Wait until t_ref + burstListeningWindowSec has elapsed

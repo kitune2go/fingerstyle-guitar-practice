@@ -112,18 +112,18 @@ test("runAcousticCalibrationCollector produces samples with unit 's' when onsets
     connect() {}
     disconnect() {}
   }
-  globalThis.AudioWorkletNode = MockWorkletNode;
 
   let currentTime = 1.0;
+  let destinationConnected = null;
   const mockAudioContext = {
     sampleRate: 48000,
     get currentTime() { return currentTime; },
-    destination: {},
+    destination: { name: "default-dest" },
     audioWorklet: { addModule: async () => {} },
     createMediaStreamSource: () => ({ connect: () => {}, disconnect: () => {} }),
     createBuffer: () => ({ copyToChannel: () => {} }),
     createBufferSource: () => ({
-      connect: () => {},
+      connect: (target) => { destinationConnected = target; },
       start: (t_ref) => {
         // simulate AudioWorklet onset detection arriving 40 ms later
         setTimeout(() => {
@@ -149,14 +149,18 @@ test("runAcousticCalibrationCollector produces samples with unit 's' when onsets
     })
   };
 
+  const customOutput = { name: "custom-master" };
   const res = await runAcousticCalibrationCollector({
     audioContext: mockAudioContext,
     mediaDevices: mockMediaDevices,
+    outputDestination: customOutput,
+    AudioWorkletNodeClass: MockWorkletNode,
     sampleCount: 2,
     timeoutMs: 1000
   });
 
   assert.equal(res.unmeasurable, undefined);
+  assert.equal(destinationConnected, customOutput);
   assert.equal(res.samples.length, 2);
   assert.equal(res.samples[0].unit, "s");
   assert.ok(Math.abs((res.samples[0].observedTime - res.samples[0].referenceTime) - 0.04) < 1e-4);
@@ -183,7 +187,6 @@ test("runAcousticCalibrationCollector aborts as unmeasurable on missed burst and
     connect() {}
     disconnect() {}
   }
-  globalThis.AudioWorkletNode = MockWorkletNode;
 
   let currentTime = 1.0;
   let burstCount = 0;
@@ -227,6 +230,7 @@ test("runAcousticCalibrationCollector aborts as unmeasurable on missed burst and
   const res = await runAcousticCalibrationCollector({
     audioContext: mockAudioContext,
     mediaDevices: mockMediaDevices,
+    AudioWorkletNodeClass: MockWorkletNode,
     sampleCount: 2,
     timeoutMs: 500
   });
