@@ -55,9 +55,20 @@ test.describe("Minimal Calibration UI & Browser Calibration Flow", () => {
     expect(stored[0].sampleCount).toBe(6);
     expect(stored[0].offsetMs).toBe(40.0);
 
-    // Survives page reload
+    // On reload, route is unverified (mic not initialized / route unknown), so status must remain 未校正
     await page.reload();
     await expect(page.locator("#phrase-title")).not.toHaveText("読み込み中");
+    await expect(page.locator("#calibration-badge")).toHaveText("未校正");
+    await expect(page.locator("#calibration-state-text")).toHaveText("未校正");
+    await expect(page.locator("#reset-calibration")).toBeDisabled();
+
+    // When the physical route is verified (e.g. mic permission granted / active route identified), applicable calibration applies
+    await page.evaluate(() => {
+      // Simulate verified route establishment and trigger calibration reload
+      window.dispatchEvent(new CustomEvent("fingerstyle:set-route", {
+        detail: { inputRoute: "test-mic", outputRoute: "test-speaker" }
+      }));
+    });
     await expect(page.locator("#calibration-badge")).toHaveText("校正済み");
     await expect(page.locator("#calibration-state-text")).toHaveText("校正済み");
     await expect(page.locator("#calibration-offset")).toContainText("40.0 ms");

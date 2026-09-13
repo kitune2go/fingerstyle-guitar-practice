@@ -51,10 +51,18 @@ export async function runAcousticCalibrationCollector({
       return { unmeasurable: true, reason: "利用可能なマイクが見つかりませんでした。" };
     }
 
+    const processing = inspectTrackProcessing(track);
+    if (!processing.rawCaptureVerified) {
+      return {
+        unmeasurable: true,
+        reason: "マイクの音声処理（エコーキャンセラー・ノイズ抑制等）を無効化できないため測定できません。"
+      };
+    }
+
     const routeInfo = {
       inputRoute: resolveInputRoute(track),
       outputRoute: resolveOutputRoute(audioContext),
-      processing: inspectTrackProcessing(track)
+      processing
     };
 
     // 2. Load the AudioWorklet processor module

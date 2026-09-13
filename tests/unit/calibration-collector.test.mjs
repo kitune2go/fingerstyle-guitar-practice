@@ -63,3 +63,30 @@ test("runAcousticCalibrationCollector returns unmeasurable on missing context or
   assert.equal(res2.unmeasurable, true);
   assert.equal(res2.reason, "マイクの利用が許可されませんでした。");
 });
+
+test("runAcousticCalibrationCollector returns unmeasurable when raw capture cannot be verified", async () => {
+  const mockTrack = {
+    getSettings: () => ({
+      echoCancellation: true, // echo cancellation active!
+      noiseSuppression: false,
+      autoGainControl: false,
+      deviceId: "mic-1"
+    }),
+    stop: () => {}
+  };
+  const mockAudioContext = {
+    audioWorklet: { addModule: async () => {} }
+  };
+  const mockMediaDevices = {
+    getUserMedia: async () => ({
+      getAudioTracks: () => [mockTrack],
+      getTracks: () => [mockTrack]
+    })
+  };
+  const res = await runAcousticCalibrationCollector({
+    audioContext: mockAudioContext,
+    mediaDevices: mockMediaDevices
+  });
+  assert.equal(res.unmeasurable, true);
+  assert.ok(res.reason.includes("マイクの音声処理"));
+});

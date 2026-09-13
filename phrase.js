@@ -50,6 +50,7 @@ import {
     range:{start:1,end:1}, assist:"full", melody:true, countIn:0, focusMode:"integrated", readingSession:null,
     run:null, pending:null, attempts:[], store:null, saving:false, preferences:{},
     activeCalibration:null, calibrationState:"uncalibrated", calibrationMessage:"", calibrating:false,
+    currentInputRoute:null, currentOutputRoute:null,
     recorder:null, recordingRunId:null, recordingFinalizing:false, recordingResult:null,
     pendingRecording:null, recordings:new Map(), pendingRecordingUrl:null, historyRecordingUrls:[],
     followedMeasure:-1,
@@ -1500,27 +1501,14 @@ import {
     }
   }
 
-  const ROUTE_PREF_KEY="fingerstyle-calibration-route";
-
-  function getCurrentCalibrationTarget(inputRoute=state.currentInputRoute){
-    const resolvedInput=inputRoute||(() => {
-      try {
-        const saved=JSON.parse(localStorage.getItem(ROUTE_PREF_KEY)||"{}");
-        return saved?.inputRoute||UNKNOWN_ROUTE;
-      }catch{ return UNKNOWN_ROUTE; }
-    })();
-    const resolvedOutput=resolveOutputRoute(state.audio);
-    const effectiveOutput=resolvedOutput!==UNKNOWN_ROUTE ? resolvedOutput : (() => {
-      try {
-        const saved=JSON.parse(localStorage.getItem(ROUTE_PREF_KEY)||"{}");
-        return saved?.outputRoute||UNKNOWN_ROUTE;
-      }catch{ return UNKNOWN_ROUTE; }
-    })();
+  function getCurrentCalibrationTarget(inputRoute=state.currentInputRoute, outputRoute=state.currentOutputRoute){
+    const resolvedInput=inputRoute||UNKNOWN_ROUTE;
+    const resolvedOutput=outputRoute||resolveOutputRoute(state.audio);
 
     return createRouteTarget({
       pathKind:"roundTrip",
       inputRoute:resolvedInput,
-      outputRoute:effectiveOutput,
+      outputRoute:resolvedOutput,
       timebase:{reference:"audio-context",observed:"audio-context"}
     });
   }
@@ -1652,8 +1640,9 @@ import {
       const isTestMode=typeof window.__calibrationCollector==="function";
       const resolvedOutput=resolveOutputRoute(state.audio);
       const inputRoute=collectorResult.route?.inputRoute||collectorResult.inputRoute||state.currentInputRoute||(isTestMode?"test-mic":"built-in-mic");
-      const outputRoute=collectorResult.route?.outputRoute||collectorResult.outputRoute||(resolvedOutput!==UNKNOWN_ROUTE?resolvedOutput:(isTestMode?"test-speaker":UNKNOWN_ROUTE));
+      const outputRoute=collectorResult.route?.outputRoute||collectorResult.outputRoute||state.currentOutputRoute||(resolvedOutput!==UNKNOWN_ROUTE?resolvedOutput:(isTestMode?"test-speaker":UNKNOWN_ROUTE));
       state.currentInputRoute=inputRoute;
+      state.currentOutputRoute=outputRoute;
 
       const {sampleCount,offsetMs,spreadMs}=computeCalibrationStats(collectorResult.samples);
       const isCalibrated=sampleCount>=MIN_CALIBRATION_SAMPLES&&spreadMs<=MAX_CALIBRATION_SPREAD_MS;
@@ -1685,7 +1674,7 @@ import {
         }
       });
 
-      const currentTarget=getCurrentCalibrationTarget(inputRoute);
+      const currentTarget=getCurrentCalibrationTarget(inputRoute,outputRoute);
 
       if(state.store){
         if(isCalibrated){
@@ -1704,11 +1693,6 @@ import {
           }
         }
         await state.store.saveCalibration(record);
-        if(isCalibrated && inputRoute !== UNKNOWN_ROUTE && outputRoute !== UNKNOWN_ROUTE){
-          try{
-            localStorage.setItem(ROUTE_PREF_KEY, JSON.stringify({inputRoute, outputRoute}));
-          }catch{}
-        }
       }
 
       if(isCalibrated){
@@ -1767,8 +1751,8 @@ import {
         console.warn("[phrase] could not persist calibration invalidation:",err);
       }
     }
-    try{ localStorage.removeItem(ROUTE_PREF_KEY); }catch{}
     state.currentInputRoute=null;
+    state.currentOutputRoute=null;
     state.activeCalibration=null;
     state.calibrationState="uncalibrated";
     state.calibrationMessage="校正をリセットしました。";
@@ -1910,9 +1894,21 @@ import {
         navigator.mediaDevices.addEventListener("devicechange",()=>{
           // Invalidate active in-memory calibration if physical route identity changes
           state.currentInputRoute=null;
+          state.currentOutputRoute=null;
           void loadCalibrations();
         });
       }
+
+      window.addEventListener("fingerstyle:set-input-route",(e)=>{
+        state.currentInputRoute=e.detail?.inputRoute||null;
+        void loadCalibrations();
+      });
+
+      window.addEventListener("fingerstyle:set-route",(e)=>{
+        state.currentInputRoute=e.detail?.inputRoute||null;
+        state.currentOutputRoute=e.detail?.outputRoute||null;
+        void loadCalibrations();
+      });
     }catch(error){
       document.body.insertAdjacentHTML("beforeend",'<p style="padding:16px;color:#9e3f2f">'+escapeHtml(error.message)+"</p>");
     }
