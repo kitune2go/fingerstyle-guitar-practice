@@ -337,3 +337,91 @@ test("runAcousticCalibrationCollector maps unexpected errors to Japanese explana
   assert.equal(res.reason, "校正処理中にエラーが発生しました。マイクとスピーカーの接続を確認して再試行してください。");
   assert.equal(res.reason.includes("NetworkError"), false);
 });
+
+test("runAcousticCalibrationCollector rejects detections that precede reference burst (observedTime < t_ref)", async () => {
+  const mockTrack = {
+    getSettings: () => ({
+      echoCancellation: false,
+      noiseSuppression: false,
+      autoGainControl: false,
+      deviceId: "mic-1"
+    }),
+    stop: () => {}
+  };
+  let messageHandler = null;
+  class MockWorkletNode {
+    constructor() {
+      this.port = {
+        set onmessage(fn) { messageHandler = fn; },
+        get onmessage() { return messageHandler; }
+      };
+    }
+    connect() {}
+    disconnect() {}
+  }
+
+  let currentTime = 1.0;
+  const mockAudioContext = {
+    sampleRate: 48000,
+    get currentTime() { return currentTime; },
+    destination: {},
+    audioWorklet: { addModule: async () => {} },
+    createMediaStreamSource: () => ({ connect: () => {}, disconnect: () => {} }),
+    createGain: () => ({
+      gain: { value: 1 },
+      connect: () => {},
+      disconnect: () => {}
+    }),
+    createBuffer: () => ({ copyToChannel: () => {} }),
+    createBufferSource: () => ({
+      connect: () => {},
+      start: (t_ref) => {
+        // Emit a pre-burst onset at t_ref - 0.005 s
+        if (messageHandler) {
+          messageHandler({
+            data: {
+              type: "onset",
+              observedTime: t_ref - 0.005,
+              observedFrame: Math.round((t_ref - 0.005) * 48000),
+              score: 0.99
+            }
+          });
+        }
+        // Then emit a valid onset at t_ref + 0.035 s
+        setTimeout(() => {
+          currentTime = t_ref + 0.035;
+          if (messageHandler) {
+            messageHandler({
+              data: {
+                type: "onset",
+                observedTime: t_ref + 0.035,
+                observedFrame: Math.round((t_ref + 0.035) * 48000),
+                score: 0.95
+              }
+            });
+          }
+        }, 10);
+      }
+    })
+  };
+  const mockMediaDevices = {
+    getUserMedia: async () => ({
+      getAudioTracks: () => [mockTrack],
+      getTracks: () => [mockTrack]
+    })
+  };
+
+  const res = await runAcousticCalibrationCollector({
+    audioContext: mockAudioContext,
+    mediaDevices: mockMediaDevices,
+    AudioWorkletNodeClass: MockWorkletNode,
+    sampleCount: 1,
+    timeoutMs: 1000
+  });
+
+  assert.equal(res.unmeasurable, undefined);
+  assert.equal(res.samples.length, 1);
+  // Must match the valid onset after t_ref, NOT the pre-burst onset
+  assert.ok(Math.abs((res.samples[0].observedTime - res.samples[0].referenceTime) - 0.035) < 1e-4);
+  assert.ok(res.samples[0].observedTime >= res.samples[0].referenceTime);
+});

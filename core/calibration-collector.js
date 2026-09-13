@@ -122,9 +122,9 @@ export async function runAcousticCalibrationCollector({
       const waitMs = Math.max(50, Math.round((t_ref + burstListeningWindowSec - audioContext.currentTime) * 1000));
       await new Promise((resolve) => setTimeout(resolve, waitMs));
 
-      // Match the earliest detected onset belonging to this burst: [t_ref - 0.02, t_ref + burstListeningWindowSec]
+      // Match the earliest detected onset belonging to this burst: [t_ref, t_ref + burstListeningWindowSec]
       const matchIndex = collectedOnsets.findIndex(
-        (onset) => onset.observedTime >= t_ref - 0.02 && onset.observedTime <= t_ref + burstListeningWindowSec
+        (onset) => onset.observedTime >= t_ref && onset.observedTime <= t_ref + burstListeningWindowSec
       );
 
       if (matchIndex !== -1) {

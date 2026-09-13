@@ -16,6 +16,7 @@ export const PRECISION_METHODS = Object.freeze([
 export const SIGN_CONVENTION = "observed-minus-reference";
 export const MIN_CALIBRATION_SAMPLES = 5;
 export const MAX_CALIBRATION_SPREAD_MS = 20;
+export const MAX_CALIBRATION_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 const RECORD_KEYS = new Set([
   "id", "createdAt", "pathKind", "timebase", "offsetMs", "signConvention",
@@ -183,12 +184,22 @@ export function evaluateCalibrationQuality(record) {
     : "uncalibrated";
 }
 
-export function calibrationApplies(record, target) {
+export function calibrationApplies(record, target, options = {}) {
   const normalizedRecord = validateCalibrationRecord(record);
   const normalizedTarget = validateCalibrationTarget(target);
   if (normalizedRecord.status !== "calibrated") return false;
   if (evaluateCalibrationQuality(normalizedRecord) !== "calibrated") return false;
   if (normalizedRecord.validity.invalidatedAt !== null) return false;
+
+  const nowMs = typeof options.now === "number"
+    ? options.now
+    : (typeof options.now === "string" ? Date.parse(options.now) : Date.now());
+  const maxAgeMs = typeof options.maxAgeMs === "number" ? options.maxAgeMs : MAX_CALIBRATION_AGE_MS;
+  const createdAtMs = Date.parse(normalizedRecord.createdAt);
+  if (!Number.isFinite(nowMs) || !Number.isFinite(createdAtMs)) return false;
+  const ageMs = nowMs - createdAtMs;
+  if (ageMs < 0 || ageMs > maxAgeMs) return false;
+
   if (normalizedRecord.pathKind !== normalizedTarget.pathKind) return false;
   if (normalizedRecord.timebase.reference !== normalizedTarget.timebase.reference) return false;
   if (normalizedRecord.timebase.observed !== normalizedTarget.timebase.observed) return false;

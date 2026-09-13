@@ -7,6 +7,7 @@ import {
   SIGN_CONVENTION,
   MIN_CALIBRATION_SAMPLES,
   MAX_CALIBRATION_SPREAD_MS,
+  MAX_CALIBRATION_AGE_MS,
   validateCalibrationRecord,
   applyCalibrationOffset,
   calibrationApplies,
@@ -91,6 +92,16 @@ test("unknown route does not match even if both are unknown", () => {
 });
 test("invalidated record is not applicable", () => assert.equal(calibrationApplies(record({ validity: { invalidatedAt: "2026-09-07T00:00:00Z", reason: "route changed" } }), target("roundTrip")), false));
 test("uncalibrated record is not applicable", () => assert.equal(calibrationApplies(record({ status: "uncalibrated" }), target("roundTrip")), false));
+test("stale calibration record older than MAX_CALIBRATION_AGE_MS is not applicable", () => {
+  const created = new Date("2026-01-01T00:00:00Z").getTime();
+  const rec = record({ createdAt: new Date(created).toISOString() });
+  // Exactly at max age: applicable
+  assert.equal(calibrationApplies(rec, target("roundTrip"), { now: created + MAX_CALIBRATION_AGE_MS }), true);
+  // 1 ms beyond max age: not applicable
+  assert.equal(calibrationApplies(rec, target("roundTrip"), { now: created + MAX_CALIBRATION_AGE_MS + 1 }), false);
+  // Future timestamp (clock skew/anomaly where ageMs < 0): not applicable
+  assert.equal(calibrationApplies(rec, target("roundTrip"), { now: created - 1000 }), false);
+});
 
 test("sampleCount 4 evaluates uncalibrated", () => assert.equal(evaluateCalibrationQuality(record({ sampleCount: 4 })), "uncalibrated"));
 test("sampleCount 5 can satisfy the threshold", () => assert.equal(evaluateCalibrationQuality(record({ sampleCount: 5 })), "calibrated"));
