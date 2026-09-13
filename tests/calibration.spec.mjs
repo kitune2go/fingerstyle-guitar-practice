@@ -325,7 +325,11 @@ test.describe("Minimal Calibration UI & Browser Calibration Flow", () => {
     // Active playback should have been stopped
     await expect(page.locator("#stop")).toBeDisabled();
 
-    // Reset button must be disabled while recalibration is running
+    // Audio entries and reset button must be disabled while recalibration is running
+    await expect(page.locator("#play")).toBeDisabled();
+    await expect(page.locator("#record-play")).toBeDisabled();
+    await expect(page.locator("#play-note")).toBeDisabled();
+    await expect(page.locator("#preview-backing")).toBeDisabled();
     await expect(page.locator("#reset-calibration")).toBeDisabled();
     await expect(page.locator("#start-calibration")).toBeDisabled();
 
@@ -337,5 +341,75 @@ test.describe("Minimal Calibration UI & Browser Calibration Flow", () => {
     await expect(page.locator("#calibration-badge")).toHaveText("校正済み");
     await expect(page.locator("#calibration-offset")).toContainText("45.0");
     await expect(page.locator("#reset-calibration")).toBeEnabled();
+    await expect(page.locator("#play")).toBeEnabled();
+    await expect(page.locator("#record-play")).toBeEnabled();
+    await expect(page.locator("#play-note")).toBeEnabled();
+    await expect(page.locator("#preview-backing")).toBeEnabled();
+  });
+
+  test("failed recalibration preserves previously active applicable calibration", async ({ page }) => {
+    await openPhrase(page);
+
+    // 1. Establish initial valid calibration
+    await page.evaluate(() => {
+      window.__calibrationCollector = async () => ({
+        samples: [
+          { referenceTime: 0, observedTime: 40.0 },
+          { referenceTime: 0, observedTime: 41.0 },
+          { referenceTime: 0, observedTime: 39.0 },
+          { referenceTime: 0, observedTime: 40.0 },
+          { referenceTime: 0, observedTime: 40.5 },
+          { referenceTime: 0, observedTime: 39.5 }
+        ]
+      });
+    });
+    await page.locator("#start-calibration").click();
+    await expect(page.locator("#calibration-badge")).toHaveText("校正済み");
+    await expect(page.locator("#calibration-offset")).toContainText("40.0 ms");
+    await expect(page.locator("#reset-calibration")).toBeEnabled();
+
+    // 2. Retry calibration with high-spread samples (failure)
+    await page.evaluate(() => {
+      window.__calibrationCollector = async () => ({
+        samples: [
+          { referenceTime: 0, observedTime: 10 },
+          { referenceTime: 0, observedTime: 70 },
+          { referenceTime: 0, observedTime: 15 },
+          { referenceTime: 0, observedTime: 75 },
+          { referenceTime: 0, observedTime: 10 },
+          { referenceTime: 0, observedTime: 70 }
+        ]
+      });
+    });
+    await page.locator("#start-calibration").click();
+
+    // Previous valid calibration must be preserved
+    await expect(page.locator("#calibration-badge")).toHaveText("校正済み");
+    await expect(page.locator("#calibration-state-text")).toHaveText("校正済み");
+    await expect(page.locator("#calibration-offset")).toContainText("40.0 ms");
+    await expect(page.locator("#reset-calibration")).toBeEnabled();
+    await expect(page.locator("#calibration-message")).toContainText("前回の校正値を維持しています");
+
+    // 3. Retry calibration returning unmeasurable
+    await page.evaluate(() => {
+      window.__calibrationCollector = async () => ({
+        unmeasurable: true,
+        reason: "測定に必要な信号が検出されませんでした。"
+      });
+    });
+    await page.locator("#start-calibration").click();
+
+    // Still preserves previous valid calibration
+    await expect(page.locator("#calibration-badge")).toHaveText("校正済み");
+    await expect(page.locator("#calibration-state-text")).toHaveText("校正済み");
+    await expect(page.locator("#calibration-offset")).toContainText("40.0 ms");
+    await expect(page.locator("#reset-calibration")).toBeEnabled();
+    await expect(page.locator("#calibration-message")).toContainText("前回の校正値を維持しています");
+
+    // Verify stored calibrations still retain active calibrated record
+    const stored = await getStoredCalibrations(page);
+    const calibratedRecords = stored.filter(r => r.status === "calibrated" && r.validity.invalidatedAt === null);
+    expect(calibratedRecords.length).toBe(1);
+    expect(calibratedRecords[0].offsetMs).toBe(40.0);
   });
 });

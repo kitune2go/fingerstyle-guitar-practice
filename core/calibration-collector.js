@@ -46,9 +46,16 @@ export async function runAcousticCalibrationCollector({
         }
       });
     } catch (permErr) {
+      const errorName = permErr?.name;
+      let reason = "マイクを開始できませんでした。";
+      if (["NotAllowedError", "PermissionDeniedError", "SecurityError"].includes(errorName)) {
+        reason = "マイクの利用が許可されませんでした。";
+      } else if (["NotFoundError", "DevicesNotFoundError"].includes(errorName)) {
+        reason = "利用できるマイクが見つかりませんでした。";
+      }
       return {
         unmeasurable: true,
-        reason: "マイクの利用が許可されませんでした。"
+        reason
       };
     }
 

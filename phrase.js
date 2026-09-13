@@ -358,14 +358,15 @@ import {
   }
 
   function setAudioEntriesPending(pending){
+    const blocked=pending||state.calibrating;
     const playButton=$("play");
     const recordButton=$("record-play");
     const noteButton=$("play-note");
     const backingButton=$("preview-backing");
-    if(playButton) playButton.disabled=pending||state.running||state.focusMode==="reading";
-    if(recordButton) recordButton.disabled=pending||state.running||state.focusMode==="reading"||state.focusMode==="rhythm";
-    if(noteButton) noteButton.disabled=pending;
-    if(backingButton) backingButton.disabled=pending||state.focusMode==="reading"||state.focusMode==="rhythm";
+    if(playButton) playButton.disabled=blocked||state.running||state.focusMode==="reading";
+    if(recordButton) recordButton.disabled=blocked||state.running||state.focusMode==="reading"||state.focusMode==="rhythm";
+    if(noteButton) noteButton.disabled=blocked;
+    if(backingButton) backingButton.disabled=blocked||state.focusMode==="reading"||state.focusMode==="rhythm";
     $("stop").disabled=!(pending||state.running||state.sources.size);
   }
 
@@ -888,7 +889,7 @@ import {
   }
 
   async function play(withRecording=false){
-    if(state.running||state.starting||withRecording&&(state.focusMode==="reading"||state.focusMode==="rhythm")) return;
+    if(state.calibrating||state.running||state.starting||withRecording&&(state.focusMode==="reading"||state.focusMode==="rhythm")) return;
     stop();
     const generation=state.generation;
     state.starting=true;
@@ -1036,7 +1037,7 @@ import {
   }
 
   async function playOne(){
-    if(state.starting) return;
+    if(state.calibrating||state.starting) return;
     stop();
     const generation=state.generation;
     state.starting=true;
@@ -1059,7 +1060,7 @@ import {
   }
 
   async function previewBacking(){
-    if(state.starting) return;
+    if(state.calibrating||state.starting) return;
     stop();
     const generation=state.generation;
     state.starting=true;
@@ -1582,20 +1583,53 @@ import {
       messageEl.textContent=state.calibrationMessage||"";
       resetBtn.disabled=true;
     }
+    setAudioEntriesPending(state.starting);
   }
 
-  function handleCalibrationUnmeasurable(reason){
-    state.activeCalibration=null;
-    state.calibrationState="unmeasurable";
-    state.calibrationMessage=reason;
-    validateMeasurementResult({
-      metric:"roundTrip-latency",
-      state:"unmeasurable",
-      value:null,
-      unit:"ms",
-      calibrationId:null,
-      reason
-    });
+  async function findApplicableStoredCalibration(target=getCurrentCalibrationTarget()){
+    if(state.store){
+      try{
+        const all=await state.store.allCalibrations();
+        const applicable=all.filter(r=>calibrationApplies(r,target));
+        applicable.sort((a,b)=>Date.parse(b.createdAt)-Date.parse(a.createdAt));
+        if(applicable.length>0) return applicable[0];
+      }catch(err){
+        console.warn("[phrase] could not read calibrations from store:",err);
+      }
+    }
+    if(state.activeCalibration&&calibrationApplies(state.activeCalibration,target)){
+      return state.activeCalibration;
+    }
+    return null;
+  }
+
+  async function handleCalibrationUnmeasurable(reason, target=getCurrentCalibrationTarget()){
+    const preserved=await findApplicableStoredCalibration(target);
+    if(preserved){
+      state.activeCalibration=preserved;
+      state.calibrationState="calibrated";
+      state.calibrationMessage=reason+"（前回の校正値を維持しています）";
+      validateMeasurementResult({
+        metric:"roundTrip-latency",
+        state:"measured",
+        value:preserved.offsetMs,
+        unit:"ms",
+        calibrationId:preserved.id,
+        reason:null
+      });
+    }else{
+      state.activeCalibration=null;
+      state.calibrationState="unmeasurable";
+      state.calibrationMessage=reason;
+      validateMeasurementResult({
+        metric:"roundTrip-latency",
+        state:"unmeasurable",
+        value:null,
+        unit:"ms",
+        calibrationId:null,
+        reason
+      });
+    }
   }
 
   async function runCalibration(){
@@ -1622,31 +1656,34 @@ import {
       }
       if(calibrationRunId!==state.calibrationRunId) return;
 
+      const isTestMode=typeof window.__calibrationCollector==="function";
+      const resolvedOutput=resolveOutputRoute(state.audio);
+      const detectedInput=collectorResult?.route?.inputRoute||collectorResult?.inputRoute;
+      const detectedOutput=collectorResult?.route?.outputRoute||collectorResult?.outputRoute;
+      const inputRoute=detectedInput||state.currentInputRoute||(isTestMode?"test-mic":UNKNOWN_ROUTE);
+      const outputRoute=detectedOutput||state.currentOutputRoute||(isTestMode?"test-speaker":resolvedOutput);
+      if(inputRoute!==UNKNOWN_ROUTE) state.currentInputRoute=inputRoute;
+      if(outputRoute!==UNKNOWN_ROUTE) state.currentOutputRoute=outputRoute;
+      const currentTarget=getCurrentCalibrationTarget(state.currentInputRoute,state.currentOutputRoute);
+
       if(collectorResult?.error){
         const errReason=typeof collectorResult.error==="string"
           ?collectorResult.error
           :(collectorResult.error?.message||"校正処理中にエラーが発生しました。");
-        handleCalibrationUnmeasurable(errReason);
+        await handleCalibrationUnmeasurable(errReason, currentTarget);
         return;
       }
 
       if(collectorResult?.unmeasurable){
         const unmeasurableReason=collectorResult.reason||"測定に必要な信号が検出されませんでした。";
-        handleCalibrationUnmeasurable(unmeasurableReason);
+        await handleCalibrationUnmeasurable(unmeasurableReason, currentTarget);
         return;
       }
 
       if(!collectorResult?.samples||!Array.isArray(collectorResult.samples)||collectorResult.samples.length===0){
-        handleCalibrationUnmeasurable("測定サンプルが取得できませんでした。");
+        await handleCalibrationUnmeasurable("測定サンプルが取得できませんでした。", currentTarget);
         return;
       }
-
-      const isTestMode=typeof window.__calibrationCollector==="function";
-      const resolvedOutput=resolveOutputRoute(state.audio);
-      const inputRoute=collectorResult.route?.inputRoute||collectorResult.inputRoute||(isTestMode?"test-mic":UNKNOWN_ROUTE);
-      const outputRoute=collectorResult.route?.outputRoute||collectorResult.outputRoute||(isTestMode?"test-speaker":resolvedOutput);
-      state.currentInputRoute=inputRoute;
-      state.currentOutputRoute=outputRoute;
 
       const {sampleCount,offsetMs,spreadMs}=computeCalibrationStats(collectorResult.samples);
       const hasKnownRoutes=isKnownRoute(inputRoute)&&isKnownRoute(outputRoute);
@@ -1678,8 +1715,6 @@ import {
           reason:null
         }
       });
-
-      const currentTarget=getCurrentCalibrationTarget(inputRoute,outputRoute);
 
       if(state.store){
         if(isCalibrated){
@@ -1715,8 +1750,6 @@ import {
           reason:null
         });
       }else{
-        state.activeCalibration=null;
-        state.calibrationState="uncalibrated";
         let explanation="";
         if(!hasKnownRoutes){
           explanation="入出力オーディオルートが特定できないため校正を確定できませんでした。マイクとスピーカーのデバイス接続を確認してください。";
@@ -1725,19 +1758,36 @@ import {
         }else{
           explanation="ばらつきが許容値（"+MAX_CALIBRATION_SPREAD_MS+" ms）を超えているため校正できませんでした（ばらつき: "+spreadMs.toFixed(1)+" ms）。静かな環境で再試行してください。";
         }
-        state.calibrationMessage=explanation;
-        validateMeasurementResult({
-          metric:"roundTrip-latency",
-          state:"uncalibrated",
-          value:offsetMs,
-          unit:"ms",
-          calibrationId:null,
-          reason:explanation
-        });
+        const preserved=await findApplicableStoredCalibration(currentTarget);
+        if(preserved){
+          state.activeCalibration=preserved;
+          state.calibrationState="calibrated";
+          state.calibrationMessage=explanation+"（前回の校正値を維持しています）";
+          validateMeasurementResult({
+            metric:"roundTrip-latency",
+            state:"measured",
+            value:preserved.offsetMs,
+            unit:"ms",
+            calibrationId:preserved.id,
+            reason:null
+          });
+        }else{
+          state.activeCalibration=null;
+          state.calibrationState="uncalibrated";
+          state.calibrationMessage=explanation;
+          validateMeasurementResult({
+            metric:"roundTrip-latency",
+            state:"uncalibrated",
+            value:offsetMs,
+            unit:"ms",
+            calibrationId:null,
+            reason:explanation
+          });
+        }
       }
     }catch(err){
       if(calibrationRunId===state.calibrationRunId){
-        handleCalibrationUnmeasurable("校正中にエラーが発生しました。静かな環境で再試行してください。");
+        await handleCalibrationUnmeasurable("校正中にエラーが発生しました。静かな環境で再試行してください。", getCurrentCalibrationTarget());
       }
     }finally{
       if(calibrationRunId===state.calibrationRunId){
@@ -1778,11 +1828,9 @@ import {
     if(!state.store) return;
     try{
       const target=getCurrentCalibrationTarget();
-      const all=await state.store.allCalibrations();
-      const applicable=all.filter(r=>calibrationApplies(r,target));
-      applicable.sort((a,b)=>Date.parse(b.createdAt)-Date.parse(a.createdAt));
-      if(applicable.length>0){
-        state.activeCalibration=applicable[0];
+      const applicable=await findApplicableStoredCalibration(target);
+      if(applicable){
+        state.activeCalibration=applicable;
         state.calibrationState="calibrated";
         state.calibrationMessage="";
       }else{

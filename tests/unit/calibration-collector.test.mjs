@@ -65,6 +65,36 @@ test("runAcousticCalibrationCollector returns unmeasurable on missing context or
   });
   assert.equal(res2.unmeasurable, true);
   assert.equal(res2.reason, "マイクの利用が許可されませんでした。");
+
+  // Device not found
+  const mockMediaDevicesNoDevice = {
+    getUserMedia: async () => {
+      const err = new Error("Device not found");
+      err.name = "NotFoundError";
+      throw err;
+    }
+  };
+  const res3 = await runAcousticCalibrationCollector({
+    audioContext: mockAudioContext,
+    mediaDevices: mockMediaDevicesNoDevice
+  });
+  assert.equal(res3.unmeasurable, true);
+  assert.equal(res3.reason, "利用できるマイクが見つかりませんでした。");
+
+  // Other media failure (e.g. NotReadableError)
+  const mockMediaDevicesOtherErr = {
+    getUserMedia: async () => {
+      const err = new Error("Device busy");
+      err.name = "NotReadableError";
+      throw err;
+    }
+  };
+  const res4 = await runAcousticCalibrationCollector({
+    audioContext: mockAudioContext,
+    mediaDevices: mockMediaDevicesOtherErr
+  });
+  assert.equal(res4.unmeasurable, true);
+  assert.equal(res4.reason, "マイクを開始できませんでした。");
 });
 
 test("runAcousticCalibrationCollector returns unmeasurable when raw capture cannot be verified", async () => {
