@@ -303,3 +303,37 @@ test("runAcousticCalibrationCollector resolves worklet URL against module and pa
 
   assert.equal(addedModuleUrl, "./custom-processor.js");
 });
+
+test("runAcousticCalibrationCollector maps unexpected errors to Japanese explanation without exposing English exception text", async () => {
+  const mockTrack = {
+    getSettings: () => ({
+      echoCancellation: false,
+      noiseSuppression: false,
+      autoGainControl: false,
+      deviceId: "mic-1"
+    }),
+    stop: () => {}
+  };
+  const mockAudioContext = {
+    audioWorklet: {
+      addModule: async () => {
+        throw new DOMException("Failed to load module script: NetworkError", "NetworkError");
+      }
+    }
+  };
+  const mockMediaDevices = {
+    getUserMedia: async () => ({
+      getAudioTracks: () => [mockTrack],
+      getTracks: () => [mockTrack]
+    })
+  };
+
+  const res = await runAcousticCalibrationCollector({
+    audioContext: mockAudioContext,
+    mediaDevices: mockMediaDevices
+  });
+
+  assert.equal(res.unmeasurable, true);
+  assert.equal(res.reason, "校正処理中にエラーが発生しました。マイクとスピーカーの接続を確認して再試行してください。");
+  assert.equal(res.reason.includes("NetworkError"), false);
+});

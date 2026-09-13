@@ -162,9 +162,10 @@ export async function runAcousticCalibrationCollector({
       route: routeInfo
     };
   } catch (err) {
+    console.warn("[calibration-collector] unexpected error during calibration:", err);
     return {
       unmeasurable: true,
-      reason: err?.message || "校正処理中に予期しないエラーが発生しました。"
+      reason: "校正処理中にエラーが発生しました。マイクとスピーカーの接続を確認して再試行してください。"
     };
   } finally {
     try { muteGain?.disconnect(); } catch {}

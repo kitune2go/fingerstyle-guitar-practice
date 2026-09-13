@@ -273,4 +273,69 @@ test.describe("Minimal Calibration UI & Browser Calibration Flow", () => {
     expect(stored.length).toBe(1);
     expect(stored[0].status).toBe("uncalibrated");
   });
+
+  test("reset button is disabled while recalibration is in-flight and active playback stops", async ({ page }) => {
+    await openPhrase(page);
+
+    // 1. Establish calibrated state
+    await page.evaluate(() => {
+      window.__calibrationCollector = async () => ({
+        samples: [
+          { referenceTime: 0, observedTime: 40.0 },
+          { referenceTime: 0, observedTime: 41.0 },
+          { referenceTime: 0, observedTime: 39.0 },
+          { referenceTime: 0, observedTime: 40.0 },
+          { referenceTime: 0, observedTime: 40.5 },
+          { referenceTime: 0, observedTime: 39.5 }
+        ]
+      });
+    });
+    await page.locator("#start-calibration").click();
+    await expect(page.locator("#calibration-badge")).toHaveText("校正済み");
+    await expect(page.locator("#reset-calibration")).toBeEnabled();
+
+    // 2. Start playback
+    await page.locator("#play").click();
+    await expect(page.locator("#play")).toBeDisabled();
+    await expect(page.locator("#stop")).toBeEnabled();
+
+    // 3. Set up in-flight collector and start calibration
+    let resolveCollector;
+    await page.exposeFunction("__blockCollector", () => new Promise((resolve) => {
+      resolveCollector = resolve;
+    }));
+    await page.evaluate(() => {
+      window.__calibrationCollector = async () => {
+        await window.__blockCollector();
+        return {
+          samples: [
+            { referenceTime: 0, observedTime: 45.0 },
+            { referenceTime: 0, observedTime: 46.0 },
+            { referenceTime: 0, observedTime: 44.0 },
+            { referenceTime: 0, observedTime: 45.0 },
+            { referenceTime: 0, observedTime: 45.5 },
+            { referenceTime: 0, observedTime: 44.5 }
+          ]
+        };
+      };
+    });
+
+    await page.locator("#start-calibration").click();
+
+    // Active playback should have been stopped
+    await expect(page.locator("#stop")).toBeDisabled();
+
+    // Reset button must be disabled while recalibration is running
+    await expect(page.locator("#reset-calibration")).toBeDisabled();
+    await expect(page.locator("#start-calibration")).toBeDisabled();
+
+    // Resolve the in-flight collector
+    await page.evaluate(() => window.__unblock && window.__unblock());
+    // Since __blockCollector was exposed, let's complete it:
+    resolveCollector();
+
+    await expect(page.locator("#calibration-badge")).toHaveText("校正済み");
+    await expect(page.locator("#calibration-offset")).toContainText("45.0");
+    await expect(page.locator("#reset-calibration")).toBeEnabled();
+  });
 });

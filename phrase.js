@@ -51,7 +51,7 @@ import {
     sources:new Set(), events:[], repeatIndex:0, timeline:null,
     range:{start:1,end:1}, assist:"full", melody:true, countIn:0, focusMode:"integrated", readingSession:null,
     run:null, pending:null, attempts:[], store:null, saving:false, preferences:{},
-    activeCalibration:null, calibrationState:"uncalibrated", calibrationMessage:"", calibrating:false,
+    activeCalibration:null, calibrationState:"uncalibrated", calibrationMessage:"", calibrating:false, calibrationRunId:0,
     currentInputRoute:null, currentOutputRoute:null,
     recorder:null, recordingRunId:null, recordingFinalizing:false, recordingResult:null,
     pendingRecording:null, recordings:new Map(), pendingRecordingUrl:null, historyRecordingUrls:[],
@@ -1564,7 +1564,7 @@ import {
       offsetEl.textContent=sign+state.activeCalibration.offsetMs.toFixed(1)+" ms";
       spreadEl.textContent=state.activeCalibration.precision.spreadMs.toFixed(1)+" ms";
       messageEl.textContent=state.calibrationMessage||"入出力レイテンシ校正済みです。";
-      resetBtn.disabled=false;
+      resetBtn.disabled=state.calibrating;
     }else if(state.calibrationState==="unmeasurable"){
       badge.textContent="測定不能";
       badge.className="calibration-badge unmeasurable";
@@ -1600,11 +1600,14 @@ import {
 
   async function runCalibration(){
     if(state.calibrating) return;
+    stop();
     state.calibrating=true;
+    const calibrationRunId=++state.calibrationRunId;
     renderCalibration();
 
     try{
       await ensureAudio();
+      if(calibrationRunId!==state.calibrationRunId) return;
       restoreMaster();
       let collectorResult;
       if(typeof window.__calibrationCollector==="function"){
@@ -1617,6 +1620,7 @@ import {
           AudioWorkletNodeClass:window.AudioWorkletNode
         });
       }
+      if(calibrationRunId!==state.calibrationRunId) return;
 
       if(collectorResult?.error){
         const errReason=typeof collectorResult.error==="string"
@@ -1696,6 +1700,8 @@ import {
         await state.store.saveCalibration(record);
       }
 
+      if(calibrationRunId!==state.calibrationRunId) return;
+
       if(isCalibrated){
         state.activeCalibration=record;
         state.calibrationState="calibrated";
@@ -1730,14 +1736,20 @@ import {
         });
       }
     }catch(err){
-      handleCalibrationUnmeasurable(err?.message||"校正中に予期しないエラーが発生しました。");
+      if(calibrationRunId===state.calibrationRunId){
+        handleCalibrationUnmeasurable("校正中にエラーが発生しました。静かな環境で再試行してください。");
+      }
     }finally{
-      state.calibrating=false;
-      renderCalibration();
+      if(calibrationRunId===state.calibrationRunId){
+        state.calibrating=false;
+        renderCalibration();
+      }
     }
   }
 
   async function resetCalibration(){
+    state.calibrationRunId++;
+    state.calibrating=false;
     const target=getCurrentCalibrationTarget();
     if(state.store){
       try{
