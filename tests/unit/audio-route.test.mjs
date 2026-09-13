@@ -44,27 +44,31 @@ test("resolveInputRoute identifies deviceId and handles missing settings", () =>
   assert.equal(resolveInputRoute(null), UNKNOWN_ROUTE);
 });
 
-test("resolveOutputRoute resolves sinkId, handles default outputs, and recognizes destination fallback", () => {
+test("resolveOutputRoute resolves explicit sinkId and returns UNKNOWN_ROUTE for default or unverified outputs", () => {
   const explicitContext = { sinkId: "sink-device-789" };
   assert.equal(resolveOutputRoute(explicitContext), "sink-device-789");
+  assert.equal(isKnownRoute(resolveOutputRoute(explicitContext)), true);
 
-  // Empty string represents default output device in Web Audio standard
+  // Default / empty sinkId cannot verify physical output device identity across changes
   const defaultContext = { sinkId: "" };
-  assert.equal(resolveOutputRoute(defaultContext), DEFAULT_OUTPUT_ROUTE);
-  assert.equal(isKnownRoute(resolveOutputRoute(defaultContext)), true);
+  assert.equal(resolveOutputRoute(defaultContext), UNKNOWN_ROUTE);
+  assert.equal(isKnownRoute(resolveOutputRoute(defaultContext)), false);
 
   const defaultNamedContext = { sinkId: "default" };
-  assert.equal(resolveOutputRoute(defaultNamedContext), DEFAULT_OUTPUT_ROUTE);
+  assert.equal(resolveOutputRoute(defaultNamedContext), UNKNOWN_ROUTE);
 
   const sinkObjectContext = { sinkId: { deviceId: "custom-speaker" } };
   assert.equal(resolveOutputRoute(sinkObjectContext), "custom-speaker");
 
   const defaultSinkObjectContext = { sinkId: { deviceId: "" } };
-  assert.equal(resolveOutputRoute(defaultSinkObjectContext), DEFAULT_OUTPUT_ROUTE);
+  assert.equal(resolveOutputRoute(defaultSinkObjectContext), UNKNOWN_ROUTE);
 
-  // Fallback when sinkId is unsupported but destination exists
+  const defaultNamedSinkObjectContext = { sinkId: { deviceId: "default" } };
+  assert.equal(resolveOutputRoute(defaultNamedSinkObjectContext), UNKNOWN_ROUTE);
+
+  // Missing sinkId / destination fallback cannot verify physical device
   const destinationContext = { destination: {} };
-  assert.equal(resolveOutputRoute(destinationContext), DEFAULT_OUTPUT_ROUTE);
+  assert.equal(resolveOutputRoute(destinationContext), UNKNOWN_ROUTE);
 
   const unsupportedContext = {};
   assert.equal(resolveOutputRoute(unsupportedContext), UNKNOWN_ROUTE);

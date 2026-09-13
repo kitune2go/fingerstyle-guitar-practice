@@ -7,7 +7,10 @@ import {
   generateReferenceBurst,
   computeNormalizedCorrelation
 } from "../../core/calibration-signal.js";
-import { runAcousticCalibrationCollector } from "../../core/calibration-collector.js";
+import {
+  runAcousticCalibrationCollector,
+  DEFAULT_WORKLET_MODULE_URL
+} from "../../core/calibration-collector.js";
 
 test("calibration burst generation respects duration and non-zero energy", () => {
   const sampleRate = 48000;
@@ -250,4 +253,53 @@ test("runAcousticCalibrationCollector aborts as unmeasurable on missed burst and
   assert.ok(res.reason.includes("第1試行"));
   // And burstCount must only be 1 (did NOT proceed to trial 2)
   assert.equal(burstCount, 1);
+});
+
+test("runAcousticCalibrationCollector resolves worklet URL against module and passes to addModule", async () => {
+  assert.ok(DEFAULT_WORKLET_MODULE_URL.endsWith("/core/calibration-processor.js") || DEFAULT_WORKLET_MODULE_URL.includes("calibration-processor.js"));
+
+  let addedModuleUrl = null;
+  const mockTrack = {
+    getSettings: () => ({
+      echoCancellation: false,
+      noiseSuppression: false,
+      autoGainControl: false,
+      deviceId: "mic-1"
+    }),
+    stop: () => {}
+  };
+  const mockAudioContext = {
+    sampleRate: 48000,
+    currentTime: 0,
+    audioWorklet: {
+      addModule: async (url) => {
+        addedModuleUrl = url;
+      }
+    }
+  };
+  const mockMediaDevices = {
+    getUserMedia: async () => ({
+      getAudioTracks: () => [mockTrack],
+      getTracks: () => [mockTrack]
+    })
+  };
+
+  // Run with default URL, which fails gracefully at AudioWorkletNodeClass check
+  await runAcousticCalibrationCollector({
+    audioContext: mockAudioContext,
+    mediaDevices: mockMediaDevices,
+    AudioWorkletNodeClass: null
+  });
+
+  assert.equal(addedModuleUrl, DEFAULT_WORKLET_MODULE_URL);
+
+  // Run with custom URL
+  await runAcousticCalibrationCollector({
+    audioContext: mockAudioContext,
+    mediaDevices: mockMediaDevices,
+    workletModuleUrl: "./custom-processor.js",
+    AudioWorkletNodeClass: null
+  });
+
+  assert.equal(addedModuleUrl, "./custom-processor.js");
 });

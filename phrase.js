@@ -1605,6 +1605,7 @@ import {
 
     try{
       await ensureAudio();
+      restoreMaster();
       let collectorResult;
       if(typeof window.__calibrationCollector==="function"){
         collectorResult=await window.__calibrationCollector();
@@ -1638,8 +1639,8 @@ import {
 
       const isTestMode=typeof window.__calibrationCollector==="function";
       const resolvedOutput=resolveOutputRoute(state.audio);
-      const inputRoute=collectorResult.route?.inputRoute||collectorResult.inputRoute||state.currentInputRoute||(isTestMode?"test-mic":"built-in-mic");
-      const outputRoute=collectorResult.route?.outputRoute||collectorResult.outputRoute||state.currentOutputRoute||(isTestMode?"test-speaker":(resolvedOutput!==UNKNOWN_ROUTE?resolvedOutput:UNKNOWN_ROUTE));
+      const inputRoute=collectorResult.route?.inputRoute||collectorResult.inputRoute||(isTestMode?"test-mic":UNKNOWN_ROUTE);
+      const outputRoute=collectorResult.route?.outputRoute||collectorResult.outputRoute||(isTestMode?"test-speaker":resolvedOutput);
       state.currentInputRoute=inputRoute;
       state.currentOutputRoute=outputRoute;
 

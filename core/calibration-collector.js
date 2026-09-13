@@ -9,11 +9,14 @@ import {
   inspectTrackProcessing
 } from "./audio-route.js";
 
+export const DEFAULT_WORKLET_MODULE_URL = new URL("./calibration-processor.js", import.meta.url).href;
+
 export async function runAcousticCalibrationCollector({
   audioContext,
   mediaDevices,
   outputDestination = audioContext?.destination,
   AudioWorkletNodeClass = (typeof AudioWorkletNode !== "undefined" ? AudioWorkletNode : null),
+  workletModuleUrl = DEFAULT_WORKLET_MODULE_URL,
   sampleCount = 6,
   timeoutMs = 6000
 } = {}) {
@@ -69,7 +72,7 @@ export async function runAcousticCalibrationCollector({
     };
 
     // 2. Load the AudioWorklet processor module
-    await audioContext.audioWorklet.addModule("./calibration-processor.js");
+    await audioContext.audioWorklet.addModule(workletModuleUrl);
 
     if (typeof AudioWorkletNodeClass !== "function") {
       return { unmeasurable: true, reason: "AudioWorkletNodeが利用できません。" };

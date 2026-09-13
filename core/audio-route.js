@@ -17,18 +17,13 @@ export function resolveOutputRoute(audioContext) {
   if (!audioContext) return UNKNOWN_ROUTE;
   if (typeof audioContext.sinkId === "string") {
     const sinkId = audioContext.sinkId.trim();
-    if (sinkId === "" || sinkId === "default") return DEFAULT_OUTPUT_ROUTE;
+    if (sinkId === "" || sinkId === "default") return UNKNOWN_ROUTE;
     return sinkId;
   }
   if (audioContext.sinkId && typeof audioContext.sinkId.deviceId === "string") {
     const deviceId = audioContext.sinkId.deviceId.trim();
-    if (deviceId === "" || deviceId === "default") return DEFAULT_OUTPUT_ROUTE;
+    if (deviceId === "" || deviceId === "default") return UNKNOWN_ROUTE;
     return deviceId;
-  }
-  // Fallback for browsers supporting Web Audio but not exposing sinkId:
-  // if destination exists on audioContext, it targets the platform default output.
-  if (audioContext.destination) {
-    return DEFAULT_OUTPUT_ROUTE;
   }
   return UNKNOWN_ROUTE;
 }
