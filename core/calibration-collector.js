@@ -30,6 +30,7 @@ export async function runAcousticCalibrationCollector({
   let stream = null;
   let workletNode = null;
   let sourceNode = null;
+  let muteGain = null;
 
   try {
     // 1. Request microphone with all audio processing disabled
@@ -77,6 +78,16 @@ export async function runAcousticCalibrationCollector({
     sourceNode = audioContext.createMediaStreamSource(stream);
     workletNode = new AudioWorkletNodeClass(audioContext, "calibration-processor");
     sourceNode.connect(workletNode);
+
+    // In Web Audio, nodes whose outputs do not connect to an active AudioDestinationNode
+    // can be pruned or halted by browser rendering engines. Connect workletNode through
+    // a zero-gain node to audioContext.destination to ensure active processing without audible output.
+    if (typeof audioContext.createGain === "function") {
+      muteGain = audioContext.createGain();
+      muteGain.gain.value = 0;
+      workletNode.connect(muteGain);
+      muteGain.connect(audioContext.destination);
+    }
 
     // 3. Prepare reference audio burst buffer
     const burstData = generateReferenceBurst(audioContext.sampleRate);
@@ -153,6 +164,7 @@ export async function runAcousticCalibrationCollector({
       reason: err?.message || "校正処理中に予期しないエラーが発生しました。"
     };
   } finally {
+    try { muteGain?.disconnect(); } catch {}
     try { sourceNode?.disconnect(); } catch {}
     try { workletNode?.disconnect(); } catch {}
     if (stream) {

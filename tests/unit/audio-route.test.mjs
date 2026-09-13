@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   UNKNOWN_ROUTE,
+  DEFAULT_OUTPUT_ROUTE,
   isKnownRoute,
   resolveInputRoute,
   resolveOutputRoute,
@@ -11,6 +12,7 @@ import {
 
 test("isKnownRoute identifies valid routes and rejects unknown/empty", () => {
   assert.equal(isKnownRoute("mic-123"), true);
+  assert.equal(isKnownRoute(DEFAULT_OUTPUT_ROUTE), true);
   assert.equal(isKnownRoute(""), false);
   assert.equal(isKnownRoute("   "), false);
   assert.equal(isKnownRoute("unknown"), false);
@@ -18,13 +20,20 @@ test("isKnownRoute identifies valid routes and rejects unknown/empty", () => {
   assert.equal(isKnownRoute(null), false);
 });
 
-test("resolveInputRoute extracts track deviceId and ignores labels", () => {
+test("resolveInputRoute identifies deviceId and handles missing settings", () => {
   const track = {
     getSettings() {
-      return { deviceId: "input-hardware-456", label: "Built-in Microphone" };
+      return { deviceId: "input-device-456" };
     }
   };
-  assert.equal(resolveInputRoute(track), "input-hardware-456");
+  assert.equal(resolveInputRoute(track), "input-device-456");
+
+  const emptyTrack = {
+    getSettings() {
+      return { deviceId: "" };
+    }
+  };
+  assert.equal(resolveInputRoute(emptyTrack), UNKNOWN_ROUTE);
 
   const noIdTrack = {
     getSettings() {
@@ -35,12 +44,27 @@ test("resolveInputRoute extracts track deviceId and ignores labels", () => {
   assert.equal(resolveInputRoute(null), UNKNOWN_ROUTE);
 });
 
-test("resolveOutputRoute requires explicit sinkId and treats default as unknown", () => {
+test("resolveOutputRoute resolves sinkId, handles default outputs, and recognizes destination fallback", () => {
   const explicitContext = { sinkId: "sink-device-789" };
   assert.equal(resolveOutputRoute(explicitContext), "sink-device-789");
 
+  // Empty string represents default output device in Web Audio standard
   const defaultContext = { sinkId: "" };
-  assert.equal(resolveOutputRoute(defaultContext), UNKNOWN_ROUTE);
+  assert.equal(resolveOutputRoute(defaultContext), DEFAULT_OUTPUT_ROUTE);
+  assert.equal(isKnownRoute(resolveOutputRoute(defaultContext)), true);
+
+  const defaultNamedContext = { sinkId: "default" };
+  assert.equal(resolveOutputRoute(defaultNamedContext), DEFAULT_OUTPUT_ROUTE);
+
+  const sinkObjectContext = { sinkId: { deviceId: "custom-speaker" } };
+  assert.equal(resolveOutputRoute(sinkObjectContext), "custom-speaker");
+
+  const defaultSinkObjectContext = { sinkId: { deviceId: "" } };
+  assert.equal(resolveOutputRoute(defaultSinkObjectContext), DEFAULT_OUTPUT_ROUTE);
+
+  // Fallback when sinkId is unsupported but destination exists
+  const destinationContext = { destination: {} };
+  assert.equal(resolveOutputRoute(destinationContext), DEFAULT_OUTPUT_ROUTE);
 
   const unsupportedContext = {};
   assert.equal(resolveOutputRoute(unsupportedContext), UNKNOWN_ROUTE);

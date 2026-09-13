@@ -121,6 +121,11 @@ test("runAcousticCalibrationCollector produces samples with unit 's' when onsets
     destination: { name: "default-dest" },
     audioWorklet: { addModule: async () => {} },
     createMediaStreamSource: () => ({ connect: () => {}, disconnect: () => {} }),
+    createGain: () => ({
+      gain: { value: 1 },
+      connect: () => {},
+      disconnect: () => {}
+    }),
     createBuffer: () => ({ copyToChannel: () => {} }),
     createBufferSource: () => ({
       connect: (target) => { destinationConnected = target; },
@@ -196,6 +201,11 @@ test("runAcousticCalibrationCollector aborts as unmeasurable on missed burst and
     destination: {},
     audioWorklet: { addModule: async () => {} },
     createMediaStreamSource: () => ({ connect: () => {}, disconnect: () => {} }),
+    createGain: () => ({
+      gain: { value: 1 },
+      connect: () => {},
+      disconnect: () => {}
+    }),
     createBuffer: () => ({ copyToChannel: () => {} }),
     createBufferSource: () => ({
       connect: () => {},

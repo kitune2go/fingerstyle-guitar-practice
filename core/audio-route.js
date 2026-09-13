@@ -11,10 +11,26 @@ export function resolveInputRoute(track) {
   return deviceId !== "" ? deviceId : UNKNOWN_ROUTE;
 }
 
+export const DEFAULT_OUTPUT_ROUTE = "default-output";
+
 export function resolveOutputRoute(audioContext) {
   if (!audioContext) return UNKNOWN_ROUTE;
-  const sinkId = typeof audioContext.sinkId === "string" ? audioContext.sinkId.trim() : "";
-  return sinkId !== "" ? sinkId : UNKNOWN_ROUTE;
+  if (typeof audioContext.sinkId === "string") {
+    const sinkId = audioContext.sinkId.trim();
+    if (sinkId === "" || sinkId === "default") return DEFAULT_OUTPUT_ROUTE;
+    return sinkId;
+  }
+  if (audioContext.sinkId && typeof audioContext.sinkId.deviceId === "string") {
+    const deviceId = audioContext.sinkId.deviceId.trim();
+    if (deviceId === "" || deviceId === "default") return DEFAULT_OUTPUT_ROUTE;
+    return deviceId;
+  }
+  // Fallback for browsers supporting Web Audio but not exposing sinkId:
+  // if destination exists on audioContext, it targets the platform default output.
+  if (audioContext.destination) {
+    return DEFAULT_OUTPUT_ROUTE;
+  }
+  return UNKNOWN_ROUTE;
 }
 
 export function inspectTrackProcessing(track) {

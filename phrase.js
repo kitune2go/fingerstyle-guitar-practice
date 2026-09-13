@@ -908,6 +908,14 @@ import {
         $("recording-status").textContent="マイクを準備しています…";
         try{
           await state.recorder.start();
+          const track = state.recorder.activeTrack?.();
+          if (track) {
+            const inRoute = resolveInputRoute(track);
+            const outRoute = resolveOutputRoute(state.audio);
+            if (inRoute !== UNKNOWN_ROUTE) state.currentInputRoute = inRoute;
+            if (outRoute !== UNKNOWN_ROUTE) state.currentOutputRoute = outRoute;
+            void loadCalibrations();
+          }
         }catch(error){
           if(generation===state.generation) handleRecorderError(error);
           return;
@@ -1631,7 +1639,7 @@ import {
       const isTestMode=typeof window.__calibrationCollector==="function";
       const resolvedOutput=resolveOutputRoute(state.audio);
       const inputRoute=collectorResult.route?.inputRoute||collectorResult.inputRoute||state.currentInputRoute||(isTestMode?"test-mic":"built-in-mic");
-      const outputRoute=collectorResult.route?.outputRoute||collectorResult.outputRoute||state.currentOutputRoute||(resolvedOutput!==UNKNOWN_ROUTE?resolvedOutput:(isTestMode?"test-speaker":UNKNOWN_ROUTE));
+      const outputRoute=collectorResult.route?.outputRoute||collectorResult.outputRoute||state.currentOutputRoute||(isTestMode?"test-speaker":(resolvedOutput!==UNKNOWN_ROUTE?resolvedOutput:UNKNOWN_ROUTE));
       state.currentInputRoute=inputRoute;
       state.currentOutputRoute=outputRoute;
 
