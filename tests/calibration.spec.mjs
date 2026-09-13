@@ -436,4 +436,135 @@ test.describe("Minimal Calibration UI & Browser Calibration Flow", () => {
     expect(calibratedRecords.length).toBe(1);
     expect(calibratedRecords[0].offsetMs).toBe(40.0);
   });
+
+  test("existing media playback is paused before calibration starts and prevented during calibration", async ({ page }) => {
+    await page.goto("/phrase.html");
+    await page.waitForSelector("#start-calibration");
+
+    // Add a test audio element with audio context tone or mock playback
+    await page.evaluate(() => {
+      const audio = document.createElement("audio");
+      audio.id = "test-media-player";
+      // Mock playing state
+      Object.defineProperty(audio, "paused", { value: false, writable: true });
+      audio.pause = () => { audio.paused = true; };
+      document.body.appendChild(audio);
+      window.__testAudio = audio;
+    });
+
+    const isPlayingBefore = await page.evaluate(() => !window.__testAudio.paused);
+    expect(isPlayingBefore).toBe(true);
+
+    let resolveCollector;
+    await page.evaluate(() => {
+      window.__calibrationPromise = new Promise(resolve => {
+        window.__resolveCalibration = resolve;
+      });
+      window.__calibrationCollector = () => window.__calibrationPromise;
+    });
+
+    // Start calibration
+    await page.locator("#start-calibration").click();
+
+    // Verify audio was paused immediately
+    const isPausedDuring = await page.evaluate(() => window.__testAudio.paused);
+    expect(isPausedDuring).toBe(true);
+
+    // Verify pointer-events is disabled during calibration
+    const pointerEvents = await page.evaluate(() => window.__testAudio.style.pointerEvents);
+    expect(pointerEvents).toBe("none");
+
+    // Attempting to play during calibration is paused
+    await page.evaluate(() => {
+      window.__testAudio.paused = false;
+      window.__testAudio.dispatchEvent(new Event("play"));
+    });
+    const isPausedAfterPlayAttempt = await page.evaluate(() => window.__testAudio.paused);
+    expect(isPausedAfterPlayAttempt).toBe(true);
+
+    // Complete calibration
+    await page.evaluate(() => {
+      window.__resolveCalibration({
+        samples: [
+          { referenceTime: 0, observedTime: 40 },
+          { referenceTime: 0, observedTime: 41 },
+          { referenceTime: 0, observedTime: 39 },
+          { referenceTime: 0, observedTime: 40 },
+          { referenceTime: 0, observedTime: 40.5 },
+          { referenceTime: 0, observedTime: 39.5 }
+        ]
+      });
+    });
+
+    await expect(page.locator("#calibration-badge")).toHaveText("校正済み");
+
+    // Pointer events restored
+    const pointerEventsAfter = await page.evaluate(() => window.__testAudio.style.pointerEvents);
+    expect(pointerEventsAfter).toBe("");
+  });
+
+  test("atomic replacement: storage failure during replacement preserves previous valid calibration", async ({ page }) => {
+    await page.goto("/phrase.html");
+    await page.waitForSelector("#start-calibration");
+
+    // 1. Initial valid calibration
+    await page.evaluate(() => {
+      window.__calibrationCollector = async () => ({
+        samples: [
+          { referenceTime: 0, observedTime: 40.0 },
+          { referenceTime: 0, observedTime: 41.0 },
+          { referenceTime: 0, observedTime: 39.0 },
+          { referenceTime: 0, observedTime: 40.0 },
+          { referenceTime: 0, observedTime: 40.5 },
+          { referenceTime: 0, observedTime: 39.5 }
+        ]
+      });
+    });
+    await page.locator("#start-calibration").click();
+    await expect(page.locator("#calibration-badge")).toHaveText("校正済み");
+    await expect(page.locator("#calibration-offset")).toContainText("40.0 ms");
+
+    // 2. Inject storage failure into replaceCalibration
+    await page.evaluate(() => {
+      const origReplace = window.__testStoreReplace || (window.indexedDB ? true : false);
+      // Hook into IndexedDB or create error in replaceCalibration
+      const store = window.__practiceStore; // or monkey-patch store.replaceCalibration
+    });
+    await page.evaluate(() => {
+      // Monkey patch replaceCalibration on state store if accessible
+      // We can intercept by patching IDBObjectStore.prototype.put to throw on second calibration
+      let putCount = 0;
+      const originalPut = IDBObjectStore.prototype.put;
+      IDBObjectStore.prototype.put = function(...args) {
+        putCount++;
+        if (putCount > 1) {
+          throw new Error("Simulated storage failure");
+        }
+        return originalPut.apply(this, args);
+      };
+      window.__calibrationCollector = async () => ({
+        samples: [
+          { referenceTime: 0, observedTime: 50.0 },
+          { referenceTime: 0, observedTime: 51.0 },
+          { referenceTime: 0, observedTime: 49.0 },
+          { referenceTime: 0, observedTime: 50.0 },
+          { referenceTime: 0, observedTime: 50.5 },
+          { referenceTime: 0, observedTime: 49.5 }
+        ]
+      });
+    });
+
+    await page.locator("#start-calibration").click();
+
+    // Previous valid calibration must be preserved
+    await expect(page.locator("#calibration-badge")).toHaveText("校正済み");
+    await expect(page.locator("#calibration-offset")).toContainText("40.0 ms");
+    await expect(page.locator("#calibration-message")).toContainText("前回の校正値を維持しています");
+
+    // Verify stored records still have active valid record
+    const stored = await getStoredCalibrations(page);
+    const validRecords = stored.filter(r => r.status === "calibrated" && r.validity.invalidatedAt === null);
+    expect(validRecords.length).toBe(1);
+    expect(validRecords[0].offsetMs).toBe(40.0);
+  });
 });

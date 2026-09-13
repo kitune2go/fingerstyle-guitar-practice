@@ -172,6 +172,34 @@ export function createPracticeStore(indexedDB){
     });
   }
 
+  async function saveCalibrations(values){
+    const records=values.map(validateCalibrationRecord);
+    const db=await open();
+    return new Promise((resolve,reject)=>{
+      const transaction=db.transaction("calibrations","readwrite");
+      const store=transaction.objectStore("calibrations");
+      try{
+        for(const record of records){
+          store.put(record);
+        }
+      }catch(error){
+        try{transaction.abort();}catch{}
+        reject(error);
+        return;
+      }
+      transaction.oncomplete=()=>resolve(records);
+      transaction.onabort=()=>reject(transaction.error??new Error("校正記録の保存を中止しました。"));
+      transaction.onerror=()=>reject(transaction.error);
+    });
+  }
+
+  async function replaceCalibration(record, superseded = []){
+    const validRecord=validateCalibrationRecord(record);
+    const validSuperseded=(superseded||[]).map(validateCalibrationRecord);
+    await saveCalibrations([validRecord,...validSuperseded]);
+    return validRecord;
+  }
+
   async function calibration(id){
     const db=await open();
     return new Promise((resolve,reject)=>{
@@ -196,5 +224,5 @@ export function createPracticeStore(indexedDB){
     });
   }
 
-  return {all,addMany,saveAttempt,recording,allRecordings,deleteRecording,allCalibrations,saveCalibration,calibration,deleteCalibration};
+  return {all,addMany,saveAttempt,recording,allRecordings,deleteRecording,allCalibrations,saveCalibration,saveCalibrations,replaceCalibration,calibration,deleteCalibration};
 }

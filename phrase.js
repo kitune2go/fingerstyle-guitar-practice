@@ -357,6 +357,15 @@ import {
     return names;
   }
 
+  function pauseMediaPlayback(){
+    const mediaElements=document.querySelectorAll("audio, video");
+    for(const media of mediaElements){
+      try{
+        if(!media.paused) media.pause();
+      }catch{}
+    }
+  }
+
   function setAudioEntriesPending(pending){
     const blocked=pending||state.calibrating;
     const playButton=$("play");
@@ -390,6 +399,21 @@ import {
     if($("backing-chords")) $("backing-chords").disabled=configBlocked||rhythmFocus;
     if($("backing-bass")) $("backing-bass").disabled=configBlocked||rhythmFocus;
     if($("backing-drums")) $("backing-drums").disabled=configBlocked;
+
+    const mediaElements=document.querySelectorAll("audio, video");
+    for(const media of mediaElements){
+      if(configBlocked){
+        try{ if(!media.paused) media.pause(); }catch{}
+        media.style.pointerEvents="none";
+        media.setAttribute("aria-disabled","true");
+      }else{
+        media.style.pointerEvents="";
+        media.removeAttribute("aria-disabled");
+      }
+    }
+    if($("delete-recording")) $("delete-recording").disabled=configBlocked;
+    if($("retry-recording")) $("retry-recording").disabled=configBlocked;
+    document.querySelectorAll("#attempt-list button").forEach(b=>{ b.disabled=configBlocked; });
   }
 
   async function ensureAudio(requiredSamples=PHRASE_SAMPLES){
@@ -1010,6 +1034,7 @@ import {
   }
 
   function stop(resetProgress=true){
+    pauseMediaPlayback();
     state.generation+=1;
     state.starting=false;
     const run=state.run;
@@ -1445,6 +1470,7 @@ import {
   }
 
   async function deleteSavedRecording(attemptId){
+    if(state.calibrating) return;
     try{
       await state.store.deleteRecording(attemptId);
       state.recordings.delete(attemptId);
@@ -1456,14 +1482,14 @@ import {
   }
 
   function deletePendingRecording(){
-    if(!state.pendingRecording) return;
+    if(!state.pendingRecording||state.calibrating) return;
     clearPendingRecording();
     $("recording-status").textContent="今回の録音を削除しました。練習結果はそのまま記録できます。";
     renderRecords();
   }
 
   function retryRecording(){
-    if(state.running||state.starting||state.saving||state.recordingFinalizing) return;
+    if(state.running||state.starting||state.saving||state.recordingFinalizing||state.calibrating) return;
     state.pending=null;
     clearPendingRecording();
     renderRecords();
@@ -1472,7 +1498,7 @@ import {
 
   async function saveRecord(clean){
     const pending=state.pending;
-    if(state.saving||state.running||state.recordingFinalizing||!pending||pending.phraseId!==state.phrase.id) return;
+    if(state.saving||state.running||state.recordingFinalizing||state.calibrating||!pending||pending.phraseId!==state.phrase.id) return;
     const review=readSelfReview();
     if(state.pendingRecording&&review===null){
       $("record-status").textContent="録音を聴き返し、4項目の自己レビューを選んでください。";
@@ -1660,6 +1686,7 @@ import {
 
   async function runCalibration(){
     if(state.calibrating) return;
+    pauseMediaPlayback();
     stop();
     state.calibrating=true;
     const calibrationRunId=++state.calibrationRunId;
@@ -1744,21 +1771,28 @@ import {
 
       if(state.store){
         if(isCalibrated){
+          let superseded=[];
           try{
             const existing=await state.store.allCalibrations();
             const previous=existing.filter(r=>calibrationApplies(r,currentTarget));
-            for(const prev of previous){
-              const superseded=invalidateCalibration(prev,{
-                at:record.createdAt,
-                reason:"新しい校正による更新"
-              });
-              await state.store.saveCalibration(superseded);
-            }
+            superseded=previous.map(prev=>invalidateCalibration(prev,{
+              at:record.createdAt,
+              reason:"新しい校正による更新"
+            }));
           }catch(err){
-            console.warn("[phrase] could not supersede older calibrations:",err);
+            console.warn("[phrase] could not query older calibrations:",err);
           }
+          if(typeof state.store.replaceCalibration==="function"){
+            await state.store.replaceCalibration(record,superseded);
+          }else{
+            await state.store.saveCalibration(record);
+            for(const s of superseded){
+              try{ await state.store.saveCalibration(s); }catch{}
+            }
+          }
+        }else{
+          await state.store.saveCalibration(record);
         }
-        await state.store.saveCalibration(record);
       }
 
       if(calibrationRunId!==state.calibrationRunId) return;
@@ -1831,12 +1865,16 @@ import {
       try{
         const all=await state.store.allCalibrations();
         const applicable=all.filter(r=>calibrationApplies(r,target));
-        for(const r of applicable){
-          const invalidated=invalidateCalibration(r,{
-            at:new Date().toISOString(),
-            reason:"ユーザー操作によるリセット"
-          });
-          await state.store.saveCalibration(invalidated);
+        const invalidated=applicable.map(r=>invalidateCalibration(r,{
+          at:new Date().toISOString(),
+          reason:"ユーザー操作によるリセット"
+        }));
+        if(typeof state.store.saveCalibrations==="function"){
+          await state.store.saveCalibrations(invalidated);
+        }else{
+          for(const inv of invalidated){
+            await state.store.saveCalibration(inv);
+          }
         }
       }catch(err){
         console.warn("[phrase] could not persist calibration invalidation:",err);
@@ -1902,6 +1940,11 @@ import {
     $("practice-file").addEventListener("change",event=>void importPractice(event.target.files[0]));
     $("start-calibration").addEventListener("click",()=>void runCalibration());
     $("reset-calibration").addEventListener("click",()=>void resetCalibration());
+    document.addEventListener("play",event=>{
+      if(state.calibrating&&event.target&&typeof event.target.pause==="function"){
+        try{ event.target.pause(); }catch{}
+      }
+    },true);
     document.addEventListener("visibilitychange",()=>{
       if(document.hidden) stop();
     });

@@ -33,6 +33,12 @@ function createMockIndexedDB(initialStores = null) {
     },
     transaction(storeNames, mode) {
       const names = Array.isArray(storeNames) ? storeNames : [storeNames];
+      const snapshots = new Map();
+      for (const name of names) {
+        if (stores.has(name)) {
+          snapshots.set(name, new Map(stores.get(name).records));
+        }
+      }
       let aborted = false;
       const tx = {
         mode,
@@ -42,6 +48,9 @@ function createMockIndexedDB(initialStores = null) {
         onerror: null,
         abort() {
           aborted = true;
+          for (const [name, snapshot] of snapshots) {
+            stores.get(name).records = new Map(snapshot);
+          }
           queueMicrotask(() => {
             if (tx.onabort) tx.onabort();
           });
@@ -353,6 +362,66 @@ test("invalid calibration records are rejected before storage and leave store cl
   // Store must remain completely empty
   const calibrations = await store.allCalibrations();
   assert.equal(calibrations.length, 0);
+});
+
+test("saveCalibrations saves multiple records in single transaction", async () => {
+  const idb = createMockIndexedDB();
+  const store = createPracticeStore(idb);
+
+  const cal1 = sampleCalibration({ id: "cal-batch-1", offsetMs: 25.0 });
+  const cal2 = sampleCalibration({ id: "cal-batch-2", offsetMs: 30.0 });
+  const saved = await store.saveCalibrations([cal1, cal2]);
+  assert.equal(saved.length, 2);
+  const all = await store.allCalibrations();
+  assert.equal(all.length, 2);
+});
+
+test("replaceCalibration saves replacement and superseded records atomically", async () => {
+  const idb = createMockIndexedDB();
+  const store = createPracticeStore(idb);
+
+  const original = sampleCalibration({ id: "cal-orig", offsetMs: 30.0 });
+  await store.saveCalibration(original);
+
+  const replacement = sampleCalibration({ id: "cal-new", offsetMs: 32.0 });
+  const superseded = sampleCalibration({
+    id: "cal-orig",
+    offsetMs: 30.0,
+    validity: { invalidatedAt: "2026-09-14T00:00:00.000Z", reason: "新しい校正による更新" }
+  });
+
+  const res = await store.replaceCalibration(replacement, [superseded]);
+  assert.equal(res.id, "cal-new");
+
+  const origRecord = await store.calibration("cal-orig");
+  assert.equal(origRecord.validity.reason, "新しい校正による更新");
+
+  const newRecord = await store.calibration("cal-new");
+  assert.equal(newRecord.offsetMs, 32.0);
+});
+
+test("replaceCalibration abort rolls back both replacement and superseded records", async () => {
+  const idb = createMockIndexedDB();
+  const store = createPracticeStore(idb);
+
+  const original = sampleCalibration({ id: "cal-orig", offsetMs: 30.0 });
+  await store.saveCalibration(original);
+
+  // If any record is invalid, nothing is committed
+  const replacement = sampleCalibration({ id: "cal-new", offsetMs: 32.0 });
+  const invalidSuperseded = { id: "cal-orig", invalid: true };
+
+  await assert.rejects(
+    async () => store.replaceCalibration(replacement, [invalidSuperseded]),
+    { name: "TypeError" }
+  );
+
+  // Original record remains untouched and not superseded
+  const origRecord = await store.calibration("cal-orig");
+  assert.equal(origRecord.validity.invalidatedAt, null);
+
+  const newRecord = await store.calibration("cal-new");
+  assert.equal(newRecord, null);
 });
 
 test("legacy attempts remain without measured values and are never mutated", async () => {
