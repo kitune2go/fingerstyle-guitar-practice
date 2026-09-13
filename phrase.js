@@ -382,7 +382,7 @@ import {
     if($("range-two")) $("range-two").disabled=configBlocked;
     if($("range-all")) $("range-all").disabled=configBlocked;
     if($("range-previous")) $("range-previous").disabled=configBlocked||state.range.start===1;
-    if($("range-next")) $("range-next").disabled=configBlocked||state.range.end===state.phrase.measures;
+    if($("range-next")) $("range-next").disabled=configBlocked||state.range.end===(state.phrase?.measures??1);
     if($("count-in")) $("count-in").disabled=configBlocked;
     if($("assist-mode")) $("assist-mode").disabled=configBlocked;
     if($("reveal-score")) $("reveal-score").disabled=configBlocked;
