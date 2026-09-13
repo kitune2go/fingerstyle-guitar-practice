@@ -161,3 +161,79 @@ test("runAcousticCalibrationCollector produces samples with unit 's' when onsets
   assert.equal(res.samples[0].unit, "s");
   assert.ok(Math.abs((res.samples[0].observedTime - res.samples[0].referenceTime) - 0.04) < 1e-4);
 });
+
+test("runAcousticCalibrationCollector aborts as unmeasurable on missed burst and rejects late onsets", async () => {
+  const mockTrack = {
+    getSettings: () => ({
+      echoCancellation: false,
+      noiseSuppression: false,
+      autoGainControl: false,
+      deviceId: "mic-1"
+    }),
+    stop: () => {}
+  };
+  let messageHandler = null;
+  class MockWorkletNode {
+    constructor() {
+      this.port = {
+        set onmessage(fn) { messageHandler = fn; },
+        get onmessage() { return messageHandler; }
+      };
+    }
+    connect() {}
+    disconnect() {}
+  }
+  globalThis.AudioWorkletNode = MockWorkletNode;
+
+  let currentTime = 1.0;
+  let burstCount = 0;
+  const mockAudioContext = {
+    sampleRate: 48000,
+    get currentTime() { return currentTime; },
+    destination: {},
+    audioWorklet: { addModule: async () => {} },
+    createMediaStreamSource: () => ({ connect: () => {}, disconnect: () => {} }),
+    createBuffer: () => ({ copyToChannel: () => {} }),
+    createBufferSource: () => ({
+      connect: () => {},
+      start: (t_ref) => {
+        burstCount++;
+        if (burstCount === 1) {
+          // Trial 1: Delay onset until AFTER the listening window expires (window is ~0.6s)
+          setTimeout(() => {
+            currentTime = t_ref + 0.8;
+            if (messageHandler) {
+              messageHandler({
+                data: {
+                  type: "onset",
+                  observedTime: t_ref + 0.8,
+                  observedFrame: Math.round((t_ref + 0.8) * 48000),
+                  score: 0.95
+                }
+              });
+            }
+          }, 150); // Fires well after the 50ms wait in test
+        }
+      }
+    })
+  };
+  const mockMediaDevices = {
+    getUserMedia: async () => ({
+      getAudioTracks: () => [mockTrack],
+      getTracks: () => [mockTrack]
+    })
+  };
+
+  const res = await runAcousticCalibrationCollector({
+    audioContext: mockAudioContext,
+    mediaDevices: mockMediaDevices,
+    sampleCount: 2,
+    timeoutMs: 500
+  });
+
+  // Since trial 1 missed its window, it must immediately abort as unmeasurable
+  assert.equal(res.unmeasurable, true);
+  assert.ok(res.reason.includes("第1試行"));
+  // And burstCount must only be 1 (did NOT proceed to trial 2)
+  assert.equal(burstCount, 1);
+});

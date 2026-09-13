@@ -153,6 +153,23 @@ function validateCalibrationTarget(value) {
   });
 }
 
+export function extractSampleOffsetMs(sample) {
+  if (typeof sample?.offsetMs === "number" && Number.isFinite(sample.offsetMs)) {
+    if (sample.unit === "s") return sample.offsetMs * 1000;
+    if (sample.unit === "ms" || sample.unit === undefined || sample.unit === null) return sample.offsetMs;
+    throw new TypeError(`サポートされていないunitです: ${sample.unit}`);
+  }
+  const ref = sample?.referenceTime;
+  const obs = sample?.observedTime;
+  if (typeof ref !== "number" || !Number.isFinite(ref) || typeof obs !== "number" || !Number.isFinite(obs)) {
+    throw new TypeError("測定サンプルには基準時刻と観測時刻が必要です。");
+  }
+  const diff = obs - ref; // SIGN_CONVENTION: observed - reference
+  if (sample.unit === "s") return diff * 1000;
+  if (sample.unit === "ms" || sample.unit === undefined || sample.unit === null) return diff;
+  throw new TypeError(`サポートされていないunitです: ${sample.unit}`);
+}
+
 export function applyCalibrationOffset(observedTimeMs, offsetMs) {
   return requireFiniteNumber(observedTimeMs, "observedTimeMs")
     - requireFiniteNumber(offsetMs, "offsetMs");

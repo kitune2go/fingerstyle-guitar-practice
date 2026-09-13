@@ -11,7 +11,8 @@ import {
   applyCalibrationOffset,
   calibrationApplies,
   evaluateCalibrationQuality,
-  invalidateCalibration
+  invalidateCalibration,
+  extractSampleOffsetMs
 } from "../../core/calibration.js";
 
 function record(overrides = {}) {
@@ -137,4 +138,26 @@ test("invalidateCalibration returns a new invalidated record without mutating th
   assert.equal(invalidated.validity.invalidatedAt, "2026-09-07T01:02:03Z");
   assert.equal(invalidated.validity.reason, "route changed");
   assert.notEqual(invalidated, input);
+});
+
+test("extractSampleOffsetMs handles unit 's' correctly", () => {
+  assert.equal(extractSampleOffsetMs({ referenceTime: 0, observedTime: 0.04, unit: "s" }), 40);
+  assert.equal(extractSampleOffsetMs({ offsetMs: 0.04, unit: "s" }), 40);
+});
+
+test("extractSampleOffsetMs handles unit 'ms' correctly", () => {
+  assert.equal(extractSampleOffsetMs({ referenceTime: 0, observedTime: 5, unit: "ms" }), 5);
+  assert.equal(extractSampleOffsetMs({ offsetMs: 5, unit: "ms" }), 5);
+});
+
+test("extractSampleOffsetMs treats unspecified unit as milliseconds without guessing", () => {
+  // Unspecified unit must remain 5ms and NOT be converted to 5000ms
+  assert.equal(extractSampleOffsetMs({ referenceTime: 0, observedTime: 5 }), 5);
+  assert.equal(extractSampleOffsetMs({ offsetMs: 5 }), 5);
+  assert.equal(extractSampleOffsetMs({ referenceTime: 0, observedTime: 5, unit: null }), 5);
+});
+
+test("extractSampleOffsetMs throws on unsupported unit", () => {
+  assert.throws(() => extractSampleOffsetMs({ referenceTime: 0, observedTime: 5, unit: "minutes" }), TypeError);
+  assert.throws(() => extractSampleOffsetMs({ offsetMs: 5, unit: "hours" }), TypeError);
 });

@@ -8,6 +8,7 @@ import {
   MIN_CALIBRATION_SAMPLES,
   MAX_CALIBRATION_SPREAD_MS,
   validateCalibrationRecord,
+  extractSampleOffsetMs,
   calibrationApplies,
   invalidateCalibration
 } from "./core/calibration.js";
@@ -1512,20 +1513,6 @@ import {
       outputRoute:resolvedOutput,
       timebase:{reference:"audio-context",observed:"audio-context"}
     });
-  }
-
-  function extractSampleOffsetMs(sample){
-    if(typeof sample?.offsetMs==="number"&&Number.isFinite(sample.offsetMs)){
-      return sample.unit==="s"?sample.offsetMs*1000:sample.offsetMs;
-    }
-    const ref=sample?.referenceTime;
-    const obs=sample?.observedTime;
-    if(typeof ref!=="number"||!Number.isFinite(ref)||typeof obs!=="number"||!Number.isFinite(obs)){
-      throw new TypeError("測定サンプルには基準時刻と観測時刻が必要です。");
-    }
-    const diff=obs-ref; // SIGN_CONVENTION: observed - reference
-    const isSeconds=sample.unit==="s"||(sample.unit!=="ms"&&Math.abs(diff)<10&&Math.max(Math.abs(ref),Math.abs(obs))<100000);
-    return (sample.unit==="s"||isSeconds)?diff*1000:diff;
   }
 
   function computeCalibrationStats(samples){

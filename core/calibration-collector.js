@@ -117,6 +117,14 @@ export async function runAcousticCalibrationCollector({
         });
         // Discard consumed and earlier onsets so they cannot match subsequent bursts
         collectedOnsets.splice(0, matchIndex + 1);
+      } else {
+        // A burst failed to receive an onset within its listening window.
+        // Terminate immediately as unmeasurable to prevent delayed onsets from contaminating subsequent bursts.
+        collectedOnsets.length = 0;
+        return {
+          unmeasurable: true,
+          reason: `基準信号の検出がタイムアウトしました（第${s + 1}試行）。スピーカー音量を上げて静かな環境で再試行してください。`
+        };
       }
 
       scheduledTime = Math.max(audioContext.currentTime + 0.08, t_ref + burstListeningWindowSec + 0.05);
