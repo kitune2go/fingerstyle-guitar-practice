@@ -567,4 +567,43 @@ test.describe("Minimal Calibration UI & Browser Calibration Flow", () => {
     expect(validRecords.length).toBe(1);
     expect(validRecords[0].offsetMs).toBe(40.0);
   });
+
+  test("reset failure due to storage error retains active calibration and informs user", async ({ page }) => {
+    await page.goto("/phrase.html");
+    await page.waitForSelector("#start-calibration");
+
+    // 1. Initial valid calibration
+    await page.evaluate(() => {
+      window.__calibrationCollector = async () => ({
+        samples: [
+          { referenceTime: 0, observedTime: 40.0 },
+          { referenceTime: 0, observedTime: 41.0 },
+          { referenceTime: 0, observedTime: 39.0 },
+          { referenceTime: 0, observedTime: 40.0 },
+          { referenceTime: 0, observedTime: 40.5 },
+          { referenceTime: 0, observedTime: 39.5 }
+        ]
+      });
+    });
+    await page.locator("#start-calibration").click();
+    await expect(page.locator("#calibration-badge")).toHaveText("校正済み");
+    await expect(page.locator("#reset-calibration")).toBeEnabled();
+
+    // 2. Monkey-patch IDBObjectStore.prototype.put to throw on reset invalidation
+    await page.evaluate(() => {
+      IDBObjectStore.prototype.put = function() {
+        throw new Error("Simulated storage error on reset invalidation");
+      };
+    });
+
+    // 3. Click reset calibration
+    await page.locator("#reset-calibration").click();
+
+    // Active calibration must NOT be cleared, message must state failure
+    await expect(page.locator("#calibration-badge")).toHaveText("校正済み");
+    await expect(page.locator("#calibration-state-text")).toHaveText("校正済み");
+    await expect(page.locator("#calibration-offset")).toContainText("40.0 ms");
+    await expect(page.locator("#calibration-message")).toHaveText("校正をリセットできませんでした。もう一度お試しください。");
+    await expect(page.locator("#reset-calibration")).toBeEnabled();
+  });
 });

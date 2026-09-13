@@ -22,6 +22,7 @@ test("measured value zero is a valid measurement", () => assert.equal(validateMe
 test("measured null is rejected", () => assert.throws(() => validateMeasurementResult(result({ value: null }))));
 test("measured NaN is rejected", () => assert.throws(() => validateMeasurementResult(result({ value: Number.NaN }))));
 test("measured Infinity is rejected", () => assert.throws(() => validateMeasurementResult(result({ value: Number.POSITIVE_INFINITY }))));
+test("measured without calibrationId is rejected", () => assert.throws(() => validateMeasurementResult(result({ calibrationId: null })), { name: "TypeError" }));
 
 test("uncalibrated result may retain a finite raw value without calibrationId", () => {
   const normalized = validateMeasurementResult(result({

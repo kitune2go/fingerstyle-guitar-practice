@@ -51,6 +51,7 @@ export function validateMeasurementResult(value) {
   if (value.state === "measured") {
     if (normalizedValue === null) throw new TypeError("measuredの場合valueをnullにすることはできません");
     if (reason !== null) throw new TypeError("measuredの場合reasonはnullである必要があります");
+    if (calibrationId === null) throw new TypeError("measuredの場合calibrationIdが必要です");
   } else if (value.state === "unmeasurable") {
     if (normalizedValue !== null) throw new TypeError("unmeasurableの場合valueはnullである必要があります");
     if (reason === null) throw new TypeError("unmeasurableの場合reasonが必要です");

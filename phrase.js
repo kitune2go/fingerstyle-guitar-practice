@@ -1878,6 +1878,9 @@ import {
         }
       }catch(err){
         console.warn("[phrase] could not persist calibration invalidation:",err);
+        state.calibrationMessage="校正をリセットできませんでした。もう一度お試しください。";
+        renderCalibration();
+        return;
       }
     }
     state.currentInputRoute=null;
