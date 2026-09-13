@@ -19,7 +19,7 @@ import {
 function record(overrides = {}) {
   const base = {
     id: "cal-1",
-    createdAt: "2026-09-06T00:00:00.000Z",
+    createdAt: new Date().toISOString(),
     pathKind: "roundTrip",
     timebase: { reference: "audio-context", observed: "audio-context" },
     offsetMs: 42.5,

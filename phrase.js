@@ -915,16 +915,16 @@ import {
   }
 
   function finalizeRecordingForRun(runId){
-    if(!runId||state.pending?.id!==runId) return;
+    if(!runId||state.pending?.id!==runId) return Promise.resolve();
     const cached=state.recordingResult?.runId===runId?state.recordingResult:null;
     if(cached){
       attachRecordingResult(runId,cached.result,cached.limited);
-      return;
+      return Promise.resolve();
     }
     state.recordingFinalizing=true;
     $("recording-status").textContent="録音を確定しています…";
     renderRecords();
-    void state.recorder.stop().then(result=>{
+    return state.recorder.stop().then(result=>{
       if(result) attachRecordingResult(runId,result,result.limitReached);
       else{
         state.recordingRunId=null;
@@ -1039,6 +1039,7 @@ import {
     state.starting=false;
     const run=state.run;
     const recordingRunId=state.recordingRunId;
+    let recordingPromise=null;
     if(run){
       consumeVisualEvents(false);
       const elapsedSec=Math.max(0,state.audio.currentTime-run.startedAt);
@@ -1054,7 +1055,7 @@ import {
       state.recordingRunId=null;
       state.recordingResult=null;
       state.recordingFinalizing=false;
-      void state.recorder.cancel().catch(handleRecorderError);
+      recordingPromise=state.recorder.cancel().catch(handleRecorderError);
     }
     silenceTail();
     state.running=false;
@@ -1072,15 +1073,16 @@ import {
     $("stop").disabled=true;
     if(resetProgress) updateProgress(0);
     if(run&&recordingRunId){
-      if(state.pending?.id===recordingRunId) finalizeRecordingForRun(recordingRunId);
+      if(state.pending?.id===recordingRunId) recordingPromise=finalizeRecordingForRun(recordingRunId);
       else{
         state.recordingRunId=null;
         state.recordingResult=null;
         state.recordingFinalizing=false;
-        void state.recorder.cancel().catch(handleRecorderError);
+        recordingPromise=state.recorder.cancel().catch(handleRecorderError);
       }
     }
     if(state.phrase) renderRecords();
+    return recordingPromise||Promise.resolve();
   }
 
   async function playOne(){
@@ -1687,7 +1689,10 @@ import {
   async function runCalibration(){
     if(state.calibrating) return;
     pauseMediaPlayback();
-    stop();
+    await stop();
+    if(state.recorder?.running){
+      try{ await state.recorder.cancel(); }catch{}
+    }
     state.calibrating=true;
     const calibrationRunId=++state.calibrationRunId;
     renderCalibration();

@@ -606,4 +606,52 @@ test.describe("Minimal Calibration UI & Browser Calibration Flow", () => {
     await expect(page.locator("#calibration-message")).toHaveText("校正をリセットできませんでした。もう一度お試しください。");
     await expect(page.locator("#reset-calibration")).toBeEnabled();
   });
+
+  test("calibration initiated during active recording awaits recorder shutdown before collection", async ({ page }) => {
+    await page.goto("/phrase.html");
+    await page.waitForSelector("#start-calibration");
+
+    let recorderShutdownBeforeCollector = false;
+    await page.evaluate(() => {
+      // Mock MediaDevices and MediaRecorder
+      window.__recorderActive = false;
+      const originalGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+      navigator.mediaDevices.getUserMedia = async (constraints) => {
+        const stream = await originalGetUserMedia(constraints);
+        window.__recorderActive = true;
+        const origStop = stream.getTracks()[0].stop.bind(stream.getTracks()[0]);
+        stream.getTracks()[0].stop = () => {
+          window.__recorderActive = false;
+          origStop();
+        };
+        return stream;
+      };
+
+      window.__calibrationCollector = async () => {
+        // At the moment collector is called, previous recorder must NOT be active
+        window.__recorderActiveAtCollectorStart = window.__recorderActive;
+        return {
+          samples: [
+            { referenceTime: 0, observedTime: 40.0 },
+            { referenceTime: 0, observedTime: 41.0 },
+            { referenceTime: 0, observedTime: 39.0 },
+            { referenceTime: 0, observedTime: 40.0 },
+            { referenceTime: 0, observedTime: 40.5 },
+            { referenceTime: 0, observedTime: 39.5 }
+          ]
+        };
+      };
+    });
+
+    // Start practice with recording
+    await page.locator("#record-play").click();
+    await page.waitForTimeout(500);
+
+    // Now start calibration while recording was running
+    await page.locator("#start-calibration").click();
+
+    await expect(page.locator("#calibration-badge")).toHaveText("校正済み");
+    const activeAtStart = await page.evaluate(() => window.__recorderActiveAtCollectorStart);
+    expect(activeAtStart).toBe(false);
+  });
 });
