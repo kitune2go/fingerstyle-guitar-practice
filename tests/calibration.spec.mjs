@@ -241,4 +241,36 @@ test.describe("Minimal Calibration UI & Browser Calibration Flow", () => {
     // Calibration panel remains functional
     await expect(page.locator("#calibration-badge")).toBeVisible();
   });
+
+  test("unknown output route keeps calibration status uncalibrated with explanation", async ({ page }) => {
+    await openPhrase(page);
+
+    await page.evaluate(() => {
+      window.__calibrationCollector = async () => ({
+        samples: [
+          { referenceTime: 0, observedTime: 40.0 },
+          { referenceTime: 0, observedTime: 41.0 },
+          { referenceTime: 0, observedTime: 39.0 },
+          { referenceTime: 0, observedTime: 40.0 },
+          { referenceTime: 0, observedTime: 40.5 },
+          { referenceTime: 0, observedTime: 39.5 }
+        ],
+        route: {
+          inputRoute: "built-in-mic",
+          outputRoute: "unknown"
+        }
+      });
+    });
+
+    await page.locator("#start-calibration").click();
+
+    await expect(page.locator("#calibration-badge")).toHaveText("未校正");
+    await expect(page.locator("#calibration-state-text")).toHaveText("未校正");
+    await expect(page.locator("#calibration-message")).toContainText("入出力オーディオルートが特定できないため");
+    await expect(page.locator("#reset-calibration")).toBeDisabled();
+
+    const stored = await getStoredCalibrations(page);
+    expect(stored.length).toBe(1);
+    expect(stored[0].status).toBe("uncalibrated");
+  });
 });

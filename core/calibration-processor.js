@@ -15,12 +15,21 @@ class CalibrationProcessor extends AudioWorkletProcessor {
     this.active = true;
     this.lastDetectionFrame = -Infinity;
     this.minIntervalFrames = Math.round(sampleRate * 0.1); // min 100 ms between detections
+    this.tracking = false;
+    this.peakScore = 0;
+    this.peakSampleGlobal = -1;
+    this.samplesRemaining = 0;
+    this.searchWindowSamples = Math.round(sampleRate * 0.015); // 15 ms peak search window
 
     this.port.onmessage = (event) => {
       if (event.data?.type === "reset") {
         this.ringWrite = 0;
         this.ringCount = 0;
         this.lastDetectionFrame = -Infinity;
+        this.tracking = false;
+        this.peakScore = 0;
+        this.peakSampleGlobal = -1;
+        this.samplesRemaining = 0;
         this.active = true;
       } else if (event.data?.type === "stop") {
         this.active = false;
@@ -63,22 +72,39 @@ class CalibrationProcessor extends AudioWorkletProcessor {
         const score = denom > 1e-6 ? dot / denom : 0;
 
         const currentSampleGlobal = currentFrame + i;
-        if (score >= CALIBRATION_CORRELATION_THRESHOLD &&
-            (currentSampleGlobal - this.lastDetectionFrame) >= this.minIntervalFrames) {
-          this.lastDetectionFrame = currentSampleGlobal;
 
-          // The onset of the detected burst starts (templateLen - 1) samples before this instant
-          const onsetSampleGlobal = currentSampleGlobal - (templateLen - 1);
-          // AudioWorklet currentTime at the start of this block + offset to onset
-          const sampleTimeOffset = (i - (templateLen - 1)) / sampleRate;
-          const observedTime = currentTime + sampleTimeOffset;
+        if (!this.tracking) {
+          if (score >= CALIBRATION_CORRELATION_THRESHOLD &&
+              (currentSampleGlobal - this.lastDetectionFrame) >= this.minIntervalFrames) {
+            this.tracking = true;
+            this.peakScore = score;
+            this.peakSampleGlobal = currentSampleGlobal;
+            this.samplesRemaining = this.searchWindowSamples;
+          }
+        } else {
+          if (score > this.peakScore) {
+            this.peakScore = score;
+            this.peakSampleGlobal = currentSampleGlobal;
+          }
+          this.samplesRemaining--;
+          if (this.samplesRemaining <= 0) {
+            this.lastDetectionFrame = this.peakSampleGlobal;
+            const onsetSampleGlobal = this.peakSampleGlobal - (templateLen - 1);
+            // Derive observedTime on the exact AudioContext timebase
+            const sampleTimeOffset = (this.peakSampleGlobal - currentFrame) / sampleRate;
+            const observedTime = currentTime + sampleTimeOffset - (templateLen - 1) / sampleRate;
 
-          this.port.postMessage({
-            type: "onset",
-            observedTime,
-            observedFrame: onsetSampleGlobal,
-            score
-          });
+            this.port.postMessage({
+              type: "onset",
+              observedTime,
+              observedFrame: onsetSampleGlobal,
+              score: this.peakScore
+            });
+
+            this.tracking = false;
+            this.peakScore = 0;
+            this.peakSampleGlobal = -1;
+          }
         }
       }
     }

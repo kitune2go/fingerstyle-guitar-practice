@@ -86,8 +86,9 @@ export async function runAcousticCalibrationCollector({
     };
 
     // 5. Emit bursts sequentially and observe detected onsets
+    // Allocate generous listening window per burst derived from timeoutMs
     const samples = [];
-    const intervalSec = 0.25; // 250 ms interval
+    const burstListeningWindowSec = Math.max(0.6, Math.min(1.2, (timeoutMs / 1000) / sampleCount));
     let scheduledTime = audioContext.currentTime + 0.1; // start in 100 ms
 
     for (let s = 0; s < sampleCount; s++) {
@@ -97,24 +98,28 @@ export async function runAcousticCalibrationCollector({
       bufferSource.connect(audioContext.destination);
       bufferSource.start(t_ref);
 
-      // Wait until t_ref + burst duration + 150 ms listening window
-      const waitMs = Math.max(50, Math.round((t_ref + 0.15 - audioContext.currentTime) * 1000));
+      // Wait until t_ref + burstListeningWindowSec has elapsed
+      const waitMs = Math.max(50, Math.round((t_ref + burstListeningWindowSec - audioContext.currentTime) * 1000));
       await new Promise((resolve) => setTimeout(resolve, waitMs));
 
-      // Check if an onset was received within [t_ref - 0.05, t_ref + 0.25]
-      const matching = collectedOnsets.find(
-        (onset) => onset.observedTime >= t_ref - 0.02 && onset.observedTime <= t_ref + 0.30
+      // Match the earliest detected onset belonging to this burst: [t_ref - 0.02, t_ref + burstListeningWindowSec]
+      const matchIndex = collectedOnsets.findIndex(
+        (onset) => onset.observedTime >= t_ref - 0.02 && onset.observedTime <= t_ref + burstListeningWindowSec
       );
 
-      if (matching) {
+      if (matchIndex !== -1) {
+        const matching = collectedOnsets[matchIndex];
         samples.push({
           referenceTime: t_ref,
           observedTime: matching.observedTime,
+          unit: "s",
           score: matching.score
         });
+        // Discard consumed and earlier onsets so they cannot match subsequent bursts
+        collectedOnsets.splice(0, matchIndex + 1);
       }
 
-      scheduledTime = Math.max(audioContext.currentTime + 0.08, t_ref + intervalSec);
+      scheduledTime = Math.max(audioContext.currentTime + 0.08, t_ref + burstListeningWindowSec + 0.05);
     }
 
     if (samples.length === 0) {

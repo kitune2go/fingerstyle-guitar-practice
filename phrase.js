@@ -14,6 +14,7 @@ import {
 import { validateMeasurementResult } from "./core/measurement.js";
 import {
   UNKNOWN_ROUTE,
+  isKnownRoute,
   resolveInputRoute,
   resolveOutputRoute,
   createRouteTarget
@@ -1523,7 +1524,8 @@ import {
       throw new TypeError("測定サンプルには基準時刻と観測時刻が必要です。");
     }
     const diff=obs-ref; // SIGN_CONVENTION: observed - reference
-    return sample.unit==="s"?diff*1000:diff;
+    const isSeconds=sample.unit==="s"||(sample.unit!=="ms"&&Math.abs(diff)<10&&Math.max(Math.abs(ref),Math.abs(obs))<100000);
+    return (sample.unit==="s"||isSeconds)?diff*1000:diff;
   }
 
   function computeCalibrationStats(samples){
@@ -1645,7 +1647,8 @@ import {
       state.currentOutputRoute=outputRoute;
 
       const {sampleCount,offsetMs,spreadMs}=computeCalibrationStats(collectorResult.samples);
-      const isCalibrated=sampleCount>=MIN_CALIBRATION_SAMPLES&&spreadMs<=MAX_CALIBRATION_SPREAD_MS;
+      const hasKnownRoutes=isKnownRoute(inputRoute)&&isKnownRoute(outputRoute);
+      const isCalibrated=hasKnownRoutes&&sampleCount>=MIN_CALIBRATION_SAMPLES&&spreadMs<=MAX_CALIBRATION_SPREAD_MS;
       const status=isCalibrated?"calibrated":"uncalibrated";
 
       const record=validateCalibrationRecord({
@@ -1711,7 +1714,9 @@ import {
         state.activeCalibration=null;
         state.calibrationState="uncalibrated";
         let explanation="";
-        if(sampleCount<MIN_CALIBRATION_SAMPLES){
+        if(!hasKnownRoutes){
+          explanation="入出力オーディオルートが特定できないため校正を確定できませんでした。マイクとスピーカーのデバイス接続を確認してください。";
+        }else if(sampleCount<MIN_CALIBRATION_SAMPLES){
           explanation="サンプル数が不足しているため校正できませんでした（"+sampleCount+" / 最低 "+MIN_CALIBRATION_SAMPLES+"回）。";
         }else{
           explanation="ばらつきが許容値（"+MAX_CALIBRATION_SPREAD_MS+" ms）を超えているため校正できませんでした（ばらつき: "+spreadMs.toFixed(1)+" ms）。静かな環境で再試行してください。";

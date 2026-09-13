@@ -90,3 +90,74 @@ test("runAcousticCalibrationCollector returns unmeasurable when raw capture cann
   assert.equal(res.unmeasurable, true);
   assert.ok(res.reason.includes("マイクの音声処理"));
 });
+
+test("runAcousticCalibrationCollector produces samples with unit 's' when onsets detected", async () => {
+  const mockTrack = {
+    getSettings: () => ({
+      echoCancellation: false,
+      noiseSuppression: false,
+      autoGainControl: false,
+      deviceId: "mic-1"
+    }),
+    stop: () => {}
+  };
+  let messageHandler = null;
+  class MockWorkletNode {
+    constructor() {
+      this.port = {
+        set onmessage(fn) { messageHandler = fn; },
+        get onmessage() { return messageHandler; }
+      };
+    }
+    connect() {}
+    disconnect() {}
+  }
+  globalThis.AudioWorkletNode = MockWorkletNode;
+
+  let currentTime = 1.0;
+  const mockAudioContext = {
+    sampleRate: 48000,
+    get currentTime() { return currentTime; },
+    destination: {},
+    audioWorklet: { addModule: async () => {} },
+    createMediaStreamSource: () => ({ connect: () => {}, disconnect: () => {} }),
+    createBuffer: () => ({ copyToChannel: () => {} }),
+    createBufferSource: () => ({
+      connect: () => {},
+      start: (t_ref) => {
+        // simulate AudioWorklet onset detection arriving 40 ms later
+        setTimeout(() => {
+          currentTime = t_ref + 0.04;
+          if (messageHandler) {
+            messageHandler({
+              data: {
+                type: "onset",
+                observedTime: t_ref + 0.04,
+                observedFrame: Math.round((t_ref + 0.04) * 48000),
+                score: 0.98
+              }
+            });
+          }
+        }, 10);
+      }
+    })
+  };
+  const mockMediaDevices = {
+    getUserMedia: async () => ({
+      getAudioTracks: () => [mockTrack],
+      getTracks: () => [mockTrack]
+    })
+  };
+
+  const res = await runAcousticCalibrationCollector({
+    audioContext: mockAudioContext,
+    mediaDevices: mockMediaDevices,
+    sampleCount: 2,
+    timeoutMs: 1000
+  });
+
+  assert.equal(res.unmeasurable, undefined);
+  assert.equal(res.samples.length, 2);
+  assert.equal(res.samples[0].unit, "s");
+  assert.ok(Math.abs((res.samples[0].observedTime - res.samples[0].referenceTime) - 0.04) < 1e-4);
+});
