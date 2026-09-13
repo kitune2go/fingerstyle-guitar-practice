@@ -368,6 +368,28 @@ import {
     if(noteButton) noteButton.disabled=blocked;
     if(backingButton) backingButton.disabled=blocked||state.focusMode==="reading"||state.focusMode==="rhythm";
     $("stop").disabled=!(pending||state.running||state.sources.size);
+
+    const configBlocked=state.calibrating;
+    const rhythmFocus=state.focusMode==="rhythm";
+    if($("phrase-select")) $("phrase-select").disabled=configBlocked;
+    if($("tempo")) $("tempo").disabled=configBlocked;
+    if($("sound-mode-toggle")) $("sound-mode-toggle").disabled=configBlocked;
+    if($("loop")) $("loop").disabled=configBlocked;
+    if($("focus-mode")) $("focus-mode").disabled=configBlocked;
+    if($("range-start")) $("range-start").disabled=configBlocked;
+    if($("range-end")) $("range-end").disabled=configBlocked;
+    if($("range-one")) $("range-one").disabled=configBlocked;
+    if($("range-two")) $("range-two").disabled=configBlocked;
+    if($("range-all")) $("range-all").disabled=configBlocked;
+    if($("range-previous")) $("range-previous").disabled=configBlocked||state.range.start===1;
+    if($("range-next")) $("range-next").disabled=configBlocked||state.range.end===state.phrase.measures;
+    if($("count-in")) $("count-in").disabled=configBlocked;
+    if($("assist-mode")) $("assist-mode").disabled=configBlocked;
+    if($("reveal-score")) $("reveal-score").disabled=configBlocked;
+    if($("melody-toggle")) $("melody-toggle").disabled=configBlocked;
+    if($("backing-chords")) $("backing-chords").disabled=configBlocked||rhythmFocus;
+    if($("backing-bass")) $("backing-bass").disabled=configBlocked||rhythmFocus;
+    if($("backing-drums")) $("backing-drums").disabled=configBlocked;
   }
 
   async function ensureAudio(requiredSamples=PHRASE_SAMPLES){
@@ -1103,6 +1125,7 @@ import {
   }
 
   function toggleBacking(type){
+    if(state.calibrating) return;
     stop();
     state.backing[type]=!state.backing[type];
     const id=type==="chords"?"backing-chords":type==="bass"?"backing-bass":"backing-drums";
@@ -1256,6 +1279,7 @@ import {
   }
 
   function changeFocus(focusMode){
+    if(state.calibrating) return;
     if(!Object.hasOwn(FOCUS_MODES,focusMode)||focusMode===state.focusMode) return;
     stop();
     state.pending=null;
@@ -1305,11 +1329,11 @@ import {
     $("record-hint").textContent=resultHints[state.focusMode];
     document.body.dataset.focus=state.focusMode;
     const rhythmFocus=state.focusMode==="rhythm";
-    $("backing-chords").disabled=rhythmFocus;
-    $("backing-bass").disabled=rhythmFocus;
+    $("backing-chords").disabled=state.calibrating||rhythmFocus;
+    $("backing-bass").disabled=state.calibrating||rhythmFocus;
     $("range-end").value=String(state.range.end);
-    $("range-previous").disabled=state.range.start===1;
-    $("range-next").disabled=state.range.end===state.phrase.measures;
+    $("range-previous").disabled=state.calibrating||state.range.start===1;
+    $("range-next").disabled=state.calibrating||state.range.end===state.phrase.measures;
     $("count-in").value=String(state.countIn);
     $("assist-mode").value=state.assist;
     $("melody-toggle").textContent=(state.focusMode==="rhythm"?"♪ リズムガイド ":"♪ お手本メロディ ")+(state.melody?"ON":"OFF");
@@ -1339,6 +1363,7 @@ import {
   }
 
   function changeRange(start,end){
+    if(state.calibrating) return;
     stop();
     state.range=practiceRange(state.phrase.measures,start,end);
     resetReadingSession();
@@ -1356,6 +1381,7 @@ import {
   }
 
   function changeAssist(assist){
+    if(state.calibrating) return;
     stop();
     state.assist=assist;
     if(assist==="memory") state.melody=false;
@@ -1859,9 +1885,11 @@ import {
     $("assist-mode").addEventListener("change",event=>changeAssist(event.target.value));
     $("reveal-score").addEventListener("click",()=>changeAssist("full"));
     $("count-in").addEventListener("change",event=>{
+      if(state.calibrating) return;
       stop();state.countIn=Number(event.target.value);savePracticePreferences();renderRecords();
     });
     $("melody-toggle").addEventListener("click",()=>{
+      if(state.calibrating) return;
       stop();state.melody=!state.melody;renderPracticeControls();savePracticePreferences();renderRecords();
     });
     for(const key of SELF_REVIEW_KEYS) $("review-"+key).addEventListener("change",renderRecords);
@@ -1927,15 +1955,18 @@ import {
       }
 
       $("phrase-select").addEventListener("change",(e)=>{
+        if(state.calibrating) return;
         state.index=Number(e.target.value);
         renderPhrase();
         savePracticePreferences();
       });
       $("tempo").addEventListener("input",(e)=>{
+        if(state.calibrating) return;
         stop();$("tempo-label").textContent=e.target.value;savePracticePreferences();renderRecords();
       });
       $("sound-mode-toggle").addEventListener("click",toggleSoundMode);
       $("loop").addEventListener("click",()=>{
+        if(state.calibrating) return;
         stop();
         state.loop=!state.loop;
         $("loop").setAttribute("aria-pressed",String(state.loop));

@@ -325,11 +325,23 @@ test.describe("Minimal Calibration UI & Browser Calibration Flow", () => {
     // Active playback should have been stopped
     await expect(page.locator("#stop")).toBeDisabled();
 
-    // Audio entries and reset button must be disabled while recalibration is running
+    // Audio entries, configuration controls, and reset button must be disabled while recalibration is running
     await expect(page.locator("#play")).toBeDisabled();
     await expect(page.locator("#record-play")).toBeDisabled();
     await expect(page.locator("#play-note")).toBeDisabled();
     await expect(page.locator("#preview-backing")).toBeDisabled();
+    await expect(page.locator("#tempo")).toBeDisabled();
+    await expect(page.locator("#focus-mode")).toBeDisabled();
+    await expect(page.locator("#phrase-select")).toBeDisabled();
+    await expect(page.locator("#loop")).toBeDisabled();
+    await expect(page.locator("#range-start")).toBeDisabled();
+    await expect(page.locator("#range-end")).toBeDisabled();
+    await expect(page.locator("#backing-chords")).toBeDisabled();
+    await expect(page.locator("#backing-bass")).toBeDisabled();
+    await expect(page.locator("#backing-drums")).toBeDisabled();
+    await expect(page.locator("#count-in")).toBeDisabled();
+    await expect(page.locator("#assist-mode")).toBeDisabled();
+    await expect(page.locator("#melody-toggle")).toBeDisabled();
     await expect(page.locator("#reset-calibration")).toBeDisabled();
     await expect(page.locator("#start-calibration")).toBeDisabled();
 
@@ -345,6 +357,18 @@ test.describe("Minimal Calibration UI & Browser Calibration Flow", () => {
     await expect(page.locator("#record-play")).toBeEnabled();
     await expect(page.locator("#play-note")).toBeEnabled();
     await expect(page.locator("#preview-backing")).toBeEnabled();
+    await expect(page.locator("#tempo")).toBeEnabled();
+    await expect(page.locator("#focus-mode")).toBeEnabled();
+    await expect(page.locator("#phrase-select")).toBeEnabled();
+    await expect(page.locator("#loop")).toBeEnabled();
+    await expect(page.locator("#range-start")).toBeEnabled();
+    await expect(page.locator("#range-end")).toBeEnabled();
+    await expect(page.locator("#backing-chords")).toBeEnabled();
+    await expect(page.locator("#backing-bass")).toBeEnabled();
+    await expect(page.locator("#backing-drums")).toBeEnabled();
+    await expect(page.locator("#count-in")).toBeEnabled();
+    await expect(page.locator("#assist-mode")).toBeEnabled();
+    await expect(page.locator("#melody-toggle")).toBeEnabled();
   });
 
   test("failed recalibration preserves previously active applicable calibration", async ({ page }) => {
