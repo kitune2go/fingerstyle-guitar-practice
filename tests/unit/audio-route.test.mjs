@@ -108,3 +108,24 @@ test("createRouteTarget returns a frozen target object", () => {
   assert.equal(Object.isFrozen(target), true);
   assert.equal(Object.isFrozen(target.environment), true);
 });
+
+test("createRouteTarget preserves and freezes processing configuration", () => {
+  const target = createRouteTarget({
+    pathKind: "roundTrip",
+    inputRoute: "mic-1",
+    outputRoute: "speaker-1",
+    processing: {
+      echoCancellation: false,
+      noiseSuppression: false,
+      autoGainControl: false,
+      rawCaptureVerified: true
+    }
+  });
+  assert.deepEqual(target.environment.processing, {
+    echoCancellation: false,
+    noiseSuppression: false,
+    autoGainControl: false,
+    rawCaptureVerified: true
+  });
+  assert.equal(Object.isFrozen(target.environment.processing), true);
+});

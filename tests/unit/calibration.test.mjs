@@ -90,6 +90,29 @@ test("unknown route does not match even if both are unknown", () => {
   assert.equal(calibrationApplies(record({ environment: { inputRoute: "unknown" } }), target("roundTrip", { environment: { inputRoute: "unknown" } })), false);
   assert.equal(calibrationApplies(record({ environment: { outputRoute: "unknown" } }), target("roundTrip", { environment: { outputRoute: "unknown" } })), false);
 });
+test("processing signature mismatch is not applicable", () => {
+  const rawProcessing = {
+    echoCancellation: false,
+    noiseSuppression: false,
+    autoGainControl: false,
+    rawCaptureVerified: true
+  };
+  const dspProcessing = {
+    echoCancellation: true,
+    noiseSuppression: false,
+    autoGainControl: false,
+    rawCaptureVerified: false
+  };
+  // Calibration record recorded with raw capture does not apply if target has DSP active
+  const rawRecord = record({ environment: { processing: rawProcessing } });
+  assert.equal(calibrationApplies(rawRecord, target("roundTrip", { environment: { processing: dspProcessing } })), false);
+  // Matches when processing signatures are identical
+  assert.equal(calibrationApplies(rawRecord, target("roundTrip", { environment: { processing: rawProcessing } })), true);
+  // If target has processing specified but record lacks it, not applicable
+  assert.equal(calibrationApplies(record(), target("roundTrip", { environment: { processing: dspProcessing } })), false);
+  // If record has processing specified but target lacks it, not applicable
+  assert.equal(calibrationApplies(rawRecord, target("roundTrip")), false);
+});
 test("invalidated record is not applicable", () => assert.equal(calibrationApplies(record({ validity: { invalidatedAt: "2026-09-07T00:00:00Z", reason: "route changed" } }), target("roundTrip")), false));
 test("uncalibrated record is not applicable", () => assert.equal(calibrationApplies(record({ status: "uncalibrated" }), target("roundTrip")), false));
 test("stale calibration record older than MAX_CALIBRATION_AGE_MS is not applicable", () => {

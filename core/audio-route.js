@@ -54,17 +54,29 @@ export function createRouteTarget({
   pathKind = "roundTrip",
   inputRoute = UNKNOWN_ROUTE,
   outputRoute = UNKNOWN_ROUTE,
+  processing,
   timebase = { reference: "audio-context", observed: "audio-context" }
 } = {}) {
+  const env = {
+    inputRoute: typeof inputRoute === "string" && inputRoute.trim() !== "" ? inputRoute : UNKNOWN_ROUTE,
+    outputRoute: typeof outputRoute === "string" && outputRoute.trim() !== "" ? outputRoute : UNKNOWN_ROUTE
+  };
+  if (processing !== undefined && processing !== null) {
+    env.processing = Object.freeze({
+      echoCancellation: typeof processing.echoCancellation === "boolean" ? processing.echoCancellation : null,
+      noiseSuppression: typeof processing.noiseSuppression === "boolean" ? processing.noiseSuppression : null,
+      autoGainControl: typeof processing.autoGainControl === "boolean" ? processing.autoGainControl : null,
+      rawCaptureVerified: typeof processing.rawCaptureVerified === "boolean"
+        ? processing.rawCaptureVerified
+        : (processing.echoCancellation === false && processing.noiseSuppression === false && processing.autoGainControl === false)
+    });
+  }
   return Object.freeze({
     pathKind,
     timebase: Object.freeze({
       reference: timebase.reference ?? "audio-context",
       observed: timebase.observed ?? "audio-context"
     }),
-    environment: Object.freeze({
-      inputRoute: typeof inputRoute === "string" && inputRoute.trim() !== "" ? inputRoute : UNKNOWN_ROUTE,
-      outputRoute: typeof outputRoute === "string" && outputRoute.trim() !== "" ? outputRoute : UNKNOWN_ROUTE
-    })
+    environment: Object.freeze(env)
   });
 }

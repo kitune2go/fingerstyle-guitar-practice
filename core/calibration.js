@@ -25,7 +25,13 @@ const RECORD_KEYS = new Set([
 const TARGET_KEYS = new Set(["pathKind", "timebase", "environment"]);
 const TIMEBASE_KEYS = new Set(["reference", "observed"]);
 const PRECISION_KEYS = new Set(["spreadMs", "method"]);
-const ENVIRONMENT_KEYS = new Set(["inputRoute", "outputRoute"]);
+const ENVIRONMENT_KEYS = new Set(["inputRoute", "outputRoute", "processing"]);
+const PROCESSING_KEYS = new Set([
+  "echoCancellation",
+  "noiseSuppression",
+  "autoGainControl",
+  "rawCaptureVerified"
+]);
 const VALIDITY_KEYS = new Set(["invalidatedAt", "reason"]);
 
 function isPlainObject(value) {
@@ -87,12 +93,32 @@ function normalizeTimebase(value, name) {
   });
 }
 
+function normalizeProcessing(value, name) {
+  if (value === null || value === undefined) return null;
+  const object = requireObject(value, name);
+  rejectUnknownKeys(object, PROCESSING_KEYS, name);
+  const echoCancellation = typeof object.echoCancellation === "boolean" ? object.echoCancellation : null;
+  const noiseSuppression = typeof object.noiseSuppression === "boolean" ? object.noiseSuppression : null;
+  const autoGainControl = typeof object.autoGainControl === "boolean" ? object.autoGainControl : null;
+  const rawCaptureVerified = typeof object.rawCaptureVerified === "boolean"
+    ? object.rawCaptureVerified
+    : (echoCancellation === false && noiseSuppression === false && autoGainControl === false);
+  return Object.freeze({
+    echoCancellation,
+    noiseSuppression,
+    autoGainControl,
+    rawCaptureVerified
+  });
+}
+
 function normalizeEnvironment(value, name) {
   const object = requireObject(value, name);
   rejectUnknownKeys(object, ENVIRONMENT_KEYS, name);
+  const processing = object.processing !== undefined ? normalizeProcessing(object.processing, `${name}.processing`) : null;
   return Object.freeze({
     inputRoute: requireNonEmptyString(object.inputRoute, `${name}.inputRoute`),
-    outputRoute: requireNonEmptyString(object.outputRoute, `${name}.outputRoute`)
+    outputRoute: requireNonEmptyString(object.outputRoute, `${name}.outputRoute`),
+    ...(processing ? { processing } : {})
   });
 }
 
@@ -207,6 +233,17 @@ export function calibrationApplies(record, target, options = {}) {
   if (normalizedRecord.environment.outputRoute === "unknown" || normalizedTarget.environment.outputRoute === "unknown") return false;
   if (normalizedRecord.environment.inputRoute !== normalizedTarget.environment.inputRoute) return false;
   if (normalizedRecord.environment.outputRoute !== normalizedTarget.environment.outputRoute) return false;
+
+  const recProc = normalizedRecord.environment.processing ?? null;
+  const targetProc = normalizedTarget.environment.processing ?? null;
+  if (recProc !== null || targetProc !== null) {
+    if (recProc === null || targetProc === null) return false;
+    if (recProc.rawCaptureVerified !== targetProc.rawCaptureVerified) return false;
+    if (recProc.echoCancellation !== targetProc.echoCancellation) return false;
+    if (recProc.noiseSuppression !== targetProc.noiseSuppression) return false;
+    if (recProc.autoGainControl !== targetProc.autoGainControl) return false;
+  }
+
   return true;
 }
 

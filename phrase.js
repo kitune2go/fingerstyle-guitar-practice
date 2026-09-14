@@ -18,6 +18,7 @@ import {
   isKnownRoute,
   resolveInputRoute,
   resolveOutputRoute,
+  inspectTrackProcessing,
   createRouteTarget
 } from "./core/audio-route.js";
 import { runAcousticCalibrationCollector } from "./core/calibration-collector.js";
@@ -52,7 +53,7 @@ import {
     range:{start:1,end:1}, assist:"full", melody:true, countIn:0, focusMode:"integrated", readingSession:null,
     run:null, pending:null, attempts:[], store:null, saving:false, preferences:{},
     activeCalibration:null, calibrationState:"uncalibrated", calibrationMessage:"", calibrating:false, calibrationRunId:0,
-    currentInputRoute:null, currentOutputRoute:null,
+    currentInputRoute:null, currentOutputRoute:null, currentInputProcessing:null,
     recorder:null, recordingRunId:null, recordingFinalizing:false, recordingResult:null,
     pendingRecording:null, recordings:new Map(), pendingRecordingUrl:null, historyRecordingUrls:[],
     followedMeasure:-1,
@@ -959,6 +960,7 @@ import {
           if (track) {
             const inRoute = resolveInputRoute(track);
             const outRoute = resolveOutputRoute(state.audio);
+            state.currentInputProcessing = inspectTrackProcessing(track);
             if (inRoute !== UNKNOWN_ROUTE) state.currentInputRoute = inRoute;
             if (outRoute !== UNKNOWN_ROUTE) state.currentOutputRoute = outRoute;
             void loadCalibrations();
@@ -1566,7 +1568,7 @@ import {
     }
   }
 
-  function getCurrentCalibrationTarget(inputRoute=state.currentInputRoute, outputRoute=state.currentOutputRoute){
+  function getCurrentCalibrationTarget(inputRoute=state.currentInputRoute, outputRoute=state.currentOutputRoute, processing=state.currentInputProcessing){
     const resolvedInput=inputRoute||UNKNOWN_ROUTE;
     const resolvedOutput=outputRoute||resolveOutputRoute(state.audio);
 
@@ -1574,6 +1576,7 @@ import {
       pathKind:"roundTrip",
       inputRoute:resolvedInput,
       outputRoute:resolvedOutput,
+      processing,
       timebase:{reference:"audio-context",observed:"audio-context"}
     });
   }
@@ -1718,11 +1721,18 @@ import {
       const resolvedOutput=resolveOutputRoute(state.audio);
       const detectedInput=collectorResult?.route?.inputRoute||collectorResult?.inputRoute;
       const detectedOutput=collectorResult?.route?.outputRoute||collectorResult?.outputRoute;
+      const detectedProcessing=collectorResult?.route?.processing||collectorResult?.processing||(isTestMode?{
+        echoCancellation:false,
+        noiseSuppression:false,
+        autoGainControl:false,
+        rawCaptureVerified:true
+      }:null);
       const inputRoute=detectedInput||state.currentInputRoute||(isTestMode?"test-mic":UNKNOWN_ROUTE);
       const outputRoute=detectedOutput||state.currentOutputRoute||(isTestMode?"test-speaker":resolvedOutput);
       if(inputRoute!==UNKNOWN_ROUTE) state.currentInputRoute=inputRoute;
       if(outputRoute!==UNKNOWN_ROUTE) state.currentOutputRoute=outputRoute;
-      const currentTarget=getCurrentCalibrationTarget(state.currentInputRoute,state.currentOutputRoute);
+      if(detectedProcessing) state.currentInputProcessing=detectedProcessing;
+      const currentTarget=getCurrentCalibrationTarget(state.currentInputRoute,state.currentOutputRoute,state.currentInputProcessing);
 
       if(collectorResult?.error){
         const errReason=typeof collectorResult.error==="string"
@@ -1765,7 +1775,8 @@ import {
         },
         environment:{
           inputRoute,
-          outputRoute
+          outputRoute,
+          ...(state.currentInputProcessing?{processing:state.currentInputProcessing}:{})
         },
         status,
         validity:{
@@ -1890,6 +1901,7 @@ import {
     }
     state.currentInputRoute=null;
     state.currentOutputRoute=null;
+    state.currentInputProcessing=null;
     state.activeCalibration=null;
     state.calibrationState="uncalibrated";
     state.calibrationMessage="校正をリセットしました。";
@@ -2040,18 +2052,39 @@ import {
           // Invalidate active in-memory calibration if physical route identity changes
           state.currentInputRoute=null;
           state.currentOutputRoute=null;
+          state.currentInputProcessing=null;
           void loadCalibrations();
         });
       }
 
       window.addEventListener("fingerstyle:set-input-route",(e)=>{
         state.currentInputRoute=e.detail?.inputRoute||null;
+        if(e.detail?.processing!==undefined){
+          state.currentInputProcessing=e.detail.processing;
+        }else if(state.currentInputRoute==="test-mic"){
+          state.currentInputProcessing={
+            echoCancellation:false,
+            noiseSuppression:false,
+            autoGainControl:false,
+            rawCaptureVerified:true
+          };
+        }
         void loadCalibrations();
       });
 
       window.addEventListener("fingerstyle:set-route",(e)=>{
         state.currentInputRoute=e.detail?.inputRoute||null;
         state.currentOutputRoute=e.detail?.outputRoute||null;
+        if(e.detail?.processing!==undefined){
+          state.currentInputProcessing=e.detail.processing;
+        }else if(state.currentInputRoute==="test-mic"){
+          state.currentInputProcessing={
+            echoCancellation:false,
+            noiseSuppression:false,
+            autoGainControl:false,
+            rawCaptureVerified:true
+          };
+        }
         void loadCalibrations();
       });
     }catch(error){
