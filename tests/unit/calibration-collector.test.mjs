@@ -502,3 +502,27 @@ test("createCalibrationProcessorClass defines testable processor without globals
   assert.ok(onsets[0].score >= CALIBRATION_CORRELATION_THRESHOLD);
   assert.equal(onsets[0].observedFrame, padding.length);
 });
+
+test("createCalibrationProcessorClass requires explicit dependencies and clock provider", () => {
+  class MockBaseProcessor {}
+
+  assert.throws(() => {
+    createCalibrationProcessorClass(null, () => ({}));
+  }, TypeError);
+
+  assert.throws(() => {
+    createCalibrationProcessorClass(MockBaseProcessor);
+  }, TypeError);
+
+  assert.throws(() => {
+    createCalibrationProcessorClass(MockBaseProcessor, "not-a-fn");
+  }, TypeError);
+
+  const IncompleteScopeClass = createCalibrationProcessorClass(MockBaseProcessor, () => ({
+    sampleRate: 48000
+  }));
+
+  assert.throws(() => {
+    new IncompleteScopeClass();
+  }, TypeError);
+});

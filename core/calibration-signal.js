@@ -39,18 +39,24 @@ export function computeNormalizedCorrelation(input, offset, template) {
 
 /**
  * Creates the CalibrationProcessor class inheriting from the provided BaseAudioWorkletProcessor.
- * Realm-specific globals (sampleRate, currentFrame, currentTime) can be accessed via getters
- * or parameters, keeping the definition in core free from global scope captures.
+ * Realm-specific globals (sampleRate, currentFrame, currentTime) are strictly injected via getScopeGlobals,
+ * keeping core free from any realm or global scope dependencies.
  */
-export function createCalibrationProcessorClass(BaseAudioWorkletProcessor, getScopeGlobals = () => ({
-  sampleRate: typeof sampleRate !== "undefined" ? sampleRate : 44100,
-  currentFrame: typeof currentFrame !== "undefined" ? currentFrame : 0,
-  currentTime: typeof currentTime !== "undefined" ? currentTime : 0
-})) {
+export function createCalibrationProcessorClass(BaseAudioWorkletProcessor, getScopeGlobals) {
+  if (typeof BaseAudioWorkletProcessor !== "function") {
+    throw new TypeError("BaseAudioWorkletProcessor must be a constructor function");
+  }
+  if (typeof getScopeGlobals !== "function") {
+    throw new TypeError("getScopeGlobals must be a function returning { sampleRate, currentFrame, currentTime }");
+  }
+
   return class CalibrationProcessor extends BaseAudioWorkletProcessor {
     constructor() {
       super();
       const scope = getScopeGlobals();
+      if (!scope || typeof scope.sampleRate !== "number" || typeof scope.currentFrame !== "number" || typeof scope.currentTime !== "number") {
+        throw new TypeError("getScopeGlobals() must return an object with numeric sampleRate, currentFrame, and currentTime");
+      }
       this._getScopeGlobals = getScopeGlobals;
       this.sampleRate = scope.sampleRate;
       this.template = generateReferenceBurst(this.sampleRate);
