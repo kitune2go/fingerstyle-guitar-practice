@@ -19,6 +19,8 @@ import {
   isKnownRoute,
   resolveInputRoute,
   resolveOutputRoute,
+  selectOutputRoute,
+  restoreOutputRoute,
   inspectTrackProcessing,
   createRouteTarget
 } from "./core/audio-route.js";
@@ -42,6 +44,7 @@ import {
   const $ = (id) => document.getElementById(id);
   const SOUND_MODE_KEY="fingerstyle-sound-mode";
   const PRACTICE_KEY="fingerstyle-phrase-preferences";
+  const CALIBRATION_OUTPUT_ROUTE_KEY="fingerstyle-calibration-output-route";
   const state = {
     data:null, ready:null, phrase:null, model:null, index:0, noteIndex:0,
     audio:null, noiseBuffer:null, mix:null, samplePlayer:null,
@@ -418,11 +421,73 @@ import {
     document.querySelectorAll("#attempt-list button").forEach(b=>{ b.disabled=configBlocked; });
   }
 
-  async function ensureAudio(requiredSamples=PHRASE_SAMPLES){
+  function readCalibrationOutputRoute(){
+    try{
+      const route=localStorage.getItem(CALIBRATION_OUTPUT_ROUTE_KEY);
+      return isKnownRoute(route)?route:null;
+    }catch{
+      return null;
+    }
+  }
+
+  function saveCalibrationOutputRoute(route){
+    if(!isKnownRoute(route)) return;
+    try{
+      localStorage.setItem(CALIBRATION_OUTPUT_ROUTE_KEY,route);
+    }catch{}
+  }
+
+  function clearCalibrationOutputRoute(){
+    try{
+      localStorage.removeItem(CALIBRATION_OUTPUT_ROUTE_KEY);
+    }catch{}
+  }
+
+  function getOrCreateAudioContext(){
     const AudioContext=window.AudioContext||window.webkitAudioContext;
     if(!AudioContext) throw new Error("このブラウザはWeb Audioに対応していません。");
-    if(!state.audio) state.audio=new AudioContext({latencyHint:"interactive"});
+    if(!state.audio){
+      state.audio=new AudioContext({latencyHint:"interactive"});
+      if(typeof state.audio.addEventListener==="function"){
+        state.audio.addEventListener("sinkchange",()=>{
+          const outputRoute=resolveOutputRoute(state.audio);
+          state.currentOutputRoute=isKnownRoute(outputRoute)?outputRoute:null;
+          if(state.currentOutputRoute){
+            saveCalibrationOutputRoute(state.currentOutputRoute);
+          }else{
+            clearCalibrationOutputRoute();
+          }
+          if(!state.calibrating) void loadCalibrations();
+        });
+      }
+    }
+    return state.audio;
+  }
+
+  async function restoreCalibrationOutputRoute(){
+    const storedRoute=readCalibrationOutputRoute();
+    if(!storedRoute||!state.audio) return UNKNOWN_ROUTE;
+    const restored=await restoreOutputRoute({
+      audioContext:state.audio,
+      mediaDevices:navigator.mediaDevices,
+      outputRoute:storedRoute
+    });
+    if(isKnownRoute(restored.outputRoute)){
+      state.currentOutputRoute=restored.outputRoute;
+      saveCalibrationOutputRoute(restored.outputRoute);
+      return restored.outputRoute;
+    }
+    state.currentOutputRoute=null;
+    clearCalibrationOutputRoute();
+    return UNKNOWN_ROUTE;
+  }
+
+  async function ensureAudio(requiredSamples=PHRASE_SAMPLES){
+    getOrCreateAudioContext();
     if(state.audio.state==="suspended") await state.audio.resume();
+    if(!isKnownRoute(state.currentOutputRoute)){
+      await restoreCalibrationOutputRoute();
+    }
 
     buildMixer();
 
@@ -1733,6 +1798,21 @@ import {
     setAudioEntriesPending(true);
 
     try{
+      const isTestMode=typeof window.__calibrationCollector==="function";
+      if(!isTestMode){
+        const outputSelection=await selectOutputRoute({
+          audioContext:getOrCreateAudioContext(),
+          mediaDevices:navigator.mediaDevices,
+          preferredOutputRoute:readCalibrationOutputRoute()
+        });
+        if(outputSelection.unmeasurable){
+          await handleCalibrationUnmeasurable(outputSelection.reason);
+          return;
+        }
+        state.currentOutputRoute=outputSelection.outputRoute;
+        saveCalibrationOutputRoute(outputSelection.outputRoute);
+      }
+
       await stop();
       if(state.recorder?.running){
         try{ await state.recorder.cancel(); }catch{}
@@ -1755,7 +1835,6 @@ import {
       }
       if(calibrationRunId!==state.calibrationRunId) return;
 
-      const isTestMode=typeof window.__calibrationCollector==="function";
       const resolvedOutput=resolveOutputRoute(state.audio);
       const detectedInput=collectorResult?.route?.inputRoute||collectorResult?.inputRoute;
       const detectedOutput=collectorResult?.route?.outputRoute||collectorResult?.outputRoute;
@@ -2095,11 +2174,12 @@ import {
 
       if(navigator.mediaDevices?.addEventListener){
         navigator.mediaDevices.addEventListener("devicechange",()=>{
-          // Invalidate active in-memory calibration if physical route identity changes
+          // A device-list change removes every inferred route until the selected
+          // output is verified again against the browser's current device list.
           state.currentInputRoute=null;
           state.currentOutputRoute=null;
           state.currentInputProcessing=null;
-          void loadCalibrations();
+          void restoreCalibrationOutputRoute().finally(()=>loadCalibrations());
         });
       }
 

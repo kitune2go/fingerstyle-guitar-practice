@@ -2,20 +2,22 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   UNKNOWN_ROUTE,
-  DEFAULT_OUTPUT_ROUTE,
   isKnownRoute,
   resolveInputRoute,
   resolveOutputRoute,
+  selectOutputRoute,
+  restoreOutputRoute,
   inspectTrackProcessing,
   createRouteTarget
 } from "../../core/audio-route.js";
 
-test("isKnownRoute identifies valid routes and rejects unknown/empty", () => {
+test("isKnownRoute identifies explicit routes and rejects shared/default tokens", () => {
   assert.equal(isKnownRoute("mic-123"), true);
-  assert.equal(isKnownRoute(DEFAULT_OUTPUT_ROUTE), true);
   assert.equal(isKnownRoute(""), false);
   assert.equal(isKnownRoute("   "), false);
   assert.equal(isKnownRoute("unknown"), false);
+  assert.equal(isKnownRoute("default"), false);
+  assert.equal(isKnownRoute("default-output"), false);
   assert.equal(isKnownRoute(UNKNOWN_ROUTE), false);
   assert.equal(isKnownRoute(null), false);
 });
@@ -35,6 +37,13 @@ test("resolveInputRoute identifies deviceId and handles missing settings", () =>
   };
   assert.equal(resolveInputRoute(emptyTrack), UNKNOWN_ROUTE);
 
+  const defaultTrack = {
+    getSettings() {
+      return { deviceId: "default" };
+    }
+  };
+  assert.equal(resolveInputRoute(defaultTrack), UNKNOWN_ROUTE);
+
   const noIdTrack = {
     getSettings() {
       return { label: "USB Microphone" };
@@ -44,35 +53,123 @@ test("resolveInputRoute identifies deviceId and handles missing settings", () =>
   assert.equal(resolveInputRoute(null), UNKNOWN_ROUTE);
 });
 
-test("resolveOutputRoute resolves explicit sinkId and returns UNKNOWN_ROUTE for default or unverified outputs", () => {
+test("resolveOutputRoute resolves explicit sinkId and rejects default or unverified outputs", () => {
   const explicitContext = { sinkId: "sink-device-789" };
   assert.equal(resolveOutputRoute(explicitContext), "sink-device-789");
   assert.equal(isKnownRoute(resolveOutputRoute(explicitContext)), true);
 
-  // Default / empty sinkId cannot verify physical output device identity across changes
-  const defaultContext = { sinkId: "" };
-  assert.equal(resolveOutputRoute(defaultContext), UNKNOWN_ROUTE);
-  assert.equal(isKnownRoute(resolveOutputRoute(defaultContext)), false);
-
-  const defaultNamedContext = { sinkId: "default" };
-  assert.equal(resolveOutputRoute(defaultNamedContext), UNKNOWN_ROUTE);
-
-  const sinkObjectContext = { sinkId: { deviceId: "custom-speaker" } };
-  assert.equal(resolveOutputRoute(sinkObjectContext), "custom-speaker");
-
-  const defaultSinkObjectContext = { sinkId: { deviceId: "" } };
-  assert.equal(resolveOutputRoute(defaultSinkObjectContext), UNKNOWN_ROUTE);
-
-  const defaultNamedSinkObjectContext = { sinkId: { deviceId: "default" } };
-  assert.equal(resolveOutputRoute(defaultNamedSinkObjectContext), UNKNOWN_ROUTE);
-
-  // Missing sinkId / destination fallback cannot verify physical device
-  const destinationContext = { destination: {} };
-  assert.equal(resolveOutputRoute(destinationContext), UNKNOWN_ROUTE);
-
-  const unsupportedContext = {};
-  assert.equal(resolveOutputRoute(unsupportedContext), UNKNOWN_ROUTE);
+  assert.equal(resolveOutputRoute({ sinkId: "" }), UNKNOWN_ROUTE);
+  assert.equal(resolveOutputRoute({ sinkId: "default" }), UNKNOWN_ROUTE);
+  assert.equal(resolveOutputRoute({ sinkId: "default-output" }), UNKNOWN_ROUTE);
+  assert.equal(resolveOutputRoute({ sinkId: { deviceId: "custom-speaker" } }), "custom-speaker");
+  assert.equal(resolveOutputRoute({ sinkId: { deviceId: "" } }), UNKNOWN_ROUTE);
+  assert.equal(resolveOutputRoute({ sinkId: { deviceId: "default" } }), UNKNOWN_ROUTE);
+  assert.equal(resolveOutputRoute({ destination: {} }), UNKNOWN_ROUTE);
+  assert.equal(resolveOutputRoute({}), UNKNOWN_ROUTE);
   assert.equal(resolveOutputRoute(null), UNKNOWN_ROUTE);
+});
+
+test("selectOutputRoute applies the exact device selected by the browser", async () => {
+  const calls = [];
+  const audioContext = {
+    sinkId: "",
+    async setSinkId(deviceId) {
+      calls.push(deviceId);
+      this.sinkId = deviceId;
+    }
+  };
+  const mediaDevices = {
+    async selectAudioOutput(options) {
+      assert.deepEqual(options, { deviceId: "previous-speaker" });
+      return {
+        kind: "audiooutput",
+        deviceId: "physical-speaker-123",
+        label: "USB DAC"
+      };
+    }
+  };
+
+  const result = await selectOutputRoute({
+    audioContext,
+    mediaDevices,
+    preferredOutputRoute: "previous-speaker"
+  });
+
+  assert.deepEqual(result, { outputRoute: "physical-speaker-123" });
+  assert.deepEqual(calls, ["physical-speaker-123"]);
+  assert.equal(resolveOutputRoute(audioContext), "physical-speaker-123");
+});
+
+test("selectOutputRoute never promotes default, missing, unsupported, or rejected output identity", async () => {
+  const audioContext = {
+    sinkId: "",
+    async setSinkId(deviceId) {
+      this.sinkId = deviceId;
+    }
+  };
+
+  const defaultResult = await selectOutputRoute({
+    audioContext,
+    mediaDevices: {
+      async selectAudioOutput() {
+        return { kind: "audiooutput", deviceId: "default" };
+      }
+    }
+  });
+  assert.equal(defaultResult.unmeasurable, true);
+  assert.equal(defaultResult.outputRoute, UNKNOWN_ROUTE);
+
+  const unsupported = await selectOutputRoute({
+    audioContext,
+    mediaDevices: {}
+  });
+  assert.equal(unsupported.unmeasurable, true);
+  assert.ok(unsupported.reason.includes("対応していない"));
+
+  const denied = new DOMException("denied", "NotAllowedError");
+  const rejected = await selectOutputRoute({
+    audioContext,
+    mediaDevices: {
+      async selectAudioOutput() {
+        throw denied;
+      }
+    }
+  });
+  assert.equal(rejected.unmeasurable, true);
+  assert.ok(rejected.reason.includes("選択されなかった"));
+});
+
+test("restoreOutputRoute reidentifies the persisted device before applying it", async () => {
+  const applied = [];
+  const audioContext = {
+    sinkId: "",
+    async setSinkId(deviceId) {
+      applied.push(deviceId);
+      this.sinkId = deviceId;
+    }
+  };
+  const mediaDevices = {
+    async enumerateDevices() {
+      return [
+        { kind: "audioinput", deviceId: "mic-1" },
+        { kind: "audiooutput", deviceId: "speaker-1" }
+      ];
+    }
+  };
+
+  assert.deepEqual(await restoreOutputRoute({
+    audioContext,
+    mediaDevices,
+    outputRoute: "speaker-1"
+  }), { outputRoute: "speaker-1" });
+  assert.deepEqual(applied, ["speaker-1"]);
+
+  assert.deepEqual(await restoreOutputRoute({
+    audioContext,
+    mediaDevices,
+    outputRoute: "missing-speaker"
+  }), { outputRoute: UNKNOWN_ROUTE });
+  assert.deepEqual(applied, ["speaker-1"]);
 });
 
 test("inspectTrackProcessing verifies raw capture settings", () => {
