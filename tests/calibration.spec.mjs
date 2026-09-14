@@ -654,4 +654,126 @@ test.describe("Minimal Calibration UI & Browser Calibration Flow", () => {
     const activeAtStart = await page.evaluate(() => window.__recorderActiveAtCollectorStart);
     expect(activeAtStart).toBe(false);
   });
+
+  test("retry when browser forces DSP processing does not preserve prior raw calibration", async ({ page }) => {
+    await openPhrase(page);
+
+    // 1. Establish an initial valid raw calibration
+    await page.evaluate(() => {
+      window.__calibrationCollector = async () => ({
+        samples: [
+          { referenceTime: 0, observedTime: 40.0 },
+          { referenceTime: 0, observedTime: 41.0 },
+          { referenceTime: 0, observedTime: 39.0 },
+          { referenceTime: 0, observedTime: 40.0 },
+          { referenceTime: 0, observedTime: 40.5 },
+          { referenceTime: 0, observedTime: 39.5 }
+        ],
+        route: {
+          inputRoute: "test-mic",
+          outputRoute: "test-speaker",
+          processing: {
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false,
+            rawCaptureVerified: true
+          }
+        }
+      });
+    });
+
+    await page.locator("#start-calibration").click();
+    await expect(page.locator("#calibration-badge")).toHaveText("校正済み");
+
+    // 2. Browser subsequently forces echo cancellation (DSP processing enabled)
+    await page.evaluate(() => {
+      window.__calibrationCollector = async () => ({
+        unmeasurable: true,
+        reason: "マイクの音声処理（エコーキャンセラー・ノイズ抑制等）を無効化できないため測定できません。",
+        route: {
+          inputRoute: "test-mic",
+          outputRoute: "test-speaker",
+          processing: {
+            echoCancellation: true,
+            noiseSuppression: false,
+            autoGainControl: false,
+            rawCaptureVerified: false
+          }
+        }
+      });
+    });
+
+    await page.locator("#start-calibration").click();
+
+    // Must NOT preserve the old raw calibration because processing signature no longer matches
+    await expect(page.locator("#calibration-badge")).toHaveText("測定不能");
+    await expect(page.locator("#calibration-offset")).toHaveText("—");
+  });
+
+  test("revalidation immediately detects expired calibration and visibility resume reloads applicability", async ({ page }) => {
+    await openPhrase(page);
+
+    // Save a calibration record that is 31 days old
+    const expiredDate = new Date(Date.now() - 31 * 24 * 60 * 60 * 1000).toISOString();
+    await page.evaluate(async (createdAt) => {
+      const { createPracticeStore } = await import("./core/practice-store.js");
+      const store = createPracticeStore(indexedDB);
+      await store.saveCalibration({
+        id: "cal-expired",
+        createdAt,
+        pathKind: "roundTrip",
+        timebase: {
+          reference: "audio-context",
+          observed: "audio-context"
+        },
+        offsetMs: 42.0,
+        signConvention: "observed-minus-reference",
+        sampleCount: 6,
+        precision: {
+          spreadMs: 2.0,
+          method: "stddev"
+        },
+        environment: {
+          inputRoute: "test-mic",
+          outputRoute: "test-speaker",
+          processing: {
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false,
+            rawCaptureVerified: true
+          }
+        },
+        status: "calibrated",
+        validity: {
+          invalidatedAt: null,
+          reason: null
+        }
+      });
+    }, expiredDate);
+
+    // Set route to match target
+    await page.evaluate(() => {
+      window.dispatchEvent(new CustomEvent("fingerstyle:set-route", {
+        detail: {
+          inputRoute: "test-mic",
+          outputRoute: "test-speaker",
+          processing: {
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false,
+            rawCaptureVerified: true
+          }
+        }
+      }));
+    });
+
+    // Stored expired record must not be accepted as calibrated
+    await expect(page.locator("#calibration-badge")).toHaveText("未校正");
+
+    // Test visibility change triggers revalidation
+    await page.evaluate(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    await expect(page.locator("#calibration-badge")).toHaveText("未校正");
+  });
 });

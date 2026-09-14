@@ -34,6 +34,7 @@ export async function runAcousticCalibrationCollector({
   let workletNode = null;
   let sourceNode = null;
   let muteGain = null;
+  let routeInfo = null;
 
   try {
     // 1. Request microphone with all audio processing disabled
@@ -64,25 +65,28 @@ export async function runAcousticCalibrationCollector({
       return { unmeasurable: true, reason: "利用可能なマイクが見つかりませんでした。" };
     }
 
+    const inRoute = resolveInputRoute(track);
+    const outRoute = resolveOutputRoute(audioContext);
     const processing = inspectTrackProcessing(track);
+    routeInfo = {
+      inputRoute: inRoute,
+      outputRoute: outRoute,
+      processing
+    };
+
     if (!processing.rawCaptureVerified) {
       return {
         unmeasurable: true,
-        reason: "マイクの音声処理（エコーキャンセラー・ノイズ抑制等）を無効化できないため測定できません。"
+        reason: "マイクの音声処理（エコーキャンセラー・ノイズ抑制等）を無効化できないため測定できません。",
+        route: routeInfo
       };
     }
-
-    const routeInfo = {
-      inputRoute: resolveInputRoute(track),
-      outputRoute: resolveOutputRoute(audioContext),
-      processing
-    };
 
     // 2. Load the AudioWorklet processor module
     await audioContext.audioWorklet.addModule(workletModuleUrl);
 
     if (typeof AudioWorkletNodeClass !== "function") {
-      return { unmeasurable: true, reason: "AudioWorkletNodeが利用できません。" };
+      return { unmeasurable: true, reason: "AudioWorkletNodeが利用できません。", route: routeInfo };
     }
 
     sourceNode = audioContext.createMediaStreamSource(stream);
@@ -150,7 +154,8 @@ export async function runAcousticCalibrationCollector({
         collectedOnsets.length = 0;
         return {
           unmeasurable: true,
-          reason: `基準信号の検出がタイムアウトしました（第${s + 1}試行）。スピーカー音量を上げて静かな環境で再試行してください。`
+          reason: `基準信号の検出がタイムアウトしました（第${s + 1}試行）。スピーカー音量を上げて静かな環境で再試行してください。`,
+          route: routeInfo
         };
       }
 
@@ -160,7 +165,8 @@ export async function runAcousticCalibrationCollector({
     if (samples.length === 0) {
       return {
         unmeasurable: true,
-        reason: "測定に必要な基準信号が検出されませんでした。スピーカー音量を上げて静かな環境で再試行してください。"
+        reason: "測定に必要な基準信号が検出されませんでした。スピーカー音量を上げて静かな環境で再試行してください。",
+        route: routeInfo
       };
     }
 
@@ -172,7 +178,8 @@ export async function runAcousticCalibrationCollector({
     console.warn("[calibration-collector] unexpected error during calibration:", err);
     return {
       unmeasurable: true,
-      reason: "校正処理中にエラーが発生しました。マイクとスピーカーの接続を確認して再試行してください。"
+      reason: "校正処理中にエラーが発生しました。マイクとスピーカーの接続を確認して再試行してください。",
+      ...(routeInfo ? { route: routeInfo } : {})
     };
   } finally {
     try { muteGain?.disconnect(); } catch {}

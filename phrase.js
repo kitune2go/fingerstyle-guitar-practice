@@ -7,6 +7,7 @@ import {
   SIGN_CONVENTION,
   MIN_CALIBRATION_SAMPLES,
   MAX_CALIBRATION_SPREAD_MS,
+  MAX_CALIBRATION_AGE_MS,
   validateCalibrationRecord,
   extractSampleOffsetMs,
   calibrationApplies,
@@ -52,7 +53,7 @@ import {
     sources:new Set(), events:[], repeatIndex:0, timeline:null,
     range:{start:1,end:1}, assist:"full", melody:true, countIn:0, focusMode:"integrated", readingSession:null,
     run:null, pending:null, attempts:[], store:null, saving:false, preferences:{},
-    activeCalibration:null, calibrationState:"uncalibrated", calibrationMessage:"", calibrating:false, calibrationRunId:0,
+    activeCalibration:null, calibrationState:"uncalibrated", calibrationMessage:"", calibrating:false, calibrationRunId:0, calibrationExpiryTimer:null,
     currentInputRoute:null, currentOutputRoute:null, currentInputProcessing:null,
     recorder:null, recordingRunId:null, recordingFinalizing:false, recordingResult:null,
     pendingRecording:null, recordings:new Map(), pendingRecordingUrl:null, historyRecordingUrls:[],
@@ -1614,6 +1615,17 @@ import {
       startBtn.textContent=state.calibrating?"測定中…":"校正を測定";
     }
 
+    if(state.activeCalibration){
+      const target=getCurrentCalibrationTarget();
+      if(!calibrationApplies(state.activeCalibration,target)){
+        state.activeCalibration=null;
+        state.calibrationState="uncalibrated";
+        if(!state.calibrationMessage){
+          state.calibrationMessage="校正の有効期限が切れたか、設定が一致しないため未校正に戻りました。";
+        }
+      }
+    }
+
     if(state.calibrationState==="calibrated"&&state.activeCalibration){
       badge.textContent="校正済み";
       badge.className="calibration-badge calibrated";
@@ -1639,6 +1651,32 @@ import {
       spreadEl.textContent="—";
       messageEl.textContent=state.calibrationMessage||"";
       resetBtn.disabled=true;
+    }
+  }
+
+  function scheduleCalibrationExpiry(){
+    if(state.calibrationExpiryTimer){
+      clearTimeout(state.calibrationExpiryTimer);
+      state.calibrationExpiryTimer=null;
+    }
+    if(!state.activeCalibration?.createdAt) return;
+    const createdAtMs=Date.parse(state.activeCalibration.createdAt);
+    if(!Number.isFinite(createdAtMs)) return;
+    const remainingMs=(createdAtMs+MAX_CALIBRATION_AGE_MS)-Date.now();
+    if(remainingMs<=0){
+      state.activeCalibration=null;
+      state.calibrationState="uncalibrated";
+      state.calibrationMessage="校正の有効期限（30日）が切れたため未校正に戻りました。";
+      renderCalibration();
+    }else if(remainingMs<2147483647){
+      state.calibrationExpiryTimer=setTimeout(()=>{
+        if(state.activeCalibration&&!calibrationApplies(state.activeCalibration,getCurrentCalibrationTarget())){
+          state.activeCalibration=null;
+          state.calibrationState="uncalibrated";
+          state.calibrationMessage="校正の有効期限（30日）が切れたため未校正に戻りました。";
+          renderCalibration();
+        }
+      },remainingMs+50);
     }
   }
 
@@ -1686,6 +1724,7 @@ import {
         reason
       });
     }
+    scheduleCalibrationExpiry();
   }
 
   async function runCalibration(){
@@ -1870,6 +1909,7 @@ import {
     }finally{
       if(calibrationRunId===state.calibrationRunId){
         state.calibrating=false;
+        scheduleCalibrationExpiry();
         renderCalibration();
         setAudioEntriesPending(state.starting);
       }
@@ -1908,6 +1948,7 @@ import {
     state.activeCalibration=null;
     state.calibrationState="uncalibrated";
     state.calibrationMessage="校正をリセットしました。";
+    scheduleCalibrationExpiry();
     renderCalibration();
   }
 
@@ -1929,6 +1970,7 @@ import {
       state.activeCalibration=null;
       state.calibrationState="uncalibrated";
     }
+    scheduleCalibrationExpiry();
     renderCalibration();
   }
 
@@ -1969,7 +2011,11 @@ import {
       }
     },true);
     document.addEventListener("visibilitychange",()=>{
-      if(document.hidden) stop();
+      if(document.hidden){
+        stop();
+      }else{
+        void loadCalibrations();
+      }
     });
     window.addEventListener("pagehide",()=>stop());
   }
