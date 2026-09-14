@@ -1,4 +1,4 @@
-const CACHE_NAME = "fingerstyle-practice-v19";
+const CACHE_NAME = "fingerstyle-practice-v20";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -33,7 +33,7 @@ const APP_SHELL = [
   "./core/measurement.js",
   "./core/audio-route.js",
   "./core/calibration-signal.js",
-  "./core/calibration-processor.js",
+  "./calibration-processor.js",
   "./core/calibration-collector.js",
   "./assets/audio/guitar-nylon/b1.mp3",
   "./assets/audio/guitar-nylon/d2.mp3",

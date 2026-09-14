@@ -5,7 +5,8 @@ import {
   CALIBRATION_BURST_DURATION_SEC,
   CALIBRATION_CORRELATION_THRESHOLD,
   generateReferenceBurst,
-  computeNormalizedCorrelation
+  computeNormalizedCorrelation,
+  createCalibrationProcessorClass
 } from "../../core/calibration-signal.js";
 import {
   runAcousticCalibrationCollector,
@@ -286,7 +287,7 @@ test("runAcousticCalibrationCollector aborts as unmeasurable on missed burst and
 });
 
 test("runAcousticCalibrationCollector resolves worklet URL against module and passes to addModule", async () => {
-  assert.ok(DEFAULT_WORKLET_MODULE_URL.endsWith("/core/calibration-processor.js") || DEFAULT_WORKLET_MODULE_URL.includes("calibration-processor.js"));
+  assert.ok(DEFAULT_WORKLET_MODULE_URL.endsWith("/calibration-processor.js") || DEFAULT_WORKLET_MODULE_URL.includes("calibration-processor.js"));
 
   let addedModuleUrl = null;
   const mockTrack = {
@@ -454,4 +455,50 @@ test("runAcousticCalibrationCollector rejects detections that precede reference 
   // Must match the valid onset after t_ref, NOT the pre-burst onset
   assert.ok(Math.abs((res.samples[0].observedTime - res.samples[0].referenceTime) - 0.035) < 1e-4);
   assert.ok(res.samples[0].observedTime >= res.samples[0].referenceTime);
+});
+
+test("createCalibrationProcessorClass defines testable processor without globals", () => {
+  class MockBaseProcessor {
+    constructor() {
+      this.port = {
+        postMessage: (msg) => { this.lastMessage = msg; },
+        onmessage: null
+      };
+    }
+  }
+
+  let mockScope = {
+    sampleRate: 48000,
+    currentFrame: 0,
+    currentTime: 1.0
+  };
+
+  const ProcessorClass = createCalibrationProcessorClass(MockBaseProcessor, () => mockScope);
+  const processor = new ProcessorClass();
+
+  assert.equal(processor.sampleRate, 48000);
+  assert.equal(typeof processor.process, "function");
+
+  // Generate burst and pass as input block
+  const burst = generateReferenceBurst(48000);
+  const padding = new Float32Array(50);
+  const inputBuffer = new Float32Array(padding.length + burst.length + 1000);
+  inputBuffer.set(burst, padding.length);
+
+  // Process in 128-sample blocks
+  let onsets = [];
+  processor.port.postMessage = (msg) => {
+    if (msg?.type === "onset") onsets.push(msg);
+  };
+
+  for (let offset = 0; offset < inputBuffer.length; offset += 128) {
+    const block = inputBuffer.subarray(offset, Math.min(offset + 128, inputBuffer.length));
+    mockScope.currentFrame = offset;
+    mockScope.currentTime = 1.0 + offset / 48000;
+    processor.process([[block]], [], {});
+  }
+
+  assert.equal(onsets.length, 1);
+  assert.ok(onsets[0].score >= CALIBRATION_CORRELATION_THRESHOLD);
+  assert.equal(onsets[0].observedFrame, padding.length);
 });

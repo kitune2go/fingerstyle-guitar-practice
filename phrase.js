@@ -1640,7 +1640,6 @@ import {
       messageEl.textContent=state.calibrationMessage||"";
       resetBtn.disabled=true;
     }
-    setAudioEntriesPending(state.starting);
   }
 
   async function findApplicableStoredCalibration(target=getCurrentCalibrationTarget()){
@@ -1692,15 +1691,18 @@ import {
   async function runCalibration(){
     if(state.calibrating) return;
     pauseMediaPlayback();
-    await stop();
-    if(state.recorder?.running){
-      try{ await state.recorder.cancel(); }catch{}
-    }
     state.calibrating=true;
     const calibrationRunId=++state.calibrationRunId;
     renderCalibration();
+    setAudioEntriesPending(true);
 
     try{
+      await stop();
+      if(state.recorder?.running){
+        try{ await state.recorder.cancel(); }catch{}
+      }
+      if(calibrationRunId!==state.calibrationRunId) return;
+
       await ensureAudio();
       if(calibrationRunId!==state.calibrationRunId) return;
       restoreMaster();
@@ -1869,6 +1871,7 @@ import {
       if(calibrationRunId===state.calibrationRunId){
         state.calibrating=false;
         renderCalibration();
+        setAudioEntriesPending(state.starting);
       }
     }
   }

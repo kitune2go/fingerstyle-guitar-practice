@@ -9,7 +9,7 @@ import {
   inspectTrackProcessing
 } from "./audio-route.js";
 
-export const DEFAULT_WORKLET_MODULE_URL = new URL("./calibration-processor.js", import.meta.url).href;
+export const DEFAULT_WORKLET_MODULE_URL = new URL("../calibration-processor.js", import.meta.url).href;
 
 export async function runAcousticCalibrationCollector({
   audioContext,
