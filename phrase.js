@@ -1668,15 +1668,12 @@ import {
       state.calibrationState="uncalibrated";
       state.calibrationMessage="校正の有効期限（30日）が切れたため未校正に戻りました。";
       renderCalibration();
-    }else if(remainingMs<2147483647){
+    }else{
+      const MAX_TIMEOUT_MS=2147483647; // 32-bit signed integer limit (~24.8 days)
+      const delay=Math.min(remainingMs+50, MAX_TIMEOUT_MS);
       state.calibrationExpiryTimer=setTimeout(()=>{
-        if(state.activeCalibration&&!calibrationApplies(state.activeCalibration,getCurrentCalibrationTarget())){
-          state.activeCalibration=null;
-          state.calibrationState="uncalibrated";
-          state.calibrationMessage="校正の有効期限（30日）が切れたため未校正に戻りました。";
-          renderCalibration();
-        }
-      },remainingMs+50);
+        scheduleCalibrationExpiry();
+      },delay);
     }
   }
 
