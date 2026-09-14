@@ -15,7 +15,7 @@ export async function runAcousticCalibrationCollector({
   audioContext,
   mediaDevices,
   outputDestination = audioContext?.destination,
-  AudioWorkletNodeClass = (typeof AudioWorkletNode !== "undefined" ? AudioWorkletNode : null),
+  AudioWorkletNodeClass,
   workletModuleUrl = DEFAULT_WORKLET_MODULE_URL,
   sampleCount = 6,
   timeoutMs = 6000

@@ -98,6 +98,51 @@ test("runAcousticCalibrationCollector returns unmeasurable on missing context or
   assert.equal(res4.reason, "マイクを開始できませんでした。");
 });
 
+test("runAcousticCalibrationCollector never reads a realm-global AudioWorkletNode fallback", async () => {
+  const previous = globalThis.AudioWorkletNode;
+  let globalConstructorUsed = false;
+  globalThis.AudioWorkletNode = class {
+    constructor() {
+      globalConstructorUsed = true;
+    }
+  };
+
+  const mockTrack = {
+    getSettings: () => ({
+      echoCancellation: false,
+      noiseSuppression: false,
+      autoGainControl: false,
+      deviceId: "mic-1"
+    }),
+    stop: () => {}
+  };
+  const mockAudioContext = {
+    audioWorklet: { addModule: async () => {} }
+  };
+  const mockMediaDevices = {
+    getUserMedia: async () => ({
+      getAudioTracks: () => [mockTrack],
+      getTracks: () => [mockTrack]
+    })
+  };
+
+  try {
+    const result = await runAcousticCalibrationCollector({
+      audioContext: mockAudioContext,
+      mediaDevices: mockMediaDevices
+    });
+    assert.equal(result.unmeasurable, true);
+    assert.equal(result.reason, "AudioWorkletNodeが利用できません。");
+    assert.equal(globalConstructorUsed, false);
+  } finally {
+    if (previous === undefined) {
+      delete globalThis.AudioWorkletNode;
+    } else {
+      globalThis.AudioWorkletNode = previous;
+    }
+  }
+});
+
 test("runAcousticCalibrationCollector returns unmeasurable when raw capture cannot be verified", async () => {
   const mockTrack = {
     getSettings: () => ({
