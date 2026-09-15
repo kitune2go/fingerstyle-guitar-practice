@@ -178,6 +178,38 @@
       <p id="record-status" role="status"></p>
     </section>
 
+    <section class="panel calibration-panel" id="calibration-panel" aria-labelledby="calibration-heading">
+      <div class="section-title compact">
+        <div><span>LATENCY</span><h2 id="calibration-heading">レイテンシ校正</h2></div>
+        <span id="calibration-badge" class="calibration-badge uncalibrated">未校正</span>
+      </div>
+      <p id="calibration-summary">発音とマイク入力のタイミング差を校正し、測定の基準を作ります。</p>
+      <div class="calibration-details" id="calibration-details">
+        <div class="calibration-stat">
+          <span class="calibration-stat-label">状態</span>
+          <strong id="calibration-state-text">未校正</strong>
+        </div>
+        <div class="calibration-stat">
+          <span class="calibration-stat-label">経路</span>
+          <span id="calibration-path">roundTrip</span>
+        </div>
+        <div class="calibration-stat">
+          <span class="calibration-stat-label">オフセット</span>
+          <strong id="calibration-offset">—</strong>
+        </div>
+        <div class="calibration-stat">
+          <span class="calibration-stat-label">ばらつき (stddev)</span>
+          <strong id="calibration-spread">—</strong>
+        </div>
+      </div>
+      <p id="calibration-message" class="calibration-message hint"></p>
+      <div class="practice-presets">
+        <button id="start-calibration" class="primary" type="button">校正を測定</button>
+        <button id="reset-calibration" type="button" disabled>校正をリセット</button>
+      </div>
+      <p class="hint">スピーカーから出る音をマイクで拾い、音響ループ全体の往復遅延（round-trip）を測定します。100点採点や能力評価は行いません。</p>
+    </section>
+
     <section class="panel note-trainer">
       <div class="section-title">
         <div><span>ONE NOTE</span><h2>一音ずつ確認</h2></div>

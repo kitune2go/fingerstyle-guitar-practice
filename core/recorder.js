@@ -275,6 +275,7 @@ export function createRecorder({
 
   return {
     request,start,stop,cancel,
+    activeTrack:()=>stream?.getAudioTracks?.()[0]??stream?.getTracks?.()[0]??null,
     get state(){return status;},
     get running(){return status==="recording"||status==="stopping";},
     get result(){return lastResult;}

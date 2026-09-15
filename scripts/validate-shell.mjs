@@ -35,6 +35,23 @@ function referencesInCss(css, owner) {
   return found;
 }
 
+function referencesInJs(js, owner) {
+  const found = new Set();
+  const patterns = [
+    /\b(?:import|export)\s+(?:[^"'()]*?\s+from\s+)?(["'])([^"']+)\1/g,
+    /\bimport\s*\(\s*(["'])([^"']+)\1\s*\)/g,
+    /\b(?:audioWorklet\s*\.\s*addModule)\s*\(\s*(["'])([^"']+)\1\s*\)/g,
+    /\bnew\s+URL\s*\(\s*(["'])([^"']+)\1\s*,\s*import\.meta\.url\s*\)/g
+  ];
+  for (const pattern of patterns) {
+    for (const match of js.matchAll(pattern)) {
+      const reference = localReference(owner, match[2]);
+      if (reference !== null) found.add(reference);
+    }
+  }
+  return found;
+}
+
 function filesBelow(root, directory, predicate) {
   const base = path.join(root, directory);
   if (!fs.existsSync(base)) return [];
@@ -54,6 +71,7 @@ export function checkShell(root) {
   const errors = [];
   const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
   const stylesheets = new Set();
+  const scripts = new Set();
 
   const shell = new Set(
     [...read("sw.js").matchAll(/^\s*"(\.\/[^"]*)"/gm)].map((m) => m[1].replace(/^\.\//, ""))
@@ -64,6 +82,7 @@ export function checkShell(root) {
     for (const ref of referencesInHtml(read(page), page)) {
       if (!shell.has(ref)) errors.push(`sw.js: ${page} が読み込む ${ref} がAPP_SHELLにありません`);
       if (ref.endsWith(".css")) stylesheets.add(ref);
+      if (ref.endsWith(".js")) scripts.add(ref);
     }
   }
 
@@ -84,12 +103,19 @@ export function checkShell(root) {
     if (!shell.has(src)) errors.push(`sw.js: manifest のアイコン ${src} がAPP_SHELLにありません`);
   }
 
-  // Modules imported below the page entry points are invisible to HTML
-  // attributes, so every shipped module in both shared and rhythm namespaces
-  // must be checked recursively.
-  for (const directory of ["core", "rhythm"]) {
-    for (const file of filesBelow(root, directory, (name) => name.endsWith(".js"))) {
-      if (!shell.has(file)) errors.push(`sw.js: ${file} がAPP_SHELLにありません`);
+  // Only modules reachable from a page entry are runtime assets. Pure core
+  // modules used by Node tests do not belong in the offline shell until a
+  // browser entry imports them.
+  const pendingScripts = [...scripts];
+  const visitedScripts = new Set();
+  while (pendingScripts.length) {
+    const file = pendingScripts.pop();
+    if (visitedScripts.has(file)) continue;
+    visitedScripts.add(file);
+    if (!fs.existsSync(path.join(root, file))) continue;
+    for (const ref of referencesInJs(read(file), file)) {
+      if (!shell.has(ref)) errors.push(`sw.js: ${file} が読み込む ${ref} がAPP_SHELLにありません`);
+      if (ref.endsWith(".js") && !visitedScripts.has(ref)) pendingScripts.push(ref);
     }
   }
 

@@ -1,7 +1,8 @@
 import { validateAttempt } from "./practice.js";
+import { validateCalibrationRecord } from "./calibration.js";
 
 export const PRACTICE_DB_NAME="guitar-phrase-practice";
-export const PRACTICE_DB_VERSION=2;
+export const PRACTICE_DB_VERSION=3;
 
 function hasStore(db,name){
   return typeof db.objectStoreNames?.contains==="function"
@@ -12,6 +13,7 @@ function hasStore(db,name){
 export function upgradePracticeDatabase(db){
   if(!hasStore(db,"attempts")) db.createObjectStore("attempts",{keyPath:"id"});
   if(!hasStore(db,"recordings")) db.createObjectStore("recordings",{keyPath:"attemptId"});
+  if(!hasStore(db,"calibrations")) db.createObjectStore("calibrations",{keyPath:"id"});
 }
 
 function normalizeRecording(value,attemptId=value?.attemptId){
@@ -139,5 +141,88 @@ export function createPracticeStore(indexedDB){
     });
   }
 
-  return {all,addMany,saveAttempt,recording,allRecordings,deleteRecording};
+  async function allCalibrations(){
+    const db=await open();
+    return new Promise((resolve,reject)=>{
+      const transaction=db.transaction("calibrations","readonly");
+      const request=transaction.objectStore("calibrations").getAll();
+      transaction.oncomplete=()=>{
+        try{resolve(request.result.map(validateCalibrationRecord));}catch(error){reject(error);}
+      };
+      transaction.onabort=()=>reject(transaction.error);
+      transaction.onerror=()=>reject(transaction.error);
+    });
+  }
+
+  async function saveCalibration(value){
+    const record=validateCalibrationRecord(value);
+    const db=await open();
+    return new Promise((resolve,reject)=>{
+      const transaction=db.transaction("calibrations","readwrite");
+      try{
+        transaction.objectStore("calibrations").put(record);
+      }catch(error){
+        try{transaction.abort();}catch{}
+        reject(error);
+        return;
+      }
+      transaction.oncomplete=()=>resolve(record);
+      transaction.onabort=()=>reject(transaction.error??new Error("校正記録の保存を中止しました。"));
+      transaction.onerror=()=>reject(transaction.error);
+    });
+  }
+
+  async function saveCalibrations(values){
+    const records=values.map(validateCalibrationRecord);
+    const db=await open();
+    return new Promise((resolve,reject)=>{
+      const transaction=db.transaction("calibrations","readwrite");
+      const store=transaction.objectStore("calibrations");
+      try{
+        for(const record of records){
+          store.put(record);
+        }
+      }catch(error){
+        try{transaction.abort();}catch{}
+        reject(error);
+        return;
+      }
+      transaction.oncomplete=()=>resolve(records);
+      transaction.onabort=()=>reject(transaction.error??new Error("校正記録の保存を中止しました。"));
+      transaction.onerror=()=>reject(transaction.error);
+    });
+  }
+
+  async function replaceCalibration(record, superseded = []){
+    const validRecord=validateCalibrationRecord(record);
+    const validSuperseded=(superseded||[]).map(validateCalibrationRecord);
+    await saveCalibrations([validRecord,...validSuperseded]);
+    return validRecord;
+  }
+
+  async function calibration(id){
+    const db=await open();
+    return new Promise((resolve,reject)=>{
+      const transaction=db.transaction("calibrations","readonly");
+      const request=transaction.objectStore("calibrations").get(id);
+      transaction.oncomplete=()=>{
+        try{resolve(request.result?validateCalibrationRecord(request.result):null);}catch(error){reject(error);}
+      };
+      transaction.onabort=()=>reject(transaction.error);
+      transaction.onerror=()=>reject(transaction.error);
+    });
+  }
+
+  async function deleteCalibration(id){
+    const db=await open();
+    return new Promise((resolve,reject)=>{
+      const transaction=db.transaction("calibrations","readwrite");
+      transaction.objectStore("calibrations").delete(id);
+      transaction.oncomplete=()=>resolve();
+      transaction.onabort=()=>reject(transaction.error);
+      transaction.onerror=()=>reject(transaction.error);
+    });
+  }
+
+  return {all,addMany,saveAttempt,recording,allRecordings,deleteRecording,allCalibrations,saveCalibration,saveCalibrations,replaceCalibration,calibration,deleteCalibration};
 }

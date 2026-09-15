@@ -4,6 +4,28 @@ import { createSamplePlayer } from "./core/sample-player.js";
 import { ASSIST_LABELS, FOCUS_MODES, FOCUS_SUCCESS_LABELS, SELF_REVIEW_KEYS, buildPracticeTimeline, focusMelodyLabel, focusResultLabel, practiceAdvice, practiceFocusDiagnosis, practiceHistoryCompletionLabel, practiceRange, parsePracticeBackup, validateAttempt } from "./core/practice.js";
 import { createPracticeStore } from "./core/practice-store.js";
 import {
+  SIGN_CONVENTION,
+  MIN_CALIBRATION_SAMPLES,
+  MAX_CALIBRATION_SPREAD_MS,
+  MAX_CALIBRATION_AGE_MS,
+  validateCalibrationRecord,
+  extractSampleOffsetMs,
+  calibrationApplies,
+  invalidateCalibration
+} from "./core/calibration.js";
+import { validateMeasurementResult } from "./core/measurement.js";
+import {
+  UNKNOWN_ROUTE,
+  isKnownRoute,
+  resolveInputRoute,
+  resolveOutputRoute,
+  selectOutputRoute,
+  restoreOutputRoute,
+  inspectTrackProcessing,
+  createRouteTarget
+} from "./core/audio-route.js";
+import { runAcousticCalibrationCollector } from "./core/calibration-collector.js";
+import {
   buildPhraseModel,
   midiToFrequency,
   noteToFrequency,
@@ -22,6 +44,7 @@ import {
   const $ = (id) => document.getElementById(id);
   const SOUND_MODE_KEY="fingerstyle-sound-mode";
   const PRACTICE_KEY="fingerstyle-phrase-preferences";
+  const CALIBRATION_OUTPUT_ROUTE_KEY="fingerstyle-calibration-output-route";
   const state = {
     data:null, ready:null, phrase:null, model:null, index:0, noteIndex:0,
     audio:null, noiseBuffer:null, mix:null, samplePlayer:null,
@@ -33,6 +56,8 @@ import {
     sources:new Set(), events:[], repeatIndex:0, timeline:null,
     range:{start:1,end:1}, assist:"full", melody:true, countIn:0, focusMode:"integrated", readingSession:null,
     run:null, pending:null, attempts:[], store:null, saving:false, preferences:{},
+    activeCalibration:null, calibrationState:"uncalibrated", calibrationMessage:"", calibrating:false, calibrationRunId:0, calibrationExpiryTimer:null,
+    currentInputRoute:null, currentOutputRoute:null, currentInputProcessing:null,
     recorder:null, recordingRunId:null, recordingFinalizing:false, recordingResult:null,
     pendingRecording:null, recordings:new Map(), pendingRecordingUrl:null, historyRecordingUrls:[],
     followedMeasure:-1,
@@ -337,23 +362,132 @@ import {
     return names;
   }
 
+  function pauseMediaPlayback(){
+    const mediaElements=document.querySelectorAll("audio, video");
+    for(const media of mediaElements){
+      try{
+        if(!media.paused) media.pause();
+      }catch{}
+    }
+  }
+
   function setAudioEntriesPending(pending){
+    const blocked=pending||state.calibrating;
     const playButton=$("play");
     const recordButton=$("record-play");
     const noteButton=$("play-note");
     const backingButton=$("preview-backing");
-    if(playButton) playButton.disabled=pending||state.running||state.focusMode==="reading";
-    if(recordButton) recordButton.disabled=pending||state.running||state.focusMode==="reading"||state.focusMode==="rhythm";
-    if(noteButton) noteButton.disabled=pending;
-    if(backingButton) backingButton.disabled=pending||state.focusMode==="reading"||state.focusMode==="rhythm";
+    if(playButton) playButton.disabled=blocked||state.running||state.focusMode==="reading";
+    if(recordButton) recordButton.disabled=blocked||state.running||state.focusMode==="reading"||state.focusMode==="rhythm";
+    if(noteButton) noteButton.disabled=blocked;
+    if(backingButton) backingButton.disabled=blocked||state.focusMode==="reading"||state.focusMode==="rhythm";
     $("stop").disabled=!(pending||state.running||state.sources.size);
+
+    const configBlocked=state.calibrating;
+    const rhythmFocus=state.focusMode==="rhythm";
+    if($("phrase-select")) $("phrase-select").disabled=configBlocked;
+    if($("tempo")) $("tempo").disabled=configBlocked;
+    if($("sound-mode-toggle")) $("sound-mode-toggle").disabled=configBlocked;
+    if($("loop")) $("loop").disabled=configBlocked;
+    if($("focus-mode")) $("focus-mode").disabled=configBlocked;
+    if($("range-start")) $("range-start").disabled=configBlocked;
+    if($("range-end")) $("range-end").disabled=configBlocked;
+    if($("range-one")) $("range-one").disabled=configBlocked;
+    if($("range-two")) $("range-two").disabled=configBlocked;
+    if($("range-all")) $("range-all").disabled=configBlocked;
+    if($("range-previous")) $("range-previous").disabled=configBlocked||state.range.start===1;
+    if($("range-next")) $("range-next").disabled=configBlocked||state.range.end===(state.phrase?.measures??1);
+    if($("count-in")) $("count-in").disabled=configBlocked;
+    if($("assist-mode")) $("assist-mode").disabled=configBlocked;
+    if($("reveal-score")) $("reveal-score").disabled=configBlocked;
+    if($("melody-toggle")) $("melody-toggle").disabled=configBlocked;
+    if($("backing-chords")) $("backing-chords").disabled=configBlocked||rhythmFocus;
+    if($("backing-bass")) $("backing-bass").disabled=configBlocked||rhythmFocus;
+    if($("backing-drums")) $("backing-drums").disabled=configBlocked;
+
+    const mediaElements=document.querySelectorAll("audio, video");
+    for(const media of mediaElements){
+      if(configBlocked){
+        try{ if(!media.paused) media.pause(); }catch{}
+        media.style.pointerEvents="none";
+        media.setAttribute("aria-disabled","true");
+      }else{
+        media.style.pointerEvents="";
+        media.removeAttribute("aria-disabled");
+      }
+    }
+    if($("delete-recording")) $("delete-recording").disabled=configBlocked;
+    if($("retry-recording")) $("retry-recording").disabled=configBlocked;
+    document.querySelectorAll("#attempt-list button").forEach(b=>{ b.disabled=configBlocked; });
+  }
+
+  function readCalibrationOutputRoute(){
+    try{
+      const route=localStorage.getItem(CALIBRATION_OUTPUT_ROUTE_KEY);
+      return isKnownRoute(route)?route:null;
+    }catch{
+      return null;
+    }
+  }
+
+  function saveCalibrationOutputRoute(route){
+    if(!isKnownRoute(route)) return;
+    try{
+      localStorage.setItem(CALIBRATION_OUTPUT_ROUTE_KEY,route);
+    }catch{}
+  }
+
+  function clearCalibrationOutputRoute(){
+    try{
+      localStorage.removeItem(CALIBRATION_OUTPUT_ROUTE_KEY);
+    }catch{}
+  }
+
+  function getOrCreateAudioContext(){
+    const AudioContext=window.AudioContext||window.webkitAudioContext;
+    if(!AudioContext) throw new Error("このブラウザはWeb Audioに対応していません。");
+    if(!state.audio){
+      state.audio=new AudioContext({latencyHint:"interactive"});
+      if(typeof state.audio.addEventListener==="function"){
+        state.audio.addEventListener("sinkchange",()=>{
+          const outputRoute=resolveOutputRoute(state.audio);
+          state.currentOutputRoute=isKnownRoute(outputRoute)?outputRoute:null;
+          if(state.currentOutputRoute){
+            saveCalibrationOutputRoute(state.currentOutputRoute);
+          }else{
+            clearCalibrationOutputRoute();
+          }
+          if(!state.calibrating) void loadCalibrations();
+        });
+      }
+    }
+    return state.audio;
+  }
+
+  async function restoreCalibrationOutputRoute(){
+    const storedRoute=readCalibrationOutputRoute();
+    if(!storedRoute||!state.audio) return UNKNOWN_ROUTE;
+    const restored=await restoreOutputRoute({
+      audioContext:state.audio,
+      mediaDevices:navigator.mediaDevices,
+      outputRoute:storedRoute
+    });
+    if(isKnownRoute(restored.outputRoute)){
+      state.currentOutputRoute=restored.outputRoute;
+      saveCalibrationOutputRoute(restored.outputRoute);
+      return restored.outputRoute;
+    }
+    state.currentOutputRoute=null;
+    clearCalibrationOutputRoute();
+    return UNKNOWN_ROUTE;
   }
 
   async function ensureAudio(requiredSamples=PHRASE_SAMPLES){
-    const AudioContext=window.AudioContext||window.webkitAudioContext;
-    if(!AudioContext) throw new Error("このブラウザはWeb Audioに対応していません。");
-    if(!state.audio) state.audio=new AudioContext({latencyHint:"interactive"});
+    getOrCreateAudioContext();
     if(state.audio.state==="suspended") await state.audio.resume();
+    if(!isKnownRoute(state.currentOutputRoute)){
+      await restoreCalibrationOutputRoute();
+    }
 
     buildMixer();
 
@@ -848,16 +982,16 @@ import {
   }
 
   function finalizeRecordingForRun(runId){
-    if(!runId||state.pending?.id!==runId) return;
+    if(!runId||state.pending?.id!==runId) return Promise.resolve();
     const cached=state.recordingResult?.runId===runId?state.recordingResult:null;
     if(cached){
       attachRecordingResult(runId,cached.result,cached.limited);
-      return;
+      return Promise.resolve();
     }
     state.recordingFinalizing=true;
     $("recording-status").textContent="録音を確定しています…";
     renderRecords();
-    void state.recorder.stop().then(result=>{
+    return state.recorder.stop().then(result=>{
       if(result) attachRecordingResult(runId,result,result.limitReached);
       else{
         state.recordingRunId=null;
@@ -868,7 +1002,7 @@ import {
   }
 
   async function play(withRecording=false){
-    if(state.running||state.starting||withRecording&&(state.focusMode==="reading"||state.focusMode==="rhythm")) return;
+    if(state.calibrating||state.running||state.starting||withRecording&&(state.focusMode==="reading"||state.focusMode==="rhythm")) return;
     stop();
     const generation=state.generation;
     state.starting=true;
@@ -888,6 +1022,15 @@ import {
         $("recording-status").textContent="マイクを準備しています…";
         try{
           await state.recorder.start();
+          const track = state.recorder.activeTrack?.();
+          if (track) {
+            const inRoute = resolveInputRoute(track);
+            const outRoute = resolveOutputRoute(state.audio);
+            state.currentInputProcessing = inspectTrackProcessing(track);
+            if (inRoute !== UNKNOWN_ROUTE) state.currentInputRoute = inRoute;
+            if (outRoute !== UNKNOWN_ROUTE) state.currentOutputRoute = outRoute;
+            void loadCalibrations();
+          }
         }catch(error){
           if(generation===state.generation) handleRecorderError(error);
           return;
@@ -959,10 +1102,12 @@ import {
   }
 
   function stop(resetProgress=true){
+    pauseMediaPlayback();
     state.generation+=1;
     state.starting=false;
     const run=state.run;
     const recordingRunId=state.recordingRunId;
+    let recordingPromise=null;
     if(run){
       consumeVisualEvents(false);
       const elapsedSec=Math.max(0,state.audio.currentTime-run.startedAt);
@@ -978,7 +1123,7 @@ import {
       state.recordingRunId=null;
       state.recordingResult=null;
       state.recordingFinalizing=false;
-      void state.recorder.cancel().catch(handleRecorderError);
+      recordingPromise=state.recorder.cancel().catch(handleRecorderError);
     }
     silenceTail();
     state.running=false;
@@ -996,19 +1141,20 @@ import {
     $("stop").disabled=true;
     if(resetProgress) updateProgress(0);
     if(run&&recordingRunId){
-      if(state.pending?.id===recordingRunId) finalizeRecordingForRun(recordingRunId);
+      if(state.pending?.id===recordingRunId) recordingPromise=finalizeRecordingForRun(recordingRunId);
       else{
         state.recordingRunId=null;
         state.recordingResult=null;
         state.recordingFinalizing=false;
-        void state.recorder.cancel().catch(handleRecorderError);
+        recordingPromise=state.recorder.cancel().catch(handleRecorderError);
       }
     }
     if(state.phrase) renderRecords();
+    return recordingPromise||Promise.resolve();
   }
 
   async function playOne(){
-    if(state.starting) return;
+    if(state.calibrating||state.starting) return;
     stop();
     const generation=state.generation;
     state.starting=true;
@@ -1031,7 +1177,7 @@ import {
   }
 
   async function previewBacking(){
-    if(state.starting) return;
+    if(state.calibrating||state.starting) return;
     stop();
     const generation=state.generation;
     state.starting=true;
@@ -1074,6 +1220,7 @@ import {
   }
 
   function toggleBacking(type){
+    if(state.calibrating) return;
     stop();
     state.backing[type]=!state.backing[type];
     const id=type==="chords"?"backing-chords":type==="bass"?"backing-bass":"backing-drums";
@@ -1227,6 +1374,7 @@ import {
   }
 
   function changeFocus(focusMode){
+    if(state.calibrating) return;
     if(!Object.hasOwn(FOCUS_MODES,focusMode)||focusMode===state.focusMode) return;
     stop();
     state.pending=null;
@@ -1276,11 +1424,11 @@ import {
     $("record-hint").textContent=resultHints[state.focusMode];
     document.body.dataset.focus=state.focusMode;
     const rhythmFocus=state.focusMode==="rhythm";
-    $("backing-chords").disabled=rhythmFocus;
-    $("backing-bass").disabled=rhythmFocus;
+    $("backing-chords").disabled=state.calibrating||rhythmFocus;
+    $("backing-bass").disabled=state.calibrating||rhythmFocus;
     $("range-end").value=String(state.range.end);
-    $("range-previous").disabled=state.range.start===1;
-    $("range-next").disabled=state.range.end===state.phrase.measures;
+    $("range-previous").disabled=state.calibrating||state.range.start===1;
+    $("range-next").disabled=state.calibrating||state.range.end===state.phrase.measures;
     $("count-in").value=String(state.countIn);
     $("assist-mode").value=state.assist;
     $("melody-toggle").textContent=(state.focusMode==="rhythm"?"♪ リズムガイド ":"♪ お手本メロディ ")+(state.melody?"ON":"OFF");
@@ -1310,6 +1458,7 @@ import {
   }
 
   function changeRange(start,end){
+    if(state.calibrating) return;
     stop();
     state.range=practiceRange(state.phrase.measures,start,end);
     resetReadingSession();
@@ -1327,6 +1476,7 @@ import {
   }
 
   function changeAssist(assist){
+    if(state.calibrating) return;
     stop();
     state.assist=assist;
     if(assist==="memory") state.melody=false;
@@ -1390,6 +1540,7 @@ import {
   }
 
   async function deleteSavedRecording(attemptId){
+    if(state.calibrating) return;
     try{
       await state.store.deleteRecording(attemptId);
       state.recordings.delete(attemptId);
@@ -1401,14 +1552,14 @@ import {
   }
 
   function deletePendingRecording(){
-    if(!state.pendingRecording) return;
+    if(!state.pendingRecording||state.calibrating) return;
     clearPendingRecording();
     $("recording-status").textContent="今回の録音を削除しました。練習結果はそのまま記録できます。";
     renderRecords();
   }
 
   function retryRecording(){
-    if(state.running||state.starting||state.saving||state.recordingFinalizing) return;
+    if(state.running||state.starting||state.saving||state.recordingFinalizing||state.calibrating) return;
     state.pending=null;
     clearPendingRecording();
     renderRecords();
@@ -1417,7 +1568,7 @@ import {
 
   async function saveRecord(clean){
     const pending=state.pending;
-    if(state.saving||state.running||state.recordingFinalizing||!pending||pending.phraseId!==state.phrase.id) return;
+    if(state.saving||state.running||state.recordingFinalizing||state.calibrating||!pending||pending.phraseId!==state.phrase.id) return;
     const review=readSelfReview();
     if(state.pendingRecording&&review===null){
       $("record-status").textContent="録音を聴き返し、4項目の自己レビューを選んでください。";
@@ -1483,6 +1634,422 @@ import {
     }
   }
 
+  function getCurrentCalibrationTarget(inputRoute=state.currentInputRoute, outputRoute=state.currentOutputRoute, processing=state.currentInputProcessing){
+    const resolvedInput=inputRoute||UNKNOWN_ROUTE;
+    const resolvedOutput=outputRoute||resolveOutputRoute(state.audio);
+
+    return createRouteTarget({
+      pathKind:"roundTrip",
+      inputRoute:resolvedInput,
+      outputRoute:resolvedOutput,
+      processing,
+      timebase:{reference:"audio-context",observed:"audio-context"}
+    });
+  }
+
+  function computeCalibrationStats(samples){
+    if(!Array.isArray(samples)||samples.length===0){
+      throw new TypeError("測定サンプルがありません。");
+    }
+    const diffs=samples.map(extractSampleOffsetMs);
+    const sampleCount=diffs.length;
+    const mean=diffs.reduce((sum,d)=>sum+d,0)/sampleCount;
+    const variance=sampleCount>1
+      ?diffs.reduce((sum,d)=>sum+(d-mean)**2,0)/(sampleCount-1)
+      :0;
+    const spreadMs=Math.sqrt(variance);
+    return {
+      sampleCount,
+      offsetMs:Math.round(mean*10)/10,
+      spreadMs:Math.round(spreadMs*10)/10
+    };
+  }
+
+  function renderCalibration(){
+    const badge=$("calibration-badge");
+    const stateText=$("calibration-state-text");
+    const offsetEl=$("calibration-offset");
+    const spreadEl=$("calibration-spread");
+    const messageEl=$("calibration-message");
+    const resetBtn=$("reset-calibration");
+    const startBtn=$("start-calibration");
+    if(!badge||!stateText||!offsetEl||!spreadEl||!resetBtn) return;
+
+    if(startBtn){
+      startBtn.disabled=state.calibrating;
+      startBtn.textContent=state.calibrating?"測定中…":"校正を測定";
+    }
+
+    if(state.activeCalibration){
+      const target=getCurrentCalibrationTarget();
+      if(!calibrationApplies(state.activeCalibration,target)){
+        state.activeCalibration=null;
+        state.calibrationState="uncalibrated";
+        if(!state.calibrationMessage){
+          state.calibrationMessage="校正の有効期限が切れたか、設定が一致しないため未校正に戻りました。";
+        }
+      }
+    }
+
+    if(state.calibrationState==="calibrated"&&state.activeCalibration){
+      badge.textContent="校正済み";
+      badge.className="calibration-badge calibrated";
+      stateText.textContent="校正済み";
+      const sign=state.activeCalibration.offsetMs>=0?"+":"";
+      offsetEl.textContent=sign+state.activeCalibration.offsetMs.toFixed(1)+" ms";
+      spreadEl.textContent=state.activeCalibration.precision.spreadMs.toFixed(1)+" ms";
+      messageEl.textContent=state.calibrationMessage||"入出力レイテンシ校正済みです。";
+      resetBtn.disabled=state.calibrating;
+    }else if(state.calibrationState==="unmeasurable"){
+      badge.textContent="測定不能";
+      badge.className="calibration-badge unmeasurable";
+      stateText.textContent="測定不能";
+      offsetEl.textContent="—";
+      spreadEl.textContent="—";
+      messageEl.textContent=state.calibrationMessage||"測定に必要な信号が検出されませんでした。";
+      resetBtn.disabled=true;
+    }else{
+      badge.textContent="未校正";
+      badge.className="calibration-badge uncalibrated";
+      stateText.textContent="未校正";
+      offsetEl.textContent="—";
+      spreadEl.textContent="—";
+      messageEl.textContent=state.calibrationMessage||"";
+      resetBtn.disabled=true;
+    }
+  }
+
+  function scheduleCalibrationExpiry(){
+    if(state.calibrationExpiryTimer){
+      clearTimeout(state.calibrationExpiryTimer);
+      state.calibrationExpiryTimer=null;
+    }
+    if(!state.activeCalibration?.createdAt) return;
+    const createdAtMs=Date.parse(state.activeCalibration.createdAt);
+    if(!Number.isFinite(createdAtMs)) return;
+    const remainingMs=(createdAtMs+MAX_CALIBRATION_AGE_MS)-Date.now();
+    if(remainingMs<=0){
+      state.activeCalibration=null;
+      state.calibrationState="uncalibrated";
+      state.calibrationMessage="校正の有効期限（30日）が切れたため未校正に戻りました。";
+      renderCalibration();
+    }else{
+      const MAX_TIMEOUT_MS=2147483647; // 32-bit signed integer limit (~24.8 days)
+      const delay=Math.min(remainingMs+50, MAX_TIMEOUT_MS);
+      state.calibrationExpiryTimer=setTimeout(()=>{
+        scheduleCalibrationExpiry();
+      },delay);
+    }
+  }
+
+  async function findApplicableStoredCalibration(target=getCurrentCalibrationTarget()){
+    if(state.store){
+      try{
+        const all=await state.store.allCalibrations();
+        const applicable=all.filter(r=>calibrationApplies(r,target));
+        applicable.sort((a,b)=>Date.parse(b.createdAt)-Date.parse(a.createdAt));
+        if(applicable.length>0) return applicable[0];
+      }catch(err){
+        console.warn("[phrase] could not read calibrations from store:",err);
+      }
+    }
+    if(state.activeCalibration&&calibrationApplies(state.activeCalibration,target)){
+      return state.activeCalibration;
+    }
+    return null;
+  }
+
+  async function handleCalibrationUnmeasurable(reason, target=getCurrentCalibrationTarget()){
+    const preserved=await findApplicableStoredCalibration(target);
+    if(preserved){
+      state.activeCalibration=preserved;
+      state.calibrationState="calibrated";
+      state.calibrationMessage=reason+"（前回の校正値を維持しています）";
+      validateMeasurementResult({
+        metric:"roundTrip-latency",
+        state:"measured",
+        value:preserved.offsetMs,
+        unit:"ms",
+        calibrationId:preserved.id,
+        reason:null
+      });
+    }else{
+      state.activeCalibration=null;
+      state.calibrationState="unmeasurable";
+      state.calibrationMessage=reason;
+      validateMeasurementResult({
+        metric:"roundTrip-latency",
+        state:"unmeasurable",
+        value:null,
+        unit:"ms",
+        calibrationId:null,
+        reason
+      });
+    }
+    scheduleCalibrationExpiry();
+  }
+
+  async function runCalibration(){
+    if(state.calibrating) return;
+    pauseMediaPlayback();
+    state.calibrating=true;
+    const calibrationRunId=++state.calibrationRunId;
+    renderCalibration();
+    setAudioEntriesPending(true);
+
+    try{
+      const isTestMode=typeof window.__calibrationCollector==="function";
+      if(!isTestMode){
+        const outputSelection=await selectOutputRoute({
+          audioContext:getOrCreateAudioContext(),
+          mediaDevices:navigator.mediaDevices,
+          preferredOutputRoute:readCalibrationOutputRoute()
+        });
+        if(outputSelection.unmeasurable){
+          await handleCalibrationUnmeasurable(outputSelection.reason);
+          return;
+        }
+        state.currentOutputRoute=outputSelection.outputRoute;
+        saveCalibrationOutputRoute(outputSelection.outputRoute);
+      }
+
+      await stop();
+      if(state.recorder?.running){
+        try{ await state.recorder.cancel(); }catch{}
+      }
+      if(calibrationRunId!==state.calibrationRunId) return;
+
+      await ensureAudio();
+      if(calibrationRunId!==state.calibrationRunId) return;
+      restoreMaster();
+      let collectorResult;
+      if(typeof window.__calibrationCollector==="function"){
+        collectorResult=await window.__calibrationCollector();
+      }else{
+        collectorResult=await runAcousticCalibrationCollector({
+          audioContext:state.audio,
+          mediaDevices:navigator.mediaDevices,
+          outputDestination:state.mix?.master||state.audio.destination,
+          AudioWorkletNodeClass:window.AudioWorkletNode
+        });
+      }
+      if(calibrationRunId!==state.calibrationRunId) return;
+
+      const resolvedOutput=resolveOutputRoute(state.audio);
+      const detectedInput=collectorResult?.route?.inputRoute||collectorResult?.inputRoute;
+      const detectedOutput=collectorResult?.route?.outputRoute||collectorResult?.outputRoute;
+      const detectedProcessing=collectorResult?.route?.processing||collectorResult?.processing||(isTestMode?{
+        echoCancellation:false,
+        noiseSuppression:false,
+        autoGainControl:false,
+        rawCaptureVerified:true
+      }:null);
+      const inputRoute=detectedInput||state.currentInputRoute||(isTestMode?"test-mic":UNKNOWN_ROUTE);
+      const outputRoute=detectedOutput||state.currentOutputRoute||(isTestMode?"test-speaker":resolvedOutput);
+      if(inputRoute!==UNKNOWN_ROUTE) state.currentInputRoute=inputRoute;
+      if(outputRoute!==UNKNOWN_ROUTE) state.currentOutputRoute=outputRoute;
+      if(detectedProcessing) state.currentInputProcessing=detectedProcessing;
+      const currentTarget=getCurrentCalibrationTarget(state.currentInputRoute,state.currentOutputRoute,state.currentInputProcessing);
+
+      if(collectorResult?.error){
+        const errReason=typeof collectorResult.error==="string"
+          ?collectorResult.error
+          :(collectorResult.error?.message||"校正処理中にエラーが発生しました。");
+        await handleCalibrationUnmeasurable(errReason, currentTarget);
+        return;
+      }
+
+      if(collectorResult?.unmeasurable){
+        const unmeasurableReason=collectorResult.reason||"測定に必要な信号が検出されませんでした。";
+        await handleCalibrationUnmeasurable(unmeasurableReason, currentTarget);
+        return;
+      }
+
+      if(!collectorResult?.samples||!Array.isArray(collectorResult.samples)||collectorResult.samples.length===0){
+        await handleCalibrationUnmeasurable("測定サンプルが取得できませんでした。", currentTarget);
+        return;
+      }
+
+      const {sampleCount,offsetMs,spreadMs}=computeCalibrationStats(collectorResult.samples);
+      const hasKnownRoutes=isKnownRoute(inputRoute)&&isKnownRoute(outputRoute);
+      const isCalibrated=hasKnownRoutes&&sampleCount>=MIN_CALIBRATION_SAMPLES&&spreadMs<=MAX_CALIBRATION_SPREAD_MS;
+      const status=isCalibrated?"calibrated":"uncalibrated";
+
+      const record=validateCalibrationRecord({
+        id:"cal-"+Date.now()+"-"+Math.random().toString(36).slice(2,8),
+        createdAt:new Date().toISOString(),
+        pathKind:"roundTrip",
+        timebase:{
+          reference:"audio-context",
+          observed:"audio-context"
+        },
+        offsetMs,
+        signConvention:SIGN_CONVENTION,
+        sampleCount,
+        precision:{
+          spreadMs,
+          method:"stddev"
+        },
+        environment:{
+          inputRoute,
+          outputRoute,
+          ...(state.currentInputProcessing?{processing:state.currentInputProcessing}:{})
+        },
+        status,
+        validity:{
+          invalidatedAt:null,
+          reason:null
+        }
+      });
+
+      if(state.store){
+        if(isCalibrated){
+          let superseded=[];
+          try{
+            const existing=await state.store.allCalibrations();
+            const previous=existing.filter(r=>calibrationApplies(r,currentTarget));
+            superseded=previous.map(prev=>invalidateCalibration(prev,{
+              at:record.createdAt,
+              reason:"新しい校正による更新"
+            }));
+          }catch(err){
+            console.warn("[phrase] could not query older calibrations:",err);
+          }
+          if(typeof state.store.replaceCalibration==="function"){
+            await state.store.replaceCalibration(record,superseded);
+          }else{
+            await state.store.saveCalibration(record);
+            for(const s of superseded){
+              try{ await state.store.saveCalibration(s); }catch{}
+            }
+          }
+        }else{
+          await state.store.saveCalibration(record);
+        }
+      }
+
+      if(calibrationRunId!==state.calibrationRunId) return;
+
+      if(isCalibrated){
+        state.activeCalibration=record;
+        state.calibrationState="calibrated";
+        state.calibrationMessage="校正完了: オフセット "+(offsetMs>=0?"+":"")+offsetMs.toFixed(1)+" ms, ばらつき "+spreadMs.toFixed(1)+" ms ("+sampleCount+"回測定)";
+        validateMeasurementResult({
+          metric:"roundTrip-latency",
+          state:"measured",
+          value:offsetMs,
+          unit:"ms",
+          calibrationId:record.id,
+          reason:null
+        });
+      }else{
+        let explanation="";
+        if(!hasKnownRoutes){
+          explanation="入出力オーディオルートが特定できないため校正を確定できませんでした。マイクとスピーカーのデバイス接続を確認してください。";
+        }else if(sampleCount<MIN_CALIBRATION_SAMPLES){
+          explanation="サンプル数が不足しているため校正できませんでした（"+sampleCount+" / 最低 "+MIN_CALIBRATION_SAMPLES+"回）。";
+        }else{
+          explanation="ばらつきが許容値（"+MAX_CALIBRATION_SPREAD_MS+" ms）を超えているため校正できませんでした（ばらつき: "+spreadMs.toFixed(1)+" ms）。静かな環境で再試行してください。";
+        }
+        const preserved=await findApplicableStoredCalibration(currentTarget);
+        if(preserved){
+          state.activeCalibration=preserved;
+          state.calibrationState="calibrated";
+          state.calibrationMessage=explanation+"（前回の校正値を維持しています）";
+          validateMeasurementResult({
+            metric:"roundTrip-latency",
+            state:"measured",
+            value:preserved.offsetMs,
+            unit:"ms",
+            calibrationId:preserved.id,
+            reason:null
+          });
+        }else{
+          state.activeCalibration=null;
+          state.calibrationState="uncalibrated";
+          state.calibrationMessage=explanation;
+          validateMeasurementResult({
+            metric:"roundTrip-latency",
+            state:"uncalibrated",
+            value:offsetMs,
+            unit:"ms",
+            calibrationId:null,
+            reason:explanation
+          });
+        }
+      }
+    }catch(err){
+      if(calibrationRunId===state.calibrationRunId){
+        await handleCalibrationUnmeasurable("校正中にエラーが発生しました。静かな環境で再試行してください。", getCurrentCalibrationTarget());
+      }
+    }finally{
+      if(calibrationRunId===state.calibrationRunId){
+        state.calibrating=false;
+        scheduleCalibrationExpiry();
+        renderCalibration();
+        setAudioEntriesPending(state.starting);
+      }
+    }
+  }
+
+  async function resetCalibration(){
+    state.calibrationRunId++;
+    state.calibrating=false;
+    const target=getCurrentCalibrationTarget();
+    if(state.store){
+      try{
+        const all=await state.store.allCalibrations();
+        const applicable=all.filter(r=>calibrationApplies(r,target));
+        const invalidated=applicable.map(r=>invalidateCalibration(r,{
+          at:new Date().toISOString(),
+          reason:"ユーザー操作によるリセット"
+        }));
+        if(typeof state.store.saveCalibrations==="function"){
+          await state.store.saveCalibrations(invalidated);
+        }else{
+          for(const inv of invalidated){
+            await state.store.saveCalibration(inv);
+          }
+        }
+      }catch(err){
+        console.warn("[phrase] could not persist calibration invalidation:",err);
+        state.calibrationMessage="校正をリセットできませんでした。もう一度お試しください。";
+        renderCalibration();
+        return;
+      }
+    }
+    state.currentInputRoute=null;
+    state.currentOutputRoute=null;
+    state.currentInputProcessing=null;
+    state.activeCalibration=null;
+    state.calibrationState="uncalibrated";
+    state.calibrationMessage="校正をリセットしました。";
+    scheduleCalibrationExpiry();
+    renderCalibration();
+  }
+
+  async function loadCalibrations(){
+    if(!state.store) return;
+    try{
+      const target=getCurrentCalibrationTarget();
+      const applicable=await findApplicableStoredCalibration(target);
+      if(applicable){
+        state.activeCalibration=applicable;
+        state.calibrationState="calibrated";
+        state.calibrationMessage="";
+      }else{
+        state.activeCalibration=null;
+        state.calibrationState="uncalibrated";
+      }
+    }catch(err){
+      console.warn("[phrase] could not load calibrations:",err);
+      state.activeCalibration=null;
+      state.calibrationState="uncalibrated";
+    }
+    scheduleCalibrationExpiry();
+    renderCalibration();
+  }
+
   function bindPracticeEvents(){
     $("focus-mode").addEventListener("change",event=>changeFocus(event.target.value));
     $("reading-reveal").addEventListener("click",revealReadingAnswer);
@@ -1497,9 +2064,11 @@ import {
     $("assist-mode").addEventListener("change",event=>changeAssist(event.target.value));
     $("reveal-score").addEventListener("click",()=>changeAssist("full"));
     $("count-in").addEventListener("change",event=>{
+      if(state.calibrating) return;
       stop();state.countIn=Number(event.target.value);savePracticePreferences();renderRecords();
     });
     $("melody-toggle").addEventListener("click",()=>{
+      if(state.calibrating) return;
       stop();state.melody=!state.melody;renderPracticeControls();savePracticePreferences();renderRecords();
     });
     for(const key of SELF_REVIEW_KEYS) $("review-"+key).addEventListener("change",renderRecords);
@@ -1510,8 +2079,19 @@ import {
     $("export-practice").addEventListener("click",()=>void exportPractice());
     $("import-practice").addEventListener("click",()=>$("practice-file").click());
     $("practice-file").addEventListener("change",event=>void importPractice(event.target.files[0]));
+    $("start-calibration").addEventListener("click",()=>void runCalibration());
+    $("reset-calibration").addEventListener("click",()=>void resetCalibration());
+    document.addEventListener("play",event=>{
+      if(state.calibrating&&event.target&&typeof event.target.pause==="function"){
+        try{ event.target.pause(); }catch{}
+      }
+    },true);
     document.addEventListener("visibilitychange",()=>{
-      if(document.hidden) stop();
+      if(document.hidden){
+        stop();
+      }else{
+        void loadCalibrations();
+      }
     });
     window.addEventListener("pagehide",()=>stop());
   }
@@ -1541,6 +2121,7 @@ import {
       }catch{}
       state.index=Math.max(0,state.data.phrases.findIndex(phrase=>phrase.id===state.preferences.selected));
       renderPhrase();
+      renderCalibration();
       bindPracticeEvents();
       try{
         state.store=createPracticeStore(window.indexedDB);
@@ -1555,20 +2136,25 @@ import {
         }).catch(()=>{
           $("record-status").textContent="端末内の録音を読み込めませんでした。通常の練習記録と再生は利用できます。";
         });
+        void loadCalibrations();
       }catch{
         $("record-status").textContent="練習記録を読み込めませんでした。再生は利用できます。";
+        renderCalibration();
       }
 
       $("phrase-select").addEventListener("change",(e)=>{
+        if(state.calibrating) return;
         state.index=Number(e.target.value);
         renderPhrase();
         savePracticePreferences();
       });
       $("tempo").addEventListener("input",(e)=>{
+        if(state.calibrating) return;
         stop();$("tempo-label").textContent=e.target.value;savePracticePreferences();renderRecords();
       });
       $("sound-mode-toggle").addEventListener("click",toggleSoundMode);
       $("loop").addEventListener("click",()=>{
+        if(state.calibrating) return;
         stop();
         state.loop=!state.loop;
         $("loop").setAttribute("aria-pressed",String(state.loop));
@@ -1585,6 +2171,48 @@ import {
       $("backing-chords").addEventListener("click",()=>toggleBacking("chords"));
       $("backing-bass").addEventListener("click",()=>toggleBacking("bass"));
       $("backing-drums").addEventListener("click",()=>toggleBacking("drums"));
+
+      if(navigator.mediaDevices?.addEventListener){
+        navigator.mediaDevices.addEventListener("devicechange",()=>{
+          // A device-list change removes every inferred route until the selected
+          // output is verified again against the browser's current device list.
+          state.currentInputRoute=null;
+          state.currentOutputRoute=null;
+          state.currentInputProcessing=null;
+          void restoreCalibrationOutputRoute().finally(()=>loadCalibrations());
+        });
+      }
+
+      window.addEventListener("fingerstyle:set-input-route",(e)=>{
+        state.currentInputRoute=e.detail?.inputRoute||null;
+        if(e.detail?.processing!==undefined){
+          state.currentInputProcessing=e.detail.processing;
+        }else if(state.currentInputRoute==="test-mic"){
+          state.currentInputProcessing={
+            echoCancellation:false,
+            noiseSuppression:false,
+            autoGainControl:false,
+            rawCaptureVerified:true
+          };
+        }
+        void loadCalibrations();
+      });
+
+      window.addEventListener("fingerstyle:set-route",(e)=>{
+        state.currentInputRoute=e.detail?.inputRoute||null;
+        state.currentOutputRoute=e.detail?.outputRoute||null;
+        if(e.detail?.processing!==undefined){
+          state.currentInputProcessing=e.detail.processing;
+        }else if(state.currentInputRoute==="test-mic"){
+          state.currentInputProcessing={
+            echoCancellation:false,
+            noiseSuppression:false,
+            autoGainControl:false,
+            rawCaptureVerified:true
+          };
+        }
+        void loadCalibrations();
+      });
     }catch(error){
       document.body.insertAdjacentHTML("beforeend",'<p style="padding:16px;color:#9e3f2f">'+escapeHtml(error.message)+"</p>");
     }
