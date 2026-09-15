@@ -29,6 +29,9 @@ export async function runAcousticCalibrationCollector({
   if (typeof audioContext.audioWorklet?.addModule !== "function") {
     return { unmeasurable: true, reason: "このブラウザはAudioWorkletに対応していません。" };
   }
+  if (typeof AudioWorkletNodeClass !== "function") {
+    return { unmeasurable: true, reason: "AudioWorkletNodeが利用できません。" };
+  }
 
   let stream = null;
   let workletNode = null;
@@ -84,10 +87,6 @@ export async function runAcousticCalibrationCollector({
 
     // 2. Load the AudioWorklet processor module
     await audioContext.audioWorklet.addModule(workletModuleUrl);
-
-    if (typeof AudioWorkletNodeClass !== "function") {
-      return { unmeasurable: true, reason: "AudioWorkletNodeが利用できません。", route: routeInfo };
-    }
 
     sourceNode = audioContext.createMediaStreamSource(stream);
     workletNode = new AudioWorkletNodeClass(audioContext, "calibration-processor");

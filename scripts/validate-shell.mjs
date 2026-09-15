@@ -114,9 +114,8 @@ export function checkShell(root) {
     visitedScripts.add(file);
     if (!fs.existsSync(path.join(root, file))) continue;
     for (const ref of referencesInJs(read(file), file)) {
-      if (!ref.endsWith(".js")) continue;
       if (!shell.has(ref)) errors.push(`sw.js: ${file} が読み込む ${ref} がAPP_SHELLにありません`);
-      if (!visitedScripts.has(ref)) pendingScripts.push(ref);
+      if (ref.endsWith(".js") && !visitedScripts.has(ref)) pendingScripts.push(ref);
     }
   }
 

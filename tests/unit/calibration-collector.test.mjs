@@ -53,6 +53,7 @@ test("runAcousticCalibrationCollector returns unmeasurable on missing context or
   const mockAudioContext = {
     audioWorklet: { addModule: async () => {} }
   };
+  class MockWorkletNode {}
   const mockMediaDevices = {
     getUserMedia: async () => {
       const err = new Error("Permission denied");
@@ -62,7 +63,8 @@ test("runAcousticCalibrationCollector returns unmeasurable on missing context or
   };
   const res2 = await runAcousticCalibrationCollector({
     audioContext: mockAudioContext,
-    mediaDevices: mockMediaDevices
+    mediaDevices: mockMediaDevices,
+    AudioWorkletNodeClass: MockWorkletNode
   });
   assert.equal(res2.unmeasurable, true);
   assert.equal(res2.reason, "マイクの利用が許可されませんでした。");
@@ -77,7 +79,8 @@ test("runAcousticCalibrationCollector returns unmeasurable on missing context or
   };
   const res3 = await runAcousticCalibrationCollector({
     audioContext: mockAudioContext,
-    mediaDevices: mockMediaDevicesNoDevice
+    mediaDevices: mockMediaDevicesNoDevice,
+    AudioWorkletNodeClass: MockWorkletNode
   });
   assert.equal(res3.unmeasurable, true);
   assert.equal(res3.reason, "利用できるマイクが見つかりませんでした。");
@@ -92,48 +95,39 @@ test("runAcousticCalibrationCollector returns unmeasurable on missing context or
   };
   const res4 = await runAcousticCalibrationCollector({
     audioContext: mockAudioContext,
-    mediaDevices: mockMediaDevicesOtherErr
+    mediaDevices: mockMediaDevicesOtherErr,
+    AudioWorkletNodeClass: MockWorkletNode
   });
   assert.equal(res4.unmeasurable, true);
   assert.equal(res4.reason, "マイクを開始できませんでした。");
 });
 
-test("runAcousticCalibrationCollector never reads a realm-global AudioWorkletNode fallback", async () => {
+test("runAcousticCalibrationCollector rejects a missing injected AudioWorkletNode before requesting the microphone", async () => {
   const previous = globalThis.AudioWorkletNode;
   let globalConstructorUsed = false;
+  let microphoneRequested = false;
   globalThis.AudioWorkletNode = class {
     constructor() {
       globalConstructorUsed = true;
     }
   };
 
-  const mockTrack = {
-    getSettings: () => ({
-      echoCancellation: false,
-      noiseSuppression: false,
-      autoGainControl: false,
-      deviceId: "mic-1"
-    }),
-    stop: () => {}
-  };
-  const mockAudioContext = {
-    audioWorklet: { addModule: async () => {} }
-  };
-  const mockMediaDevices = {
-    getUserMedia: async () => ({
-      getAudioTracks: () => [mockTrack],
-      getTracks: () => [mockTrack]
-    })
-  };
-
   try {
     const result = await runAcousticCalibrationCollector({
-      audioContext: mockAudioContext,
-      mediaDevices: mockMediaDevices
+      audioContext: {
+        audioWorklet: { addModule: async () => {} }
+      },
+      mediaDevices: {
+        getUserMedia: async () => {
+          microphoneRequested = true;
+          throw new Error("getUserMedia must not be called");
+        }
+      }
     });
     assert.equal(result.unmeasurable, true);
     assert.equal(result.reason, "AudioWorkletNodeが利用できません。");
     assert.equal(globalConstructorUsed, false);
+    assert.equal(microphoneRequested, false);
   } finally {
     if (previous === undefined) {
       delete globalThis.AudioWorkletNode;
@@ -164,7 +158,8 @@ test("runAcousticCalibrationCollector returns unmeasurable when raw capture cann
   };
   const res = await runAcousticCalibrationCollector({
     audioContext: mockAudioContext,
-    mediaDevices: mockMediaDevices
+    mediaDevices: mockMediaDevices,
+    AudioWorkletNodeClass: class {}
   });
   assert.equal(res.unmeasurable, true);
   assert.ok(res.reason.includes("マイクの音声処理"));
@@ -360,11 +355,11 @@ test("runAcousticCalibrationCollector resolves worklet URL against module and pa
     })
   };
 
-  // Run with default URL, which fails gracefully at AudioWorkletNodeClass check
+  // Run with the default URL; later incomplete context methods fail gracefully
   await runAcousticCalibrationCollector({
     audioContext: mockAudioContext,
     mediaDevices: mockMediaDevices,
-    AudioWorkletNodeClass: null
+    AudioWorkletNodeClass: class {}
   });
 
   assert.equal(addedModuleUrl, DEFAULT_WORKLET_MODULE_URL);
@@ -374,7 +369,7 @@ test("runAcousticCalibrationCollector resolves worklet URL against module and pa
     audioContext: mockAudioContext,
     mediaDevices: mockMediaDevices,
     workletModuleUrl: "./custom-processor.js",
-    AudioWorkletNodeClass: null
+    AudioWorkletNodeClass: class {}
   });
 
   assert.equal(addedModuleUrl, "./custom-processor.js");
@@ -406,7 +401,8 @@ test("runAcousticCalibrationCollector maps unexpected errors to Japanese explana
 
   const res = await runAcousticCalibrationCollector({
     audioContext: mockAudioContext,
-    mediaDevices: mockMediaDevices
+    mediaDevices: mockMediaDevices,
+    AudioWorkletNodeClass: class {}
   });
 
   assert.equal(res.unmeasurable, true);

@@ -172,6 +172,33 @@ test("nested core and rhythm modules present in the shell pass", () => {
   assert.deepEqual(errors, []);
 });
 
+test("a non-JavaScript asset referenced by a reachable module must be in the shell", () => {
+  const { errors } = checkShell(fixture({
+    shell: [...COMPLETE, "./core/view.js"],
+    files: PRESENT,
+    core: [
+      { path: "view.js", content: 'const icon = new URL("./meter.png", import.meta.url);' },
+      { path: "meter.png", content: "image" }
+    ],
+    appJs: 'import "./core/view.js";'
+  }));
+  assert.equal(errors.length, 1);
+  assert.match(errors[0], /core\/meter\.png/);
+});
+
+test("a non-JavaScript module asset is validated but never parsed recursively", () => {
+  const { errors } = checkShell(fixture({
+    shell: [...COMPLETE, "./core/view.js", "./core/meter.png"],
+    files: PRESENT,
+    core: [
+      { path: "view.js", content: 'const icon = new URL("./meter.png", import.meta.url);' },
+      { path: "meter.png", content: 'import "./ghost.js";' }
+    ],
+    appJs: 'import "./core/view.js";'
+  }));
+  assert.deepEqual(errors, []);
+});
+
 test("an audio sample missing from the shell is reported", () => {
   const { errors } = checkShell(fixture({
     shell: COMPLETE, files: PRESENT, audio: ["drums/kick.wav"]
